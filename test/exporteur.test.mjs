@@ -172,3 +172,13 @@ test('un type d\'asset inconnu ARRÊTE l\'export au lieu de le publier amputé',
   }));
   assert.throws(() => dataOfProject(bac, '0.0.0'), /hologramme/);
 });
+
+// v1.2.4 : un prefab rangé dans son `.prefab.json` (format depuis v0.198.0) était publié SANS
+// arbre par l'exporteur — la publication serveur du cloud sortait des monstres et un brouillard
+// invisibles. Le projet Donjons a des prefabs en fichiers : chacun doit arriver plein.
+const DONJONS = path.join(ROOT, 'jeux', 'Donjons');
+test('un prefab en fichier .prefab.json est publié AVEC son arbre', {skip: !fs.existsSync(path.join(DONJONS, 'project.json'))}, () => {
+  const prefabs = dataOfProject(DONJONS, '0.0.0').assets.filter((a) => a.kind === 'prefab');
+  assert.ok(prefabs.length, 'le projet Donjons devrait avoir des prefabs');
+  for(const a of prefabs) assert.ok(Array.isArray(a.tree) && a.tree.length, a.name + ' : prefab publié vide');
+});

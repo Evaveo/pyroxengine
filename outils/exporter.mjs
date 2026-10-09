@@ -106,7 +106,14 @@ function inlineAsset(a, src){
       const d = JSON.parse(textOf(a.file));
       return {...base, preset: {kind: d.kind || '', params: d.params || {}}};
     }
-    case 'prefab':      return {...base, base: a.base || null, tree: a.tree};
+    case 'prefab': {
+      // Depuis v0.198.0 le prefab vit dans son `.prefab.json` ({version, base, tree}). Ne lire
+      // que `a.tree` (l'ancien prefab en ligne) publiait des prefabs VIDES : monstres, brouillard
+      // et effets créés par `api.create` n'apparaissaient plus dans le jeu (v1.2.4).
+      if(!a.file) return {...base, base: a.base || null, tree: a.tree || []};
+      const d = JSON.parse(textOf(a.file));
+      return {...base, base: d.base || a.base || null, tree: d.tree || []};
+    }
     case 'texture':
     case 'audio':
     case 'model':
