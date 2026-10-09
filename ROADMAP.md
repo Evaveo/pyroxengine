@@ -1,4 +1,4 @@
-# Roadmap — Éditeur 3D
+# Roadmap — PyroxEngine
 
 > Positionnement retenu : **éditeur de niveaux 3D hors ligne, léger et sans installation,
 > pour construire, tester et exporter rapidement des prototypes jouables.**

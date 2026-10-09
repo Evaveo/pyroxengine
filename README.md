@@ -1,4 +1,4 @@
-# Pyrox Engine
+# PyroxEngine
 
 Éditeur de niveaux et moteur de jeu 3D/2D dans le navigateur, construit sur
 [Three.js](https://threejs.org). JavaScript sans build : on ouvre les fichiers, on développe.
@@ -51,6 +51,18 @@ documentation et les textes de l'interface sont en français.
 Ce dépôt est un miroir publié à chaque version depuis notre dépôt de travail. Les tickets et
 les pull requests sont les bienvenus : une contribution acceptée est reportée dans la version
 suivante.
+
+## L'équipe
+
+PyroxEngine est développé par Evaveo. Il doit beaucoup à celles et ceux qui l'ont construit au
+quotidien, et nous tenons à saluer tout particulièrement la participation active de :
+
+- **Sébastien Chevallier**
+- **Loïc Lextrait**
+- **Laurent Matheis**
+- **Paul Thomas Ravel**
+
+Merci à eux : ce moteur est aussi le leur.
 
 ## Licence
 

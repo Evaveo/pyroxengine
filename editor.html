@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Éditeur 3D</title>
+<title>PyroxEngine</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23090b0d'/%3E%3Cpath d='M6 6h7l13 20h-7z' fill='%23ff550a'/%3E%3Cpath d='M26 6h-7L6 26h7z' fill='%23ff550a'/%3E%3C/svg%3E">
 <!-- L'ORDRE DES FEUILLES EST UNE DÉPENDANCE. Sans build, la cascade dépend de l'ordre de ces
      balises, et aucun test ne peut l'évaluer (le harnais n'a pas de moteur de rendu). Il va du
      plus général au plus spécifique : les tokens d'abord — tout le reste s'y réfère —, puis la
@@ -23,6 +24,7 @@
 <link rel="stylesheet" href="css/layout.css?v=148">
 <link rel="stylesheet" href="css/panels.css?v=148">
 <link rel="stylesheet" href="css/widgets.css?v=148">
+<link rel="stylesheet" href="css/brand.css">
 </head>
 <body>
 <!-- Indicateur de chargement d'un projet créé/ouvert depuis le Hub (moteur/hub.html). Posé
@@ -71,7 +73,7 @@
        change seulement de parent. Ce qui l'accompagne à droite — version et Jouer
        (IA, Audio, Multijoueur sont au menu Fenêtres, la physique seule au menu Affichage) — vient de `#bar`, avec les mêmes ids et donc les mêmes écouteurs. -->
   <div id="topbar">
-    <span id="brand"><i class="ph-fill ph-cube-transparent" aria-hidden="true"></i>Éditeur 3D</span>
+    <span id="brand" title="PyroxEngine"><span class="pyrox-logo"><b>PYRO<i>X</i></b><small>ENGINE</small></span></span>
     <div id="menus"></div>
     <span id="topbar-right">
       <!-- Le projet ouvert. Rempli par js/ui.js, depuis les DEUX seuls endroits qui écrivent

@@ -78,7 +78,7 @@ export const COPILOT_SYSTEM =
   // « prototypes » figurait ici. Ce n'est pas un détail de vocabulaire : une
   // invite qui dit de viser un prototype fait produire un prototype. L'ambition
   // est de faire des jeux web complets, l'invite doit le dire.
-  'Tu es le copilote intégré d\'un éditeur 3D pour des jeux web complets '
+  'Tu es le copilote intégré de PyroxEngine, un moteur 3D pour des jeux web complets '
   + '(three.js). Tu agis sur la scène UNIQUEMENT via les outils fournis. '
   // Le corps des règles vit dans js/ai-guidelines.js : c'est le MÊME texte que reçoit une IA
   // externe par le pont MCP. Chaque règle y est commentée par l'erreur qu'elle corrige.

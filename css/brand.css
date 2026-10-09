@@ -1,0 +1,12 @@
+/* ---------- La marque PyroxEngine ----------
+   Le logo est du TEXTE, pas une image : il suit la densité, reste net à toute taille et ne
+   demande aucun fichier de plus. « PYRO » en blanc, le « X » à l'accent (l'orange de la marque),
+   « ENGINE » en gris espacé à côté ou dessous — la DA fournie le 2026-10-09. */
+.pyrox-logo{display:inline-flex;align-items:baseline;gap:.45em;line-height:1;white-space:nowrap;
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;text-decoration:none;}
+.pyrox-logo b{font-weight:800;letter-spacing:.06em;color:var(--txt-strong);}
+.pyrox-logo b i{font-style:normal;color:var(--accent);}
+.pyrox-logo small{font-size:.62em;font-weight:500;letter-spacing:.38em;color:var(--txt-dim);}
+/* Variante empilée (hub, À propos) : ENGINE centré sous PYROX, comme sur l'affiche. */
+.pyrox-logo.stacked{flex-direction:column;align-items:center;gap:.35em;}
+.pyrox-logo.stacked small{padding-left:.38em;}

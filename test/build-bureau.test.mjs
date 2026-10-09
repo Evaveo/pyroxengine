@@ -106,11 +106,17 @@ test('l identifiant d application est TOUJOURS valide', () => {
   // projet, et l on cherche une heure.
   ['', '   ', '!!!', 'Éléphant Bleu 3000'].forEach((nom) => {
     const id = env.appIdOf(nom);
-    assert.ok(/^com\.evaveo\.[a-z0-9-]+$/.test(id),
+    assert.ok(/^com\.[a-z0-9]+\.[a-z0-9-]+$/.test(id),
       'nom « ' + nom + ' » donne l identifiant invalide « ' + id + ' »');
   });
-  assert.equal(env.appIdOf('Éléphant Bleu'), 'com.evaveo.elephant-bleu',
+  assert.equal(env.appIdOf('Éléphant Bleu'), 'com.studio.elephant-bleu',
     'les accents et les espaces doivent etre normalises, pas laisses tels quels');
+  // Le moteur sert a plusieurs studios : le studio regle dans Parametres du projet signe le jeu.
+  assert.equal(env.appIdOf('Éléphant Bleu', 'Mon Studio'), 'com.monstudio.elephant-bleu');
+  const pkg = JSON.parse(env.packageJsonDesktop('Jeu', 'Mon Studio'));
+  assert.equal(pkg.author, 'Mon Studio');
+  assert.match(pkg.description, /Mon Studio/);
+  assert.doesNotMatch(pkg.description, /Evaveo/i);
 });
 
 // ---------- 3. Le jeu est vraiment là, et c'est le même ----------

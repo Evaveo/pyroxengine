@@ -28,7 +28,7 @@ body{
   align-items:center;
   gap:8px;
 }
-#hub-brand i{ color:var(--accent); }
+#hub-brand{ font-size:24px; }
 
 #hub-skip{
   background:transparent;

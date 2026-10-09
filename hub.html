@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Éditeur 3D — Projets</title>
+<title>PyroxEngine — Projets</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23090b0d'/%3E%3Cpath d='M6 6h7l13 20h-7z' fill='%23ff550a'/%3E%3Cpath d='M26 6h-7L6 26h7z' fill='%23ff550a'/%3E%3C/svg%3E">
 <!-- UN PROJET HEBERGE N'EST PAS AFFAIRE DE HUB. `/editeur/` sert cette page (c'est l'index
      du dossier), et `?projet=N` n'y veut rien dire : seul editor.html charge js/project.js,
      donc `openCloudProjectFromUrl()`. Le tableau de bord du cloud pointait sur `/editeur/?projet=N`
@@ -21,12 +22,13 @@
 <link rel="stylesheet" href="css/tokens.css?v=1">
 <link rel="stylesheet" href="css/base.css?v=1">
 <link rel="stylesheet" href="css/hub.css?v=1">
+<link rel="stylesheet" href="css/brand.css">
 </head>
 <body>
 <div id="hub-app">
 
   <header id="hub-header">
-    <span id="hub-brand"><i class="ph-fill ph-cube-transparent" aria-hidden="true"></i>Éditeur 3D</span>
+    <span id="hub-brand" title="PyroxEngine"><span class="pyrox-logo"><b>PYRO<i>X</i></b><small>ENGINE</small></span></span>
     <button id="hub-skip" title="Ouvrir l'éditeur sans choisir de projet">Ouvrir l'éditeur à vide</button>
   </header>
 

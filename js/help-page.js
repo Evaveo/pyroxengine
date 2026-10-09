@@ -338,7 +338,7 @@ export function renderHelp(){
   applyAdvancedPref();
   const p = pageHelpById(helpPageCurrent);
   document.title = (helpSearch.trim() ? 'Recherche' : (p ? p.title : 'Aide'))
-    + ' — Manuel de l\'éditeur 3D';
+    + ' — Manuel de PyroxEngine';
 }
 
 // L'adresse fait foi : c'est elle que lit openHelp() depuis l'éditeur, elle que

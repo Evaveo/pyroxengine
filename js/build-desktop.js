@@ -143,11 +143,23 @@ export function steamActionsVdf(def){
  * Windows. Fabriqué depuis le nom du projet, et TOUJOURS valide : un identifiant vide fait
  * échouer la compilation avec un message qui ne désigne pas le projet.
  */
-export function appIdOf(name){
-  const slug = String(name || '').toLowerCase()
+function slugOf(text){
+  return String(text || '').toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return 'com.evaveo.' + (slug || 'jeu');
+}
+
+// Le segment « studio » de l'identifiant : le studio réglé dans Paramètres du projet, sinon
+// `studio`. Pas de tiret dans un segment d'identifiant Apple/Windows qui doit rester simple.
+export function appIdOf(name, studio){
+  const org = slugOf(studio).replace(/-/g, '') || 'studio';
+  return 'com.' + org + '.' + (slugOf(name) || 'jeu');
+}
+
+// La phrase de description : signée par le studio quand il est réglé.
+function descriptionOf(studio){
+  const s = String(studio || '').trim();
+  return s ? 'Jeu de ' + s + ', réalisé avec PyroxEngine.' : 'Jeu réalisé avec PyroxEngine.';
 }
 
 /**
@@ -165,13 +177,14 @@ export function appIdOf(name){
  * DÉPAQUETÉ (`asarUnpack`) : il contient un module natif et la bibliothèque de Steam
  * (`steam_api64.dll`…), qu'un système ne charge pas depuis une archive.
  */
-export function packageJsonDesktop(name){
-  const slug = appIdOf(name).split('.').pop();
+export function packageJsonDesktop(name, studio){
+  const slug = appIdOf(name, studio).split('.').pop();
   return JSON.stringify({
     name: slug,
     productName: String(name || 'Jeu'),
     version: '1.0.0',
-    description: 'Jeu produit par l\'éditeur 3D Evaveo.',
+    description: descriptionOf(studio),
+    author: String(studio || '').trim() || undefined,
     main: 'main.js',
     scripts: {
       start: 'electron .',
@@ -185,7 +198,7 @@ export function packageJsonDesktop(name){
       'electron-builder': BUILDER_RANGE
     },
     build: {
-      appId: appIdOf(name),
+      appId: appIdOf(name, studio),
       productName: String(name || 'Jeu'),
       files: ['main.js', 'preload.js', 'steam_input.json', DESKTOP_GAME_DIR + '/**'],
       asarUnpack: ['**/node_modules/steamworks.js/**'],
@@ -216,7 +229,7 @@ export function packageJsonDesktop(name){
  * (`\w`, `\.`) — dans un gabarit, c'est une séquence d'échappement invalide.
  */
 export function mainJsDesktop(){
-  return `// Processus principal Electron — engendré par l'éditeur 3D Evaveo.
+  return `// Processus principal Electron — engendré par PyroxEngine.
 //
 // NE PAS remplacer le protocole « jeu:// » par win.loadFile() : Chromium refuse les modules ES
 // servis en file://, et tout ce moteur est fait de <script type="module">. La fenêtre serait
@@ -491,7 +504,7 @@ ipcMain.on('jeu:plein-ecran', function(evenement, actif){
  * que ces appels nommés, et c'est `main.js` qui vérifie chaque argument.
  */
 export function preloadJsDesktop(){
-  return `// Pont jeu ↔ système — engendré par l'éditeur 3D Evaveo.
+  return `// Pont jeu ↔ système — engendré par PyroxEngine.
 // Volontairement minuscule : contextIsolation reste actif et Node n'est PAS exposé à la page.
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -605,9 +618,10 @@ est inerte. Pour le brancher :
  * le jeu garde la manette par l'API Gamepad.
  */
 export function desktopWrapperFiles(name, options){
+  const studio = options && options.studio;
   const def = steamInputDefinition(options && options.inputs);
   return {
-    'package.json': packageJsonDesktop(name),
+    'package.json': packageJsonDesktop(name, studio),
     'main.js': mainJsDesktop(),
     'preload.js': preloadJsDesktop(),
     'steam_appid.txt': STEAM_TEST_APPID + '\n',

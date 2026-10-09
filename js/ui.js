@@ -126,8 +126,9 @@ document.getElementById('modal-close').addEventListener('click', closeModal);
 modal.addEventListener('click', function(e){ if(e.target === modal) closeModal(); });
 
 export function modalAAbout(){
-  openModal('À propos — v' + VERSION_EDITOR,
-    '<p>Mini moteur / éditeur 3D pour le web, construit sur three.js r185 '
+  openModal('À propos — PyroxEngine v' + VERSION_EDITOR,
+    '<p style="text-align:center;font-size:30px;margin:6px 0 14px"><span class="pyrox-logo stacked"><b>PYRO<i>X</i></b><small>ENGINE</small></span></p>'
+    + '<p><b>PyroxEngine</b> — moteur et éditeur 3D pour le web, construit sur three.js r185 '
     + '(rendu, chargeurs FBX/glTF, TransformControls) et cannon.js (physique), 100 % hors ligne. '
     + 'Les matériaux suivent la convention <b>glTF de Khronos</b> — voir Aide → Le contrat glTF.</p>'
     + '<p style="margin-top:8px">Un projet regroupe plusieurs scènes et des assets partagés '

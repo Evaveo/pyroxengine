@@ -525,7 +525,8 @@ export async function exportBuildDesktop(){
   const files = {};
   Object.keys(b.files).forEach(function(k){ files[DESKTOP_GAME_DIR + '/' + k] = b.files[k]; });
   // La table d'entrées du projet donne les actions déclarées à Steam Input (js/build-desktop.js).
-  const enveloppe = desktopWrapperFiles(name, {inputs: project.inputs || null});
+  const enveloppe = desktopWrapperFiles(name, {inputs: project.inputs || null,
+                                                  studio: project.settings && project.settings.studio});
   Object.keys(enveloppe).forEach(function(k){ files[k] = fflate.strToU8(enveloppe[k]); });
 
   const zip = fflate.zipSync(files, {level:6});

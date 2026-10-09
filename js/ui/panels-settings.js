@@ -104,6 +104,11 @@ export const PANEL_PROJECT_SETTINGS = {
       { ids: ['f-ps-name'], label: 'Nom', type: 'text',
         get: function(s){ return s.name; },
         set: function(s, v){ s.name = String(v || '').trim() || s.name; } },
+      { ids: ['f-ps-studio'], label: 'Studio', type: 'text',
+        help: 'Le nom de votre studio. Il signe le jeu exporté : description de l’application, '
+            + 'identifiant (com.<studio>.<jeu>) et LISEZMOI du build bureau.',
+        get: function(s){ return s.studio || ''; },
+        set: function(s, v){ s.studio = String(v || '').trim(); } },
       { ids: ['f-ps-versionvisible'], label: 'Afficher la version dans le jeu',
         type: 'checkbox',
         help: 'Réglage de PROJET et non préférence d\'éditeur : deux personnes qui publient le '

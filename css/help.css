@@ -11,8 +11,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);font-size:14p
   height:52px;padding:0 18px;background:var(--panel);border-bottom:1px solid var(--edge);}
 .help-brand{display:flex;align-items:center;gap:9px;color:var(--txt-strong);text-decoration:none;
   font-weight:600;font-size:15px;white-space:nowrap;}
-.help-brand-mark{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;
-  background:var(--accent);color:var(--on-accent);font-weight:700;}
+.help-brand-sub{font-weight:500;color:var(--txt-dim);}
 #help-search-box{flex:1;display:flex;justify-content:center;}
 #help-q{width:min(520px,100%);background:var(--surface-sunken);border:1px solid var(--edge);
   color:var(--txt);border-radius:999px;padding:7px 16px;font-size:13px;font-family:inherit;}

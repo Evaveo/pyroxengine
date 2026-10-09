@@ -1,4 +1,4 @@
-# Moteur / Éditeur 3D — Spécifications fonctionnelles et techniques
+# PyroxEngine — Spécifications fonctionnelles et techniques
 
 > **Point d'entrée** : `editor.html` — application multi-fichiers (`css/`, `js/`, `vendor/`),
 > 100 % hors ligne, à ouvrir directement ou via un petit serveur statique.

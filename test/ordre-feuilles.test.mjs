@@ -22,7 +22,9 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 // peut pas charger base.css — voir l'en-tête de css/states.css.
 const ORDRE = ['css/tokens.css', 'css/base.css', 'css/states.css', 'css/components.css',
                'css/layout.css',
-               'css/panels.css', 'css/widgets.css'];
+               'css/panels.css', 'css/widgets.css',
+               // La marque en DERNIER : elle lit les jetons de tokens.css.
+               'css/brand.css'];
 
 function liens(page){
   const html = fs.readFileSync(path.join(root, page), 'utf8');

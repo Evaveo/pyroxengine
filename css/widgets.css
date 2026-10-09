@@ -15,7 +15,7 @@
   #topbar{flex:0 0 32px;display:flex;align-items:stretch;gap:var(--sp-3);padding:0 var(--sp-4);
     background:var(--panel);border-bottom:1px solid var(--edge);user-select:none;}
   #brand{display:flex;align-items:center;gap:var(--sp-3);color:var(--accent);
-    font-weight:600;font-size:12.5px;white-space:nowrap;flex:none;}
+    font-weight:600;font-size:13px;white-space:nowrap;flex:none;}
   #topbar-right{display:flex;align-items:center;gap:var(--sp-3);margin-left:auto;flex:none;}
   /* Le nom du projet se lit, il ne s'actionne pas : il reste du texte atténué, et se tronque
      plutôt que de pousser les boutons hors de la barre. */

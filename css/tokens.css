@@ -61,17 +61,17 @@
 
   /* ---- Accent et liens. ---- */
   /* la couleur de l'editeur : selection active, focus, boutons */
-  --accent:#ed7940;
+  --accent:#ff550a;
   /* l'accent, un ton plus vif : un os visé dans le sequenceur */
-  --accent-bright:#f19266;
+  --accent-bright:#ff7a3d;
   /* l'accent, attenue : une categorie de noeud, un mot-cle */
-  --accent-soft:#da6b33;
+  --accent-soft:#e04a06;
   /* un lien de la page d'aide */
-  --link:#f79e75;
+  --link:#ff8f5c;
   /* l'anneau de focus clavier. MEME valeur que l'accent, nom
      different : ce que le clavier designe et ce que la souris a choisi ne sont pas
      la meme chose, et l'un peut changer sans l'autre. */
-  --focus:#ed7940;
+  --focus:#ff550a;
 
   /* ---- Selection d'objet — l'ambre, et rien d'autre ne l'utilise. ---- */
   /* l'objet selectionne */
@@ -159,14 +159,14 @@
 
   /* ---- Les VOILES : une couleur déjà nommée, à opacité partielle. Ce ne sont pas des
      teintes de plus — c'est la même, laissée transparente. ---- */
-  --accent-wash:rgba(237,121,64,.15);
-  --accent-wash-strong:rgba(237,121,64,.18);
-  --accent-hex-wash:#ed794044;
+  --accent-wash:rgba(255,85,10,.15);
+  --accent-wash-strong:rgba(255,85,10,.18);
+  --accent-hex-wash:#ff550a44;
   --bright-wash:rgba(241,146,102,.08);
   --bright-wash-mid:rgba(241,146,102,.12);
   --bright-wash-strong:rgba(241,146,102,.14);
-  --select-wash:rgba(237,121,64,.12);
-  --select-wash-strong:rgba(237,121,64,.32);
+  --select-wash:rgba(255,85,10,.12);
+  --select-wash-strong:rgba(255,85,10,.32);
   --ok-wash-faint:rgba(134,212,137,.05);
   --ok-wash:rgba(134,212,137,.07);
   --ok-wash-strong:rgba(134,212,137,.14);
