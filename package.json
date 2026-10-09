@@ -1,6 +1,6 @@
 {
   "name": "moteur3d-editeur",
-"version": "1.2.0",
+"version": "1.2.1",
   "private": true,
   "description": "Tests du moteur/editeur 3D (application statique, sans build).",
   "type": "module",

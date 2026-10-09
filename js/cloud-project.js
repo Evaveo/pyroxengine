@@ -141,11 +141,18 @@ export function cloudApi(base = ''){
     async hasObject(sha){
       return (await fetch(url('/api/assets/' + sha), { method: 'HEAD', credentials: 'include' })).ok;
     },
+    // RÉESSAYÉ sur 429 / 5xx comme `readObject` : la mise en ligne d'un projet dossier dépose
+    // tous ses objets d'affilée, et le limiteur du serveur en refusait une partie.
     async putObject(sha, bytes){
-      const r = await fetch(url('/api/assets/' + sha),
-        { method: 'PUT', credentials: 'include',
-          headers: { 'content-type': 'application/octet-stream' }, body: bytes });
-      if(!r.ok) throw new Error('dépôt de ' + sha.slice(0, 8) + ' refusé (HTTP ' + r.status + ')');
+      return withRetry(async function(){
+        const r = await fetch(url('/api/assets/' + sha),
+          { method: 'PUT', credentials: 'include',
+            headers: { 'content-type': 'application/octet-stream' }, body: bytes });
+        if(!r.ok){
+          throw httpError('dépôt de ' + sha.slice(0, 8) + ' refusé (HTTP ' + r.status + ')', r.status,
+            r.headers && r.headers.get ? r.headers.get('retry-after') : null);
+        }
+      });
     },
     // Verrous de scene. `takeLock` est IDEMPOTENT pour le detenteur : c'est la meme requete
     // qui prend le verrou et qui renouvelle son bail (cloud/back/controleurs/verrous.js).
