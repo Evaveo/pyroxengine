@@ -79,8 +79,10 @@ export const MODULES_OPTIONAL = [
    besoin: function(d){ return objectsOfProject(d).some(function(o){
      return (o.components || []).some(function(c){ return c.type === 'Tilemap'; });
    }); }},
-  {file: 'js/anim-sprite.js', dans: 'anim-sprite.js', pourquoi: 'animation de sprites',
-   besoin: function(d){ return objectsOfProject(d).some(function(o){ return o.animSprite; }); }},
+  // anim-sprite.js porte aussi `sameGeometrySprite`, appelé par `updateImageSprite` pour TOUT
+  // sprite (api.spriteImage d'un script) : le lier au seul animSprite cassait les jeux publiés.
+  {file: 'js/anim-sprite.js', dans: 'anim-sprite.js', pourquoi: 'animation et images de sprites',
+   besoin: function(d){ return objectsOfProject(d).some(function(o){ return o.sprite2d || o.animSprite; }); }},
   {file: 'js/camera-framing.js', dans: 'camera-framing.js', pourquoi: 'caméra 2D',
    besoin: function(d){ return objectsOfProject(d).some(function(o){
      return (o.components || []).some(function(c){

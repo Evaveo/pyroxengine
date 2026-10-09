@@ -6,4 +6,4 @@
 //
 // Il est tenu en accord avec le ChangeLog le plus récent par test/version-moteur.test.mjs :
 // publier une version sans écrire son ChangeLog, ou l'inverse, fait échouer la garde.
-export const VERSION_ENGINE = '1.2.1';
+export const VERSION_ENGINE = '1.2.2';
