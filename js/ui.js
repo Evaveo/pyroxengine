@@ -8,7 +8,7 @@ import { openAnalysisScene } from './analysis.js';
 import { warnOnceMissing } from './dev-guards.js';
 import { createPrefabFromSelection, inputImport } from './assets.js';
 import { recoverAutoSave } from './autosave.js';
-import { exportBuildDesktop, exportBuildWeb, publishBuildToCloud } from './build.js';
+import { compileDesktopSteam, compileDesktopWindows, downloadDesktopCompilerInstaller, exportBuildDesktop, exportBuildWeb, publishBuildToCloud } from './build.js';
 import { openLastWindowDocumentUI } from './components/component-uidocument.js';
 import { Registry } from './component-registry.js';
 import { openCopilot } from './copilot.js';
@@ -316,6 +316,10 @@ export const defMenus = [
       // jeu, et une entrée active d'un côté et grisée de l'autre ferait chercher une différence
       // qui n'existe pas.
       {label:'🖥 Projet bureau (Electron, .zip)', active:projectHasContent, action:exportBuildDesktop},
+      // Le même zip, compilé sur cette machine par le lien pyrox-build:// (js/desktop-compiler.js).
+      {label:'🪟 Exécutable Windows (.exe)', active:projectHasContent, action:compileDesktopWindows},
+      {label:'🎮 Dossier Steam (Windows, sans installeur)', active:projectHasContent, action:compileDesktopSteam},
+      {label:'Installer le lanceur de compilation…', action:downloadDesktopCompilerInstaller},
       {label:'Dossier lisible (Git, .zip)', action:exportProjectGit},
       {label:'Données de jeu (.json)', active:function(){ return objects.length > 0; },
         action:exportDataGame},

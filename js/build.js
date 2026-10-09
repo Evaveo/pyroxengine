@@ -23,6 +23,7 @@
 // `out` ne s'écrit que pour un RENOMMAGE réel. Il n'y en a qu'un.
 import { DECODERS_COMPRESSION, compressionsOfModel } from './asset-compression.js';
 import { DESKTOP_GAME_DIR, desktopWrapperFiles } from './build-desktop.js';
+import { DESKTOP_BUILD_HANDLER_VERSION, DESKTOP_BUILD_INSTALLER_NAME, compileUrl, windowsCompilerInstaller } from './desktop-compiler.js';
 import { moduleEmbedded, trimmingBuild } from './build-trimming.js';
 import { setStatus } from './hierarchy.js';
 import { escapeHtml } from './objects.js';
@@ -515,9 +516,22 @@ export async function exportBuildWeb(){
  * message de fin les rappelle.
  */
 export async function exportBuildDesktop(){
+  const z = await desktopZip();
+  if(!z) return;
+  setStatus('🖥 Projet bureau exporté (' + Math.round(z.blob.size/1024) + ' Ko) — dézippez, puis '
+    + '« npm install » et « npm run dist » pour obtenir l\'exécutable. Lisez LISEZMOI.md avant '
+    + 'de livrer : signature et versions épinglées'
+    + trimmingNote(z.build), 12000);
+}
+
+/**
+ * Le zip du projet Electron, téléchargé. Partagé par l'export bureau et la compilation
+ * (js/desktop-compiler.js) : le lanceur compile EXACTEMENT ce zip-là.
+ */
+async function desktopZip(){
   setStatus('Préparation du build bureau…');
   const b = await assembleBuild();
-  if(!b){ setStatus(FILE_PROTOCOL_MESSAGE, 7000); return; }
+  if(!b){ setStatus(FILE_PROTOCOL_MESSAGE, 7000); return null; }
 
   const name = project.name || 'Jeu';
   // LE MÊME JEU QUE LA SORTIE WEB, aux octets près : c'est `assembleBuild` qui le dit, et
@@ -525,17 +539,75 @@ export async function exportBuildDesktop(){
   const files = {};
   Object.keys(b.files).forEach(function(k){ files[DESKTOP_GAME_DIR + '/' + k] = b.files[k]; });
   // La table d'entrées du projet donne les actions déclarées à Steam Input (js/build-desktop.js).
+  const settings = project.settings || {};
   const enveloppe = desktopWrapperFiles(name, {inputs: project.inputs || null,
-                                                  studio: project.settings && project.settings.studio});
+                                                  studio: settings.studio,
+                                                  signingSubject: settings.signingSubject});
   Object.keys(enveloppe).forEach(function(k){ files[k] = fflate.strToU8(enveloppe[k]); });
 
   const zip = fflate.zipSync(files, {level:6});
   const blob = new Blob([zip], {type:'application/zip'});
-  telecharger(blob, slugFile(name) + '-bureau.zip');
-  setStatus('🖥 Projet bureau exporté (' + Math.round(blob.size/1024) + ' Ko) — dézippez, puis '
-    + '« npm install » et « npm run dist » pour obtenir l\'exécutable. Lisez LISEZMOI.md avant '
-    + 'de livrer : signature et versions épinglées'
-    + trimmingNote(b), 12000);
+  const slug = slugFile(name).slice(0, 64).replace(/-+$/, '') || 'jeu';
+  telecharger(blob, slug + '-bureau.zip');
+  return {blob: blob, slug: slug, build: b};
+}
+
+// Le lanceur pyrox-build:// est-il installé sur CETTE machine ? Le navigateur ne peut pas le
+// demander à Windows : on retient seulement que l'installeur a été fourni.
+const KEY_COMPILER = 'pyrox-build-installed';
+function compilerInstalled(){
+  // La VERSION du lanceur, pas un oui/non : un lanceur plus ancien ne connaît pas toutes les
+  // cibles, et l'éditeur repropose l'installeur.
+  try { return Number(localStorage.getItem(KEY_COMPILER)) >= DESKTOP_BUILD_HANDLER_VERSION; } catch(e){ return false; }
+}
+
+/** Télécharge l'installeur du lanceur (une fois par machine). */
+export function downloadDesktopCompilerInstaller(){
+  const blob = new Blob([windowsCompilerInstaller()], {type:'application/octet-stream'});
+  telecharger(blob, DESKTOP_BUILD_INSTALLER_NAME);
+  try { localStorage.setItem(KEY_COMPILER, String(DESKTOP_BUILD_HANDLER_VERSION)); } catch(e){ /* stockage bloqué */ }
+  setStatus('Ouvrez ' + DESKTOP_BUILD_INSTALLER_NAME + ' (double-clic, une seule fois), puis relancez '
+    + 'Exporter → Exécutable Windows.', 12000);
+}
+
+/**
+ * « Exécutable Windows » : le zip bureau, puis le lien pyrox-build:// qui le fait compiler sur
+ * cette machine par electron-builder — signé si un certificat est réglé dans le projet.
+ */
+export function compileDesktopWindows(){ return compileDesktop('compile'); }
+
+/**
+ * « Dossier Steam » : la même compilation, SANS installeur — `dist/win-unpacked`, à envoyer tel
+ * quel par SteamPipe. Steam installe les fichiers lui-même : ni SmartScreen ni signature exigée.
+ */
+export function compileDesktopSteam(){ return compileDesktop('steam'); }
+
+async function compileDesktop(target){
+  if(!/Windows/i.test(navigator.userAgent || '')){
+    setStatus('La compilation en un clic est réservée à Windows : utilisez « Projet bureau (.zip) ».', 8000);
+    return;
+  }
+  if(!compilerInstalled()){
+    if(confirm('Pour compiler, PyroxEngine installe une fois un petit lanceur sur ce PC '
+      + '(lien pyrox-build://, sans droits administrateur).\n\nTélécharger l\'installeur ?')){
+      downloadDesktopCompilerInstaller();
+    }
+    return;
+  }
+  const z = await desktopZip();
+  if(!z) return;
+  const a = document.createElement('a');
+  a.href = compileUrl(z.slug, target);
+  a.click();
+  if(target === 'steam'){
+    setStatus('🎮 Compilation Steam lancée dans une fenêtre Windows — à la fin, envoyez le dossier '
+      + 'win-unpacked qui s\'ouvre avec SteamPipe. Rien ne s\'ouvre ? Réinstallez le lanceur (Exporter).', 14000);
+    return;
+  }
+  const signed = !!(project.settings && project.settings.signingSubject);
+  setStatus('🖥 Compilation lancée dans une fenêtre Windows — l\'exe arrive dans le dossier qui '
+    + 's\'ouvrira à la fin.' + (signed ? '' : ' ⚠ Non signé : réglez « Certificat de signature » '
+    + 'dans Paramètres du projet.') + ' Rien ne s\'ouvre ? Réinstallez le lanceur (Exporter).', 14000);
 }
 
 /** Un blob proposé au téléchargement. Partagé par les deux exports. */

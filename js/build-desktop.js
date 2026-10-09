@@ -37,7 +37,8 @@
 
 /** La version d'Electron demandée. Voir `packageJsonDesktop` pour pourquoi c'est une plage. */
 export const ELECTRON_RANGE = '>=30.0.0';
-export const BUILDER_RANGE = '>=24.0.0';
+// 26 au moins : c'est la version où la signature Windows passe dans `win.signtoolOptions`.
+export const BUILDER_RANGE = '>=26.0.0';
 
 /** Le dossier du ZIP qui contient le jeu. `main.js` et le protocole s'y réfèrent. */
 export const DESKTOP_GAME_DIR = 'jeu';
@@ -177,7 +178,12 @@ function descriptionOf(studio){
  * DÉPAQUETÉ (`asarUnpack`) : il contient un module natif et la bibliothèque de Steam
  * (`steam_api64.dll`…), qu'un système ne charge pas depuis une archive.
  */
-export function packageJsonDesktop(name, studio){
+export function packageJsonDesktop(name, studio, signingSubject){
+  // LA SIGNATURE WINDOWS : le nom du sujet d'un certificat du magasin Windows (Paramètres du
+  // projet). Jamais de fichier ni de mot de passe ici — ce package.json part dans un zip.
+  const subject = String(signingSubject || '').trim();
+  const win = {target: 'nsis'};
+  if(subject) win.signtoolOptions = {certificateSubjectName: subject};
   const slug = appIdOf(name, studio).split('.').pop();
   return JSON.stringify({
     name: slug,
@@ -202,7 +208,7 @@ export function packageJsonDesktop(name, studio){
       productName: String(name || 'Jeu'),
       files: ['main.js', 'preload.js', 'steam_input.json', DESKTOP_GAME_DIR + '/**'],
       asarUnpack: ['**/node_modules/steamworks.js/**'],
-      win: {target: 'nsis'},
+      win: win,
       mac: {target: 'dmg'},
       linux: {target: 'AppImage'}
     }
@@ -621,7 +627,7 @@ export function desktopWrapperFiles(name, options){
   const studio = options && options.studio;
   const def = steamInputDefinition(options && options.inputs);
   return {
-    'package.json': packageJsonDesktop(name, studio),
+    'package.json': packageJsonDesktop(name, studio, options && options.signingSubject),
     'main.js': mainJsDesktop(),
     'preload.js': preloadJsDesktop(),
     'steam_appid.txt': STEAM_TEST_APPID + '\n',

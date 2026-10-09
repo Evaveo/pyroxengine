@@ -31,7 +31,7 @@ import { newScene } from './serialization.js';
 export const PROJECT_SETTINGS_KEYS_MIGRATED = ['layers', 'layers2d', 'ppu2d', 'inputs', 'lightmap',
                                         'locales', 'design', 'versionVisible'];
 
-export const PROJECT_SETTINGS_KEYS = ['name', 'studio'].concat(PROJECT_SETTINGS_KEYS_MIGRATED,
+export const PROJECT_SETTINGS_KEYS = ['name', 'studio', 'signingSubject'].concat(PROJECT_SETTINGS_KEYS_MIGRATED,
                                               ['shadowDistance', 'shadowMapSize', 'newScene', 'network',
                                                'audioBuses', 'plugins', 'startScene', 'validatedAssets']);
 
@@ -140,6 +140,9 @@ export function projectSettingsOf(source){
     // LE STUDIO qui signe le jeu exporté (description, identifiant d'application, LISEZMOI).
     // Le moteur sert à plusieurs studios : ce n'est jamais une valeur codée en dur.
     studio: (typeof brut.studio === 'string') ? brut.studio : '',
+    // LE CERTIFICAT qui signe l'exe Windows : le nom du sujet (CN) d'un certificat de signature
+    // de code du magasin Windows. Un nom, jamais un secret — voir js/desktop-compiler.js.
+    signingSubject: (typeof brut.signingSubject === 'string') ? brut.signingSubject : '',
     layers: brut.layers ?? JSON.parse(JSON.stringify(LAYERS_DEFAULT)),
     // Un tableau de calques 2D VIDE n'est pas un choix : `orderOfSort` renverrait tous les
     // sprites au fond. Même règle qu'au palier 13, qui les a posés pour la première fois.

@@ -109,6 +109,12 @@ export const PANEL_PROJECT_SETTINGS = {
             + 'identifiant (com.<studio>.<jeu>) et LISEZMOI du build bureau.',
         get: function(s){ return s.studio || ''; },
         set: function(s, v){ s.studio = String(v || '').trim(); } },
+      { ids: ['f-ps-signingsubject'], label: 'Certificat de signature', type: 'text',
+        help: 'Le nom (CN) du certificat de signature de code installé dans Windows, par exemple '
+            + '« Mon Studio SAS ». Il signe l’exécutable Windows compilé depuis Exporter. Vide : '
+            + 'l’exe n’est pas signé et Windows affiche un avertissement SmartScreen.',
+        get: function(s){ return s.signingSubject || ''; },
+        set: function(s, v){ s.signingSubject = String(v || '').trim(); } },
       { ids: ['f-ps-versionvisible'], label: 'Afficher la version dans le jeu',
         type: 'checkbox',
         help: 'Réglage de PROJET et non préférence d\'éditeur : deux personnes qui publient le '

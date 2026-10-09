@@ -18,6 +18,7 @@ export const GROUPS = {
     'aide.test.mjs', 'aide-chiffres.test.mjs', 'aide-couverture.test.mjs',
     'allegement-build.test.mjs', 'allegement-scripts-reference.test.mjs', 'gardes-allegement.test.mjs',
     'build-bureau.test.mjs',
+    'desktop-compiler.test.mjs',
     'apis-navigateur.test.mjs', 'densite-tokens.test.mjs', 'doc-versionnage.test.mjs',
     'encodage-source.test.mjs', 'esm-modules.test.mjs', 'esm-risques-evaluation.test.mjs',
     'exporteur.test.mjs', 'fichiers-charges.test.mjs', 'globales-non-declarees.test.mjs', 'fixture-build-test.test.mjs',
