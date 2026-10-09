@@ -1,0 +1,134 @@
+{
+  "name": "FPS — déplacement",
+  "base": null,
+  "tree": [
+    {
+      "id": 6,
+      "name": "Player",
+      "pos": [
+        0,
+        1,
+        0
+      ],
+      "quat": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ech": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "ombreProjetee": false,
+      "ombreRecue": false,
+      "parent": null,
+      "phys": null,
+      "game": null,
+      "detail": null,
+      "collider": null,
+      "scripts": [
+        {
+          "code": "// Déplacement + regard, sans arme — prefab par défaut « FPS — déplacement ».\nvar LOOK_SENSITIVITY = 0.0022;\nvar SPEED = 6;\nvar SPEED_SPRINT = 9;\nvar JUMP = 8;\nvar GRAVITY = 22;\nvar PITCH_MAX = 1.45;\n\nvar yaw = 0, pitch = 0;\nvar cam = null;\n\nfunction start(api){\n  cam = api.find('Camera');\n  var q = api.me.quaternion;\n  yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.x * q.x));\n  api.me.rotation.set(0, yaw, 0);\n  api.lockMouse(true);\n}\n\nfunction update(api){\n  if(!api.mouseLocked() && api.click(0)) api.lockMouse(true);\n\n  var md = api.mouseDelta();\n  yaw -= md.x * LOOK_SENSITIVITY;\n  pitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, pitch - md.y * LOOK_SENSITIVITY));\n  api.me.rotation.y = yaw;\n  if(cam) cam.rotation.x = -pitch;\n\n  var sprinting = api.action('sprint');\n  api.moveCharacter({\n    speed: sprinting ? SPEED_SPRINT : SPEED,\n    jump: JUMP,\n    gravity: GRAVITY,\n    tagGround: 'ground',\n    yaw: yaw\n  });\n}\n",
+          "active": true,
+          "values": {}
+        }
+      ],
+      "prefabId": null,
+      "materialId": null,
+      "audio": null,
+      "part": null,
+      "terr": null,
+      "subScene": null,
+      "probe": null,
+      "uiDoc": null,
+      "anim": null,
+      "animator": null,
+      "sprite2d": null,
+      "animSprite": null,
+      "body2d": null,
+      "collider2d": null,
+      "controller2d": null,
+      "events": null,
+      "components": [
+        {
+          "type": "ScriptJS",
+          "data": {
+            "code": "// Déplacement + regard, sans arme — prefab par défaut « FPS — déplacement ».\nvar LOOK_SENSITIVITY = 0.0022;\nvar SPEED = 6;\nvar SPEED_SPRINT = 9;\nvar JUMP = 8;\nvar GRAVITY = 22;\nvar PITCH_MAX = 1.45;\n\nvar yaw = 0, pitch = 0;\nvar cam = null;\n\nfunction start(api){\n  cam = api.find('Camera');\n  var q = api.me.quaternion;\n  yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.x * q.x));\n  api.me.rotation.set(0, yaw, 0);\n  api.lockMouse(true);\n}\n\nfunction update(api){\n  if(!api.mouseLocked() && api.click(0)) api.lockMouse(true);\n\n  var md = api.mouseDelta();\n  yaw -= md.x * LOOK_SENSITIVITY;\n  pitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, pitch - md.y * LOOK_SENSITIVITY));\n  api.me.rotation.y = yaw;\n  if(cam) cam.rotation.x = -pitch;\n\n  var sprinting = api.action('sprint');\n  api.moveCharacter({\n    speed: sprinting ? SPEED_SPRINT : SPEED,\n    jump: JUMP,\n    gravity: GRAVITY,\n    tagGround: 'ground',\n    yaw: yaw\n  });\n}\n",
+            "active": true,
+            "values": {}
+          },
+          "active": true
+        }
+      ],
+      "lightmapAtlas": null
+    },
+    {
+      "id": 7,
+      "name": "Camera",
+      "pos": [
+        0,
+        0.75,
+        0
+      ],
+      "quat": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ech": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "ombreProjetee": false,
+      "ombreRecue": false,
+      "parent": 6,
+      "phys": null,
+      "game": null,
+      "detail": null,
+      "collider": null,
+      "scripts": null,
+      "prefabId": null,
+      "materialId": null,
+      "audio": null,
+      "part": null,
+      "terr": null,
+      "subScene": null,
+      "probe": null,
+      "uiDoc": null,
+      "anim": null,
+      "animator": null,
+      "sprite2d": null,
+      "animSprite": null,
+      "body2d": null,
+      "collider2d": null,
+      "controller2d": null,
+      "events": null,
+      "components": [
+        {
+          "type": "Camera",
+          "data": {
+            "projection": "perspective",
+            "fov": 50,
+            "near": 0.1,
+            "far": 1000,
+            "orthoSize": 5,
+            "pixelPerfect": false,
+            "ppu": 100,
+            "mode": "height",
+            "widthLevel": 0,
+            "ratio": 1,
+            "main": true
+          },
+          "active": true
+        }
+      ],
+      "lightmapAtlas": null
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+/* ---------- LES ÉTATS INTERACTIFS : thémés, jamais laissés au navigateur ---------- */
+/*
+ * Focus clavier, sélection de texte, désactivé, barres de défilement. Quatre états qui ne
+ * décrivent AUCUNE surface en particulier — ils s'appliquent à tout ce qu'on peut atteindre.
+ *
+ * POURQUOI UNE FEUILLE À PART, ET NON base.css. Ces états sont exactement aussi nécessaires
+ * à la page d'aide qu'à l'éditeur, et `base.css` est inchargeable par l'aide : elle verrouille
+ * `html,body{height:100%;overflow:hidden}`, ce qui supprimerait le défilement d'une page de
+ * lecture. Les recopier dans help.css redonnerait la situation que css/tokens.css a supprimée
+ * — deux exemplaires d'une même règle, qui divergent sans que personne le voie.
+ *
+ * POURQUOI ILS SONT ICI ET PLUS DISPERSÉS. L'anneau de focus n'existait que sous `.field`
+ * (panels.css). Partout ailleurs — barre d'outils, onglets du dock, menus, arbre de
+ * hiérarchie, modale — le navigateur peignait le sien, en bleu, sur une interface qui n'a
+ * plus rien de bleu. Un état qu'on pose au cas par cas est un état qui manque partout où on
+ * n'y a pas pensé.
+ *
+ * Chargée juste après base.css : tout ce qui suit peut l'écraser sans `!important`.
+ */
+
+  /* Le focus CLAVIER, et lui seul. `:focus-visible` et non `:focus` : un clic à la souris qui
+     laisse un anneau derrière lui finit toujours par donner envie de le supprimer — et on
+     supprime alors aussi celui dont la navigation au clavier a besoin. */
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+
+  /* La sélection de texte prend l'accent, pas le bleu du système. */
+  ::selection{background:var(--accent-wash-strong);color:var(--txt-strong);}
+
+  /* Désactivé : une seule opacité, décidée une fois. Les barres en écrivaient chacune la
+     sienne (.45, .5, .6), ce qui faisait lire « à moitié éteint » et « presque éteint »
+     comme deux états distincts alors qu'il n'y en a qu'un. */
+  button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.45;
+    cursor:not-allowed;}
+
+  /* LECTURE SEULE : scène verrouillée par quelqu'un d'autre, ou verrou perdu. L'état est posé
+     par js/readonly-ui.js, qui coupe REELLEMENT les commandes (`disabled`) — ce qui suit ne
+     fait que le rendre lisible. Une teinte suffit : le bandeau dit déjà quoi et par qui.
+     Ce qui reste vivant reste PLEINEMENT vivant : consulter une scène prise par un collègue
+     — tourner autour, ouvrir les panneaux, lire l'inspecteur — est le cas d'usage normal, pas
+     une consolation. */
+  body.scene-readonly #hier-body{cursor:default;}
+  body.scene-readonly #hier-body [draggable]{cursor:default;}
+  /* L'inspecteur garde sa mise en page : ses champs sont grisés un par un par `:disabled`
+     ci-dessus. Griser le panneau ENTIER rendrait aussi illisibles les valeurs qu'on vient
+     consulter — c'est-à-dire la seule chose qu'on puisse encore y faire. */
+  body.scene-readonly #insp-body .sec{opacity:.8;}
+
+  /* Les barres de défilement. Sans ces règles, Chromium peint les siennes — claires — sur
+     chacun des panneaux sombres : c'est le détail qui trahit le plus une interface sombre.
+     `scrollbar-color` couvre Firefox, les `::-webkit-*` couvrent Chromium. */
+  *{scrollbar-color:var(--edge-strong) transparent;scrollbar-width:thin;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--edge-strong);border-radius:var(--r-3);}
+  ::-webkit-scrollbar-thumb:hover{background:var(--edge-strongest);}
+  ::-webkit-scrollbar-corner{background:transparent;}

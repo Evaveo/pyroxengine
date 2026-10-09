@@ -1,0 +1,13 @@
+{
+  "name": "moteur3d-editeur",
+"version": "0.198.2",
+  "private": true,
+  "description": "Tests du moteur/editeur 3D (application statique, sans build).",
+  "type": "module",
+  "scripts": {
+    "test": "npm run lint:ordre && node outils/lancer-tests.mjs",
+    "test:groupe": "node outils/lancer-tests.mjs",
+    "lint:ordre": "node test/lint-ordre-chargement.mjs",
+    "export": "node outils/exporter.mjs"
+  }
+}

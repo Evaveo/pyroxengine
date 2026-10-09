@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test build</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;overflow:hidden;background:#0d0f12;color:#d6d9de;
+    font-family:"Segoe UI",system-ui,sans-serif;}
+  #rj-view{position:fixed;inset:0;}
+  #rj-view canvas{display:block;}
+  #rj-ui{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:6;}
+  #rj-ui .ui-button{pointer-events:auto;cursor:pointer;font:inherit;}
+  #rj-loading{position:fixed;inset:0;background:#0d0f12;display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:10;}
+  #rj-loading h1{font-size:22px;font-weight:600;}
+  #rj-bar{width:min(420px,80vw);height:4px;background:#23272e;border-radius:2px;overflow:hidden;}
+  #rj-bar::after{content:"";display:block;height:100%;width:40%;background:#5aa9e6;
+    border-radius:2px;animation:rj-va 1.1s ease-in-out infinite alternate;}
+  @keyframes rj-va{from{margin-left:0}to{margin-left:60%}}
+  #rj-loading-txt{font-size:12.5px;color:#8a8f98;}
+  #rj-hud{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:none;
+    background:rgba(29,32,38,.92);border:1px solid #31363f;border-radius:8px;
+    padding:8px 16px;font-size:13px;z-index:5;max-width:80vw;}
+  #rj-error{position:fixed;top:14px;left:50%;transform:translateX(-50%);display:none;
+    background:#3a1518;border:1px solid #e06c75;color:#ffb3b8;border-radius:8px;
+    padding:8px 16px;font-size:13px;z-index:20;max-width:90vw;}
+  #rj-full-screen{position:fixed;top:12px;right:12px;z-index:5;background:rgba(29,32,38,.85);
+    border:1px solid #31363f;color:#d6d9de;border-radius:8px;padding:6px 12px;
+    cursor:pointer;font-size:12.5px;}
+  #rj-full-screen:hover{border-color:#5aa9e6;color:#5aa9e6;}
+  #rj-version{position:fixed;bottom:6px;right:8px;z-index:4;pointer-events:none;
+    font-size:10.5px;color:#6b7079;letter-spacing:.3px;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="rj-view"></div>
+<div id="rj-loading"><h1>Test build</h1><div id="rj-bar"></div><div id="rj-loading-txt">Chargement…</div></div>
+<button id="rj-full-screen" title="Plein écran">⛶ Plein écran</button>
+<div id="rj-hud"></div>
+<div id="rj-error"></div>
+<div id="rj-version"></div>
+<div id="rj-ui"></div>
+<script type="importmap">
+{"imports": {
+  "three/webgpu": "../vendor-esm/three.webgpu.min.js",
+  "three/tsl": "../vendor-esm/three.tsl.min.js"
+}}
+</script>
+<script type="module" src="../js/render-webgpu-bridge.mjs"></script>
+<script src="../vendor/three-addons.min.js" defer></script>
+<script src="../vendor/cannon.js" defer></script>
+<script type="module" src="../js/asset-compression.js"></script>
+<script type="module" src="../js/game-ui.js"></script>
+<script type="module" src="../js/game-character.js"></script>
+<script type="module" src="../js/network-game.js"></script>
+<script type="module" src="../js/render-perf.js"></script>
+<script type="module" src="../js/lightmap-atlas.js"></script>
+<script type="module" src="../js/script-scope.js"></script>
+<script type="module" src="../js/script-library.js"></script>
+<script type="module" src="../js/camera-overlays.js"></script>
+<script type="module" src="../js/shadow-fit.js"></script>
+<script type="module" src="../js/dev-guards.js"></script>
+<script type="module" src="../js/load-retry.js"></script>
+<script type="module" src="../js/lightmap-rgbm.js"></script>
+<script type="module" src="../js/retargeting.js"></script>
+<script type="module" src="../js/humanoid-avatar.js"></script>
+<script type="module" src="../js/anim-markers.js"></script>
+<script type="module" src="../js/anim-blend.js"></script>
+<script type="module" src="../js/anim-asset.js"></script>
+<script type="module" src="../js/model-import.js"></script>
+<script type="module" src="../js/model-nodes.js"></script>
+<script type="module" src="../js/raycast-candidates.js"></script>
+<script type="module" src="../js/component-data.js"></script>
+<script type="module" src="../js/component-registry.js"></script>
+<script type="module" src="../js/component.js"></script>
+<script type="module" src="../js/node.js"></script>
+<script type="module" src="../js/rigid-body.js"></script>
+<script type="module" src="../js/components/component-mesh.js"></script>
+<script type="module" src="../js/components/component-model.js"></script>
+<script type="module" src="../js/components/component-skinned-mesh.js"></script>
+<script type="module" src="../js/components/component-light.js"></script>
+<script type="module" src="../js/components/component-camera.js"></script>
+<script type="module" src="../js/components/component-collider.js"></script>
+<script type="module" src="../js/post-volume-blend.js"></script>
+<script type="module" src="../js/post-profile.js"></script>
+<script type="module" src="../js/components/component-postvolume.js"></script>
+<script type="module" src="../js/components/component-physics.js"></script>
+<script type="module" src="../js/components/component-terrain.js"></script>
+<script type="module" src="../js/components/component-particles.js"></script>
+<script type="module" src="../js/components/component-reflection.js"></script>
+<script type="module" src="../js/components/component-script.js"></script>
+<script type="module" src="../js/components/component-events.js"></script>
+<script type="module" src="../js/components/component-uidocument.js"></script>
+<script type="module" src="../js/components/component-animator.js"></script>
+<script type="module" src="../js/components/component-subscene.js"></script>
+<script type="module" src="../js/components/component-tag.js"></script>
+<script type="module" src="../js/components/component-audio.js"></script>
+<script type="module" src="../js/primitive-geometry.js"></script>
+<script type="module" src="../js/primitives-extra.js"></script>
+<script type="module" src="../js/synth.js"></script>
+<script type="module" src="../js/steam-bridge.js"></script>
+<script type="module" src="../js/locale.js"></script>
+<script type="module" src="../js/gamepad-input.js"></script>
+<script type="module" src="../js/touch-input.js"></script>
+<script type="module" src="../js/components/component-synth.js"></script>
+<script type="module" src="../js/components/component-touch-controls.js"></script>
+<script type="module" src="../js/components/component-sprite.js"></script>
+<script type="module" src="../js/components/component-anim-sprite.js"></script>
+<script type="module" src="../js/components/component-tilemap.js"></script>
+<script type="module" src="../js/components/component-physics-2d.js"></script>
+<script type="module" src="../js/components/component-camera-follow.js"></script>
+<script type="module" src="../js/components/component-team-color.js"></script>
+<script type="module" src="../js/fog-grid.js"></script>
+<script type="module" src="../js/components/component-fog-of-war.js"></script>
+<script type="module" src="../js/components/component-xr.js"></script>
+<script type="module" src="../js/xr-runtime.js"></script>
+<script type="module" src="../js/systems.js"></script>
+<script type="module" src="../js/plugin-host.js"></script>
+<script type="module" src="../js/systems/tilemap-system.js"></script>
+<script type="module" src="../js/systems/sprite-system.js"></script>
+<script type="module" src="../js/systems/fog-system.js"></script>
+<script type="module" src="../js/systems/camera-system.js"></script>
+<script type="module" src="../js/component-migration.js"></script>
+<script type="module" src="../js/animator.js"></script>
+<script type="module" src="../js/shader-graph.js"></script>
+<script type="module" src="../js/sprite-2d.js"></script>
+<script type="module" src="../js/anim-sprite.js"></script>
+<script type="module" src="../js/tilemap.js"></script>
+<script type="module" src="../js/physics-2d.js"></script>
+<script type="module" src="../js/world-2d.js"></script>
+<script type="module" src="../js/camera-framing.js"></script>
+<script type="module" src="../js/sky-camera.js"></script>
+<script type="module" src="../js/audio-falloff.js"></script>
+<script type="module" src="../js/audio-bus.js"></script>
+<script type="module" src="../js/chip-synth.js"></script>
+<script type="module" src="../js/music-loop.js"></script>
+<script type="module" src="../js/track-sampling.js"></script>
+<script type="module" src="data.js"></script>
+<script type="module" src="../js/game-runtime.js"></script>
+</body>
+</html>

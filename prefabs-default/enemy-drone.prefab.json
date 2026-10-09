@@ -1,0 +1,132 @@
+{
+  "name": "Ennemi — Drone",
+  "base": null,
+  "tree": [
+    {
+      "id": 6,
+      "name": "Ennemi — Drone",
+      "pos": [
+        0,
+        0.5,
+        0
+      ],
+      "quat": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ech": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "visible": true,
+      "ombreProjetee": true,
+      "ombreRecue": true,
+      "parent": null,
+      "phys": {
+        "active": false,
+        "masse": 1,
+        "bounce": 0.3,
+        "friction": 0.4
+      },
+      "game": {
+        "tag": "enemy",
+        "layer": "Défaut",
+        "props": {}
+      },
+      "detail": null,
+      "collider": {
+        "shape": "auto",
+        "dims": [
+          1,
+          1,
+          1
+        ],
+        "radius": 1,
+        "height": 2,
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "trigger": false
+      },
+      "scripts": null,
+      "prefabId": null,
+      "materialId": null,
+      "audio": null,
+      "part": null,
+      "terr": null,
+      "subScene": null,
+      "probe": null,
+      "uiDoc": null,
+      "anim": null,
+      "animator": null,
+      "sprite2d": null,
+      "animSprite": null,
+      "body2d": null,
+      "collider2d": null,
+      "controller2d": null,
+      "events": null,
+      "components": [
+        {
+          "type": "Mesh",
+          "data": {
+            "geo": "sphere",
+            "geoAsset": null,
+            "color": 8952234,
+            "mat": {
+              "smoothness": 0.45,
+              "metal": 0.1,
+              "emissive": 0,
+              "opacity": 1
+            },
+            "texAsset": null,
+            "notEclaire": false,
+            "ombreProjetee": true,
+            "ombreRecue": true
+          },
+          "active": true
+        },
+        {
+          "type": "Collider",
+          "data": {
+            "shape": "auto",
+            "dims": [
+              1,
+              1,
+              1
+            ],
+            "radius": 1,
+            "height": 2,
+            "offset": [
+              0,
+              0,
+              0
+            ],
+            "trigger": false
+          },
+          "active": true
+        },
+        {
+          "type": "Physics",
+          "data": {
+            "active": false,
+            "masse": 1,
+            "bounce": 0.3,
+            "friction": 0.4
+          },
+          "active": false
+        },
+        {
+          "type": "Tag",
+          "data": {},
+          "active": true
+        }
+      ],
+      "lightmapAtlas": null
+    }
+  ]
+}

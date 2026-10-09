@@ -1,0 +1,126 @@
+/* ---------- La page « Catalogue de plugins » ---------- */
+/* Aucune couleur écrite ici : tout vient de css/tokens.css (test/tokens-css.test.mjs). */
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--txt);
+  font:var(--fs)/var(--lh) var(--font);
+}
+
+/* ---- L'en-tête, collant : la recherche reste sous la main en bas de liste. ---- */
+#cat-header{
+  position:sticky; top:0; z-index:2;
+  display:flex; align-items:center; gap:var(--sp-5);
+  padding:var(--sp-5) calc(var(--sp-5) * 2);
+  background:var(--panel);
+  border-bottom:1px solid var(--edge);
+}
+#cat-header h1{ margin:0; font-size:calc(var(--fs) + 3px); color:var(--txt-strong); font-weight:600; }
+#cat-back{ color:var(--link); text-decoration:none; white-space:nowrap; }
+#cat-back:hover{ text-decoration:underline; }
+#cat-q{
+  margin-left:auto; min-width:220px; max-width:340px; flex:1;
+  padding:var(--sp-3) var(--sp-4);
+  background:var(--panel2); color:var(--txt);
+  border:1px solid var(--edge); border-radius:var(--r-2);
+  font:inherit;
+}
+#cat-q:focus{ outline:2px solid var(--focus); outline-offset:-1px; border-color:var(--focus); }
+
+/* ---- La bannière « ouverte seule ». ---- */
+#cat-standalone{
+  margin:0; padding:var(--sp-4) calc(var(--sp-5) * 2);
+  background:var(--warn-wash); border-bottom:1px solid var(--edge);
+  color:var(--txt-dim);
+}
+#cat-standalone code{ color:var(--txt); }
+
+/* ---- Les filtres de catégorie. ---- */
+#cat-filters{
+  display:flex; flex-wrap:wrap; gap:var(--sp-3);
+  padding:var(--sp-5) calc(var(--sp-5) * 2) 0;
+}
+.cat-chip{
+  padding:var(--sp-3) var(--sp-5);
+  background:var(--panel2); color:var(--txt-dim);
+  border:1px solid var(--edge); border-radius:var(--r-2);
+  font:inherit; cursor:pointer;
+}
+.cat-chip:hover{ background:var(--panel3); color:var(--txt); border-color:var(--edge-strong); }
+.cat-chip[aria-pressed="true"]{
+  background:var(--accent); color:var(--on-accent);
+  border-color:var(--accent); font-weight:600;
+}
+.cat-chip:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+
+/* ---- La grille de cartes. ---- */
+#cat-list{
+  display:grid; gap:var(--sp-5);
+  grid-template-columns:repeat(auto-fill, minmax(340px, 1fr));
+  padding:var(--sp-5) calc(var(--sp-5) * 2) calc(var(--sp-5) * 3);
+  align-items:start;
+}
+#cat-list .none{ color:var(--txt-dim); grid-column:1 / -1; padding:var(--sp-5) 0; }
+
+.cat-card{
+  display:flex; flex-direction:column; gap:var(--sp-4);
+  padding:var(--sp-5);
+  background:var(--panel); border:1px solid var(--edge); border-radius:var(--r-3);
+}
+.cat-card-head{ display:flex; align-items:flex-start; gap:var(--sp-4); }
+.cat-icon{ font-size:26px; line-height:1; }
+.cat-title{ margin:0; font-size:calc(var(--fs) + 2px); color:var(--txt-strong); font-weight:600; }
+.cat-category{ color:var(--txt-dim); font-size:calc(var(--fs) - 1px); }
+.cat-installed{
+  margin-left:auto; padding:var(--sp-1) var(--sp-4);
+  background:var(--ok-wash-strong); color:var(--ok);
+  border-radius:var(--r-1); font-size:calc(var(--fs) - 1px); white-space:nowrap;
+}
+.cat-summary{ margin:0; color:var(--txt); }
+.cat-desc{ margin:0; color:var(--txt-dim); }
+
+.cat-tags{ display:flex; flex-wrap:wrap; gap:var(--sp-2); list-style:none; margin:0; padding:0; }
+.cat-tags li{
+  padding:var(--sp-1) var(--sp-3);
+  background:var(--accent-wash); color:var(--accent-bright);
+  border-radius:var(--r-1); font-size:calc(var(--fs) - 1px);
+}
+
+.cat-block > b{ color:var(--txt); display:block; margin-bottom:var(--sp-2); }
+.cat-req{ margin:0; padding-left:18px; color:var(--txt-dim); }
+.cat-req li{ margin-bottom:var(--sp-2); }
+.cat-req code{ color:var(--txt); background:var(--surface-sunken); padding:0 var(--sp-2); border-radius:var(--r-1); }
+
+.cat-warn{
+  margin:0; padding:var(--sp-4);
+  background:var(--warn-wash); border-left:3px solid var(--warn);
+  border-radius:var(--r-1); color:var(--txt-dim);
+}
+
+.cat-actions{ display:flex; gap:var(--sp-4); margin-top:auto; padding-top:var(--sp-2); align-items:center; }
+.cat-btn{
+  padding:var(--sp-3) var(--sp-5);
+  background:var(--panel2); color:var(--txt);
+  border:1px solid var(--edge); border-radius:var(--r-2);
+  font:inherit; cursor:pointer; text-decoration:none;
+}
+.cat-btn:hover{ background:var(--panel3); border-color:var(--edge-strong); }
+.cat-btn.accent{ background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
+.cat-btn.accent:hover{ background:var(--accent-bright); }
+.cat-btn:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+.cat-note{ color:var(--txt-dim); font-size:calc(var(--fs) - 1px); }
+.cat-note.ok{ color:var(--ok); }
+.cat-note.bad{ color:var(--invalid); }
+
+#cat-error{
+  margin:0; padding:var(--sp-5) calc(var(--sp-5) * 2);
+  background:var(--invalid-wash); color:var(--invalid-pale);
+}
+
+@media (max-width:600px){
+  #cat-header{ flex-wrap:wrap; }
+  #cat-q{ margin-left:0; max-width:none; }
+  #cat-list{ grid-template-columns:1fr; padding-left:var(--sp-5); padding-right:var(--sp-5); }
+  #cat-filters, #cat-standalone{ padding-left:var(--sp-5); padding-right:var(--sp-5); }
+}

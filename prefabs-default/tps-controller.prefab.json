@@ -1,0 +1,197 @@
+{
+  "name": "Troisième personne — déplacement",
+  "base": null,
+  "tree": [
+    {
+      "id": 6,
+      "name": "Player",
+      "pos": [
+        0,
+        1,
+        0
+      ],
+      "quat": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ech": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "ombreProjetee": false,
+      "ombreRecue": false,
+      "parent": null,
+      "phys": null,
+      "game": null,
+      "detail": null,
+      "collider": null,
+      "scripts": [
+        {
+          "code": "// Déplacement + caméra d'épaule, sans arme — prefab par défaut « Troisième personne ».\n// Même convention que le prefab FPS (fps-controller.prefab.json) : le joueur ne connaît que\n// le CAP de CameraRig, jamais sa matrice monde.\n//\n// @expose speed {number} = 6\n// @expose sprintSpeed {number} = 10\n// @expose jumpForce {number} = 9\n// @expose gravity {number} = 24\n// @expose turnSpeed {number} = 12\n\nfunction update(api){\n  var e = api.expose;\n  var rig = api.find('CameraRig');\n  var camYaw = rig ? rig.rotation.y : api.me.rotation.y;\n\n  var da = Math.atan2(Math.sin(camYaw - api.me.rotation.y), Math.cos(camYaw - api.me.rotation.y));\n  api.me.rotation.y += da * Math.min(1, api.dt * e.turnSpeed);\n\n  var sprinting = api.action('sprint');\n  api.moveCharacter({\n    speed: sprinting ? e.sprintSpeed : e.speed,\n    jump: e.jumpForce,\n    gravity: e.gravity,\n    tagGround: 'ground',\n    yaw: camYaw\n  });\n}\n",
+          "active": true,
+          "values": {}
+        }
+      ],
+      "prefabId": null,
+      "materialId": null,
+      "audio": null,
+      "part": null,
+      "terr": null,
+      "subScene": null,
+      "probe": null,
+      "uiDoc": null,
+      "anim": null,
+      "animator": null,
+      "sprite2d": null,
+      "animSprite": null,
+      "body2d": null,
+      "collider2d": null,
+      "controller2d": null,
+      "events": null,
+      "components": [
+        {
+          "type": "ScriptJS",
+          "data": {
+            "code": "// Déplacement + caméra d'épaule, sans arme — prefab par défaut « Troisième personne ».\n// Même convention que le prefab FPS (fps-controller.prefab.json) : le joueur ne connaît que\n// le CAP de CameraRig, jamais sa matrice monde.\n//\n// @expose speed {number} = 6\n// @expose sprintSpeed {number} = 10\n// @expose jumpForce {number} = 9\n// @expose gravity {number} = 24\n// @expose turnSpeed {number} = 12\n\nfunction update(api){\n  var e = api.expose;\n  var rig = api.find('CameraRig');\n  var camYaw = rig ? rig.rotation.y : api.me.rotation.y;\n\n  var da = Math.atan2(Math.sin(camYaw - api.me.rotation.y), Math.cos(camYaw - api.me.rotation.y));\n  api.me.rotation.y += da * Math.min(1, api.dt * e.turnSpeed);\n\n  var sprinting = api.action('sprint');\n  api.moveCharacter({\n    speed: sprinting ? e.sprintSpeed : e.speed,\n    jump: e.jumpForce,\n    gravity: e.gravity,\n    tagGround: 'ground',\n    yaw: camYaw\n  });\n}\n",
+            "active": true,
+            "values": {}
+          },
+          "active": true
+        }
+      ],
+      "lightmapAtlas": null
+    },
+    {
+      "id": 7,
+      "name": "CameraRig",
+      "pos": [
+        0,
+        0.55,
+        0
+      ],
+      "quat": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ech": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "ombreProjetee": false,
+      "ombreRecue": false,
+      "parent": 6,
+      "phys": null,
+      "game": null,
+      "detail": null,
+      "collider": null,
+      "scripts": [
+        {
+          "code": "// Le BRAS de caméra d'épaule : orbite à la souris autour du joueur, recul horizontal contre\n// le décor. C'EST LE BRAS QUI TOURNE (cap ET tangage) — PAS la caméra elle-même : « Camera »,\n// son enfant, reste à un décalage LOCAL fixe (0, 0, -distance) sans jamais toucher à sa propre\n// rotation. Voir jeux/TPS/src/tps-camera.js pour la version commentée en détail.\n//\n// @expose distance {number} = 5\n// @expose sensitivity {number} = 0.0025\n// @expose minPitch {number} = -0.6\n// @expose maxPitch {number} = 0.9\n// @expose collisionMargin {number} = 0.3\n\nvar yaw = 0, pitch = 0.15;\nvar cam = null;\n\nfunction start(api){\n  cam = api.find('Camera');\n  api.lockMouse(true);\n}\n\nfunction update(api){\n  var e = api.expose;\n  if(!api.mouseLocked() && api.click(0)) api.lockMouse(true);\n\n  var md = api.mouseDelta();\n  yaw -= md.x * e.sensitivity;\n  pitch = Math.max(e.minPitch, Math.min(e.maxPitch, pitch - md.y * e.sensitivity));\n  // NÉGATION VOULUE sur X (même piège qu'en FPS) : pitch > 0 = regarder en haut, mais une\n  // rotation de +a autour de X emmène le +Z d'un nœud vers le BAS. Le BRAS reçoit -pitch.\n  api.me.rotation.set(-pitch, yaw, 0);\n  if(!cam) return;\n\n  var origin = api.me.position;\n  var back = {x: -Math.sin(yaw), y: 0, z: -Math.cos(yaw)};\n  var hit = api.raycast(origin, back, e.distance + e.collisionMargin, {tag: 'ground'});\n  var dist = hit ? Math.max(0.5, hit.distance - e.collisionMargin) : e.distance;\n  cam.position.set(0, 0, -dist);\n}\n",
+          "active": true,
+          "values": {}
+        }
+      ],
+      "prefabId": null,
+      "materialId": null,
+      "audio": null,
+      "part": null,
+      "terr": null,
+      "subScene": null,
+      "probe": null,
+      "uiDoc": null,
+      "anim": null,
+      "animator": null,
+      "sprite2d": null,
+      "animSprite": null,
+      "body2d": null,
+      "collider2d": null,
+      "controller2d": null,
+      "events": null,
+      "components": [
+        {
+          "type": "ScriptJS",
+          "data": {
+            "code": "// Le BRAS de caméra d'épaule : orbite à la souris autour du joueur, recul horizontal contre\n// le décor. C'EST LE BRAS QUI TOURNE (cap ET tangage) — PAS la caméra elle-même : « Camera »,\n// son enfant, reste à un décalage LOCAL fixe (0, 0, -distance) sans jamais toucher à sa propre\n// rotation. Voir jeux/TPS/src/tps-camera.js pour la version commentée en détail.\n//\n// @expose distance {number} = 5\n// @expose sensitivity {number} = 0.0025\n// @expose minPitch {number} = -0.6\n// @expose maxPitch {number} = 0.9\n// @expose collisionMargin {number} = 0.3\n\nvar yaw = 0, pitch = 0.15;\nvar cam = null;\n\nfunction start(api){\n  cam = api.find('Camera');\n  api.lockMouse(true);\n}\n\nfunction update(api){\n  var e = api.expose;\n  if(!api.mouseLocked() && api.click(0)) api.lockMouse(true);\n\n  var md = api.mouseDelta();\n  yaw -= md.x * e.sensitivity;\n  pitch = Math.max(e.minPitch, Math.min(e.maxPitch, pitch - md.y * e.sensitivity));\n  // NÉGATION VOULUE sur X (même piège qu'en FPS) : pitch > 0 = regarder en haut, mais une\n  // rotation de +a autour de X emmène le +Z d'un nœud vers le BAS. Le BRAS reçoit -pitch.\n  api.me.rotation.set(-pitch, yaw, 0);\n  if(!cam) return;\n\n  var origin = api.me.position;\n  var back = {x: -Math.sin(yaw), y: 0, z: -Math.cos(yaw)};\n  var hit = api.raycast(origin, back, e.distance + e.collisionMargin, {tag: 'ground'});\n  var dist = hit ? Math.max(0.5, hit.distance - e.collisionMargin) : e.distance;\n  cam.position.set(0, 0, -dist);\n}\n",
+            "active": true,
+            "values": {}
+          },
+          "active": true
+        }
+      ],
+      "lightmapAtlas": null
+    },
+    {
+      "id": 8,
+      "name": "Camera",
+      "pos": [
+        0,
+        0,
+        -5
+      ],
+      "quat": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "ech": [
+        1,
+        1,
+        1
+      ],
+      "visible": true,
+      "ombreProjetee": false,
+      "ombreRecue": false,
+      "parent": 7,
+      "phys": null,
+      "game": null,
+      "detail": null,
+      "collider": null,
+      "scripts": null,
+      "prefabId": null,
+      "materialId": null,
+      "audio": null,
+      "part": null,
+      "terr": null,
+      "subScene": null,
+      "probe": null,
+      "uiDoc": null,
+      "anim": null,
+      "animator": null,
+      "sprite2d": null,
+      "animSprite": null,
+      "body2d": null,
+      "collider2d": null,
+      "controller2d": null,
+      "events": null,
+      "components": [
+        {
+          "type": "Camera",
+          "data": {
+            "projection": "perspective",
+            "fov": 55,
+            "near": 0.05,
+            "far": 500,
+            "orthoSize": 5,
+            "pixelPerfect": false,
+            "ppu": 100,
+            "mode": "height",
+            "widthLevel": 0,
+            "ratio": 1,
+            "main": true
+          },
+          "active": true
+        }
+      ],
+      "lightmapAtlas": null
+    }
+  ]
+}

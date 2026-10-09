@@ -1,0 +1,21 @@
+/* ---------- BASE : la remise à zéro et la typographie ---------- */
+/*
+ * Ce qui s'applique à TOUT, avant qu'une règle ne parle d'une surface précise. Elle est chargée
+ * juste après les tokens et avant tout le reste : une règle d'ici doit pouvoir être écrasée par
+ * n'importe laquelle des suivantes, sans `!important`.
+ */
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  /* La typographie passe par les TOKENS, et pas par des valeurs écrites ici.
+     LA BRÈCHE MESURÉE (v0.108.0) : `--font`, `--fs` et `--lh` existaient dans tokens.css
+     depuis leur création et n'étaient lus NULLE PART — cette règle écrivait `"Segoe UI"` et
+     `13px` en dur. Conséquence invisible : `html[data-density]` ne surcharge QUE ces
+     variables-là, donc la préférence « compacte / confortable » de prefs.js posait bien son
+     attribut sur <html> et ne changeait rien du tout. Un réglage qui ne fait rien est pire
+     qu'un réglage absent : on croit l'avoir essayé. */
+  /* `height:100%;overflow:hidden` est ce qui fait de cette feuille une feuille d'APPLICATION :
+     une page de lecture ne peut pas la charger sans perdre son défilement. C'est pour ça que
+     help.html ne la charge pas — et pourquoi les états interactifs, dont l'aide a autant
+     besoin que l'éditeur, vivent à côté dans css/states.css. */
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
+    font-family:var(--font);font-size:var(--fs);}

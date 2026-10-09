@@ -1,0 +1,247 @@
+/* ---------- LES TOKENS : le seul endroit où une couleur est écrite ---------- */
+/*
+ * Avant, l'éditeur avait sa palette dans `editor.css` et la page d'aide en avait une
+ * SECONDE, recopiée dans `help.css` — dix valeurs, plus un `--link`. Deux palettes pour un
+ * seul produit : elles dérivent, et personne ne le voit avant de mettre les deux pages côte
+ * à côte. Le reste des feuilles écrivait une centaine de couleurs en dur, chacune
+ * introuvable depuis les autres.
+ *
+ * La règle est gardée par `test/tokens-css.test.mjs` : aucune autre feuille n'a le droit
+ * d'écrire une couleur. Ce n'est pas une règle de goût, c'est ce qui rend une palette
+ * remplaçable — la palette issue de la passe Claude Design se substituera ICI, en un seul
+ * endroit, sans toucher une règle de mise en page.
+ */
+:root{
+  /* ---- Surfaces — du plus profond au plus proche de l'oeil. ---- */
+  /* le fond de l'application */
+  --bg:#23211f;
+  /* plus sombre que le fond : texte pose SUR l'accent */
+  --surface-deep:#1a1816;
+  /* une piste creusee (timeline, sequenceur) */
+  --surface-sunken:#2f2d2b;
+  /* la surface d'un panneau */
+  --panel:#32302e;
+  /* une vignette d'asset, avant sa miniature */
+  --surface-tile:#3a3836;
+  /* une surface posee SUR un panneau : champ, entete */
+  --panel2:#3c3a38;
+  /* une ligne survolee dans une liste */
+  --surface-row:#403e3b;
+  /* un bouton pose sur une banniere */
+  --surface-raised:#3e3c3a;
+  /* le point de grille du graphe */
+  --surface-graph:#42403e;
+  /* l'entete d'un noeud de graphe */
+  --surface-node:#484643;
+  /* un bouton survole */
+  --panel3:#4a4745;
+
+  /* ---- Bordures — trois forces, du repos au survol. ---- */
+  /* la bordure au repos */
+  --edge:#53504e;
+  /* la bordure survolee */
+  --edge-strong:#666361;
+  /* la hachure d'une poignee de redimensionnement */
+  --edge-strongest:#797774;
+
+  /* ---- Textes. ---- */
+  /* le texte le plus lisible : titres de fenetre flottante */
+  --txt-strong:#e8e6e3;
+  /* le texte courant */
+  --txt:#dad8d6;
+  /* libelles, aides, valeurs secondaires. Mesure a 4,61:1 sur
+     --panel2, la surface la plus claire ou il est pose : le niveau AA est atteint. */
+  --txt-dim:#a7a5a2;
+  /* un texte inerte, ou une croix au repos */
+  --txt-off:#716f6d;
+  /* le texte pose SUR l'accent : il doit rester lisible dessus */
+  --on-accent:#14100c;
+  /* le texte pose sur un accent sombre */
+  --on-accent-light:#f7f5f2;
+
+  /* ---- Accent et liens. ---- */
+  /* la couleur de l'editeur : selection active, focus, boutons */
+  --accent:#ed7940;
+  /* l'accent, un ton plus vif : un os visé dans le sequenceur */
+  --accent-bright:#f19266;
+  /* l'accent, attenue : une categorie de noeud, un mot-cle */
+  --accent-soft:#da6b33;
+  /* un lien de la page d'aide */
+  --link:#f79e75;
+  /* l'anneau de focus clavier. MEME valeur que l'accent, nom
+     different : ce que le clavier designe et ce que la souris a choisi ne sont pas
+     la meme chose, et l'un peut changer sans l'autre. */
+  --focus:#ed7940;
+
+  /* ---- Selection d'objet — l'ambre, et rien d'autre ne l'utilise. ---- */
+  /* l'objet selectionne */
+  --sel:#f0bb3b;
+  /* une cle d'animation survolee */
+  --sel-bright:#ffd988;
+  /* le fond d'une ligne selectionnee */
+  --sel-wash:#3d2f10;
+
+  /* ---- Etats — ce qui va bien, ce qui alerte, ce qui est faux. ---- */
+  /* reussite, budget tenu, etat courant d'une machine */
+  --ok:#86d489;
+  /* un marqueur survole */
+  --ok-bright:#a9ebab;
+  /* une pastille de compatibilite, un noeud maitre */
+  --ok-soft:#7bcc98;
+  /* le titre d'un noeud maitre */
+  --ok-pale:#a4e6bb;
+  /* un objet en multi-selection */
+  --ok-text:#bcd4a4;
+  /* le fond d'un noeud maitre */
+  --ok-deep:#213b2a;
+  /* le fond de l'etat courant du graphe */
+  --ok-deeper:#21351d;
+  /* le fond d'une ligne en multi-selection */
+  --ok-dark:#2b3518;
+  /* un avertissement, un clip, un etat de depart */
+  --warn:#e1ca74;
+  /* une note d'apercu */
+  --warn-soft:#d5b455;
+  /* la categorie « texture » d'un noeud de graphe */
+  --warn-bright:#d79f4c;
+  /* une chaine de caracteres, dans l'editeur de code */
+  --warn-text:#bf9f6a;
+  /* une saisie qu'on ne peut pas lire (`1.2e`, `-`) : le socle
+     n'ecrit rien et l'annonce. Sans ce token, la regle existe et ne se voit pas. */
+  --invalid:#f7868c;
+  /* l'action destructrice, survolee */
+  --invalid-soft:#f79494;
+  /* la croix de fermeture d'une fenetre, survolee */
+  --invalid-pale:#f9acb1;
+  /* le texte d'un message d'erreur du copilote */
+  --invalid-pale2:#f0adac;
+  /* la bordure d'une action destructrice */
+  --invalid-strong:#c0434c;
+  /* le fond d'une action destructrice survolee */
+  --invalid-deep:#451e1f;
+  /* le fond d'une croix de fermeture survolee */
+  --invalid-deeper:#42151b;
+  /* le fond d'un message d'erreur */
+  --invalid-deepest:#59292a;
+  /* des cibles qui DIVERGENT en multi-selection : « — » et cette
+     teinte. Meme valeur que --txt-dim aujourd'hui, nom different : « je ne sais pas »
+     et « secondaire » n'ont aucune raison de rester identiques. */
+  --mixed:#a7a5a2;
+
+  /* ---- Genres d'asset — du SENS, pas de la decoration : une texture, un modele et un
+   prefab se reconnaissent a leur couleur dans le panneau Projet. ---- */
+  --c-texture:#45c1d4;
+  --c-model:#c188ea;
+  --c-prefab:#e1ca74;
+
+  /* ---- Le copilote — un degrade violet/bleu qui le distingue du reste de la barre. ---- */
+  --copilot-a:#3e295d;
+  --copilot-b:#133c62;
+  --copilot-edge:#635a93;
+  /* la bulle de l'utilisateur */
+  --copilot-me:#194160;
+
+  /* ---- Lignes actives et survolees, dans les listes. ---- */
+  /* la scene ou le dossier courant */
+  --row-active:#4c3124;
+  /* la cible d'un glisser-deposer */
+  --row-hover:#423028;
+
+  /* ---- Le graphe d'animateur et l'editeur de code. ---- */
+  /* un lien entre deux etats */
+  --graph-link:#847f7a;
+  --code-comment:#6e806a;
+  --code-number:#be8ce1;
+  /* une lecture d'API, et la categorie « entree » d'un noeud */
+  --code-reads:#d991d2;
+  /* l'encadre « piege » de la page d'aide */
+  --help-trap:#d3721e;
+
+  /* ---- Les VOILES : une couleur déjà nommée, à opacité partielle. Ce ne sont pas des
+     teintes de plus — c'est la même, laissée transparente. ---- */
+  --accent-wash:rgba(237,121,64,.15);
+  --accent-wash-strong:rgba(237,121,64,.18);
+  --accent-hex-wash:#ed794044;
+  --bright-wash:rgba(241,146,102,.08);
+  --bright-wash-mid:rgba(241,146,102,.12);
+  --bright-wash-strong:rgba(241,146,102,.14);
+  --select-wash:rgba(237,121,64,.12);
+  --select-wash-strong:rgba(237,121,64,.32);
+  --ok-wash-faint:rgba(134,212,137,.05);
+  --ok-wash:rgba(134,212,137,.07);
+  --ok-wash-strong:rgba(134,212,137,.14);
+  --ok-halo:rgba(123,204,152,.3);
+  --warn-wash-faint:rgba(225,202,116,.03);
+  --warn-wash-faint2:rgba(225,202,116,.06);
+  --warn-wash:rgba(225,202,116,.12);
+  --warn-wash-strong:rgba(225,202,116,.14);
+  --sel-wash-faint:#3d2f1014;
+  --sel-wash-soft:#3d2f1022;
+  --invalid-wash:rgba(236,90,99,.12);
+  --invalid-wash-mid:rgba(236,90,99,.15);
+  --invalid-edge-wash:rgba(236,90,99,.3);
+  --panel-veil:rgba(50,48,46,.92);
+  --panel-veil-strong:rgba(50,48,46,.94);
+  --bg-veil-soft:rgba(35,33,31,.55);
+  --bg-veil:rgba(35,33,31,.8);
+  --bg-veil-strong:rgba(35,33,31,.92);
+  --edge-veil:#3c3a3855;
+  --edge-veil-strong:#3c3a3866;
+  --edge-help-veil:rgba(83,80,78,.5);
+  --help-trap-wash:rgba(211,114,30,.08);
+  --scrim:rgba(26,24,22,.6);
+
+  /* ---- Les AXES — la même convention que le gizmo dans la vue, et pas une autre. ----
+   Ces trois couleurs ne sont pas décoratives : X rouge, Y vert, Z bleu est la convention que
+   le gizmo de transformation peint déjà dans le viewport. Un champ « Position Y » teinté
+   autrement obligerait à traduire mentalement entre la vue et l'inspecteur. */
+  --axis-x:#e8705f;
+  --axis-y:#8fc46a;
+  --axis-z:#5f9ee8;
+  --axis-x-wash:rgba(232,112,95,.16);
+  --axis-y-wash:rgba(143,196,106,.16);
+  --axis-z-wash:rgba(95,158,232,.16);
+
+  /* ---- Espacements, rayons, typographie ---- */
+  /* Les cinq marches sont calées sur les valeurs que les panneaux écrivaient déjà — 2, 4, 6,
+     8, 12 — et non sur une progression choisie dans le vide. C'est ce qui permet de les
+     substituer sans déplacer un seul pixel à densité normale : `--sp-4` valait 10px et
+     `--sp-5` 16px, deux valeurs que personne ne lisait, donc que rien n'obligeait à garder. */
+  --sp-1:2px; --sp-2:4px; --sp-3:6px; --sp-4:8px; --sp-5:12px;
+  /* Quatre marches, chacune avec son emploi — un rayon choisi au jugé produit les neuf
+     valeurs différentes qu'on avait avant (2, 3, 4, 5, 6, 7, 8, 9, 12px), qui ne se
+     distinguent pas à l'oeil mais qui empêchent de changer l'arrondi du produit d'un coup. */
+  /* une pastille, un raccourci clavier, une vignette */
+  --r-1:4px;
+  /* un contrôle : bouton, champ, onglet, ligne de liste */
+  --r-2:6px;
+  /* une surface : panneau flottant, carte, nœud de graphe */
+  --r-3:8px;
+  /* la modale, et rien d'autre : c'est le seul élément qui doit se lire comme détaché */
+  --r-4:12px;
+  --font:"Segoe UI",system-ui,sans-serif; --fs:13px; --lh:1.45;
+
+  /* ---- Le Rack sonore (js/sound-rack.js) ---- */
+  /* Une FAÇADE D'APPAREIL, pas un panneau d'éditeur : elle garde son look sombre en thème clair
+     comme en sombre, parce qu'elle imite un objet physique. D'où des jetons à part, qui ne
+     suivent pas --bg/--txt. Les quatre teintes de pas (rouge, orange, jaune, crème) servent
+     aussi aux tranches du mixeur, dans le même ordre. */
+  --rack-face:#1d1c1a; --rack-plate:#2a2926; --rack-edge:#45433e; --rack-screw:#55534d;
+  --rack-ink:#e9e4d6; --rack-ink-dim:#a3a095;
+  --rack-seg-bg:#0b0b0b; --rack-seg:#ff4a3a; --rack-scope:#6bff8f; --rack-scope-grid:#16301d; --rack-led-off:#3a1512; --rack-led-on:#ff4a3a;
+  --rack-step-1:#d9432f; --rack-step-2:#e8872b; --rack-step-3:#e6c53a; --rack-step-4:#ece6d2;
+  --font-mono:Consolas,"Cascadia Mono",monospace;
+}
+
+/* La DENSITÉ, posée sur <html> par la préférence `ui.density` (js/ui/prefs.js).
+   Elle ne touche QUE les espacements et la taille de police — jamais une couleur, jamais
+   une règle de mise en page : sinon « compacte » devient une seconde feuille de style à
+   maintenir, et l'une des deux finit par diverger.
+
+   ELLE NE MARCHE QUE SI ON LA LIT. Ces surcharges sont restées inertes de leur création à la
+   v0.108.0 : aucune feuille n'écrivait `var(--sp-*)` ni `var(--fs)`, donc l'attribut se posait
+   sur <html> et l'interface ne bougeait pas d'un pixel. C'est ce que garde
+   test/densite-tokens.test.mjs — une surcharge que personne ne lit doit faire échouer un
+   test, pas décevoir un utilisateur. */
+html[data-density="compacte"]{ --sp-2:3px; --sp-3:4px; --sp-4:6px; --sp-5:9px; --fs:12px; }
+html[data-density="confortable"]{ --sp-2:6px; --sp-3:9px; --sp-4:12px; --sp-5:17px; --fs:14px; }

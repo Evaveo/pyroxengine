@@ -1,0 +1,1406 @@
+{
+  "version": 7,
+  "nomProjet": "Plateforme — démo",
+  "courante": 0,
+  "entrees": {
+    "actions": {
+      "avancer": [
+        "z",
+        "w",
+        "ArrowUp"
+      ],
+      "reculer": [
+        "s",
+        "ArrowDown"
+      ],
+      "gauche": [
+        "q",
+        "a",
+        "ArrowLeft"
+      ],
+      "droite": [
+        "d",
+        "ArrowRight"
+      ],
+      "sauter": [
+        " "
+      ],
+      "interagir": [
+        "e"
+      ]
+    },
+    "axes": {
+      "horizontal": [
+        "gauche",
+        "droite"
+      ],
+      "vertical": [
+        "reculer",
+        "avancer"
+      ]
+    }
+  },
+  "dossiers": [],
+  "layers": [
+    {
+      "id": 0,
+      "nom": "Défaut",
+      "visible": true,
+      "verrouille": false
+    },
+    {
+      "id": 1,
+      "nom": "Joueur",
+      "visible": true,
+      "verrouille": false
+    },
+    {
+      "id": 2,
+      "nom": "Ennemis",
+      "visible": true,
+      "verrouille": false
+    },
+    {
+      "id": 3,
+      "nom": "Décor",
+      "visible": true,
+      "verrouille": false
+    }
+  ],
+  "ui": {
+    "elements": []
+  },
+  "scenes": [
+    {
+      "nom": "Scène 1",
+      "donnees": {
+        "objets": [
+          {
+            "id": 199,
+            "type": "camera",
+            "nom": "Caméra 4",
+            "pos": [
+              1.1422081327370046,
+              2.5,
+              3.606662150072745
+            ],
+            "quat": [
+              -0.02865891842235503,
+              0.9707150107391159,
+              -0.18541773272329376,
+              -0.15003765764757873
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": [
+              {
+                "code": "function mettreAJour(api){\n  const j = api.trouver('Joueur');\n  if(!j) return;\n  const m = api.moi, k = Math.min(1, api.dt * 4);\n  m.position.x += (j.position.x - m.position.x) * k;\n  m.position.y += (j.position.y + 5 - m.position.y) * k;\n  m.position.z += (j.position.z + 12 - m.position.z) * k;\n  api.regarder(j);\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "fov": 50
+          },
+          {
+            "id": 203,
+            "type": "directional",
+            "nom": "Soleil",
+            "pos": [
+              10,
+              20,
+              10
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "lum": {
+              "couleur": 16767392,
+              "intensite": 0.8
+            }
+          },
+          {
+            "id": 211,
+            "type": "mesh",
+            "nom": "Sol",
+            "pos": [
+              0,
+              -0.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              6.25,
+              1,
+              3
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "sol",
+              "calque": "Décor",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 4029002,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 212,
+            "type": "mesh",
+            "nom": "Plateforme 1",
+            "pos": [
+              9.5,
+              0.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              2.5,
+              1,
+              2.5
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "sol",
+              "calque": "Décor",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 4029002,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 213,
+            "type": "mesh",
+            "nom": "Plateforme 2",
+            "pos": [
+              16,
+              1.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              2.5,
+              1,
+              2.5
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "sol",
+              "calque": "Décor",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 4029002,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 214,
+            "type": "mesh",
+            "nom": "Plateforme 3",
+            "pos": [
+              22.5,
+              2.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              2.5,
+              1,
+              2.5
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "sol",
+              "calque": "Décor",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 4029002,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 215,
+            "type": "mesh",
+            "nom": "Plateforme 4",
+            "pos": [
+              29.4,
+              2.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              3,
+              1,
+              2.5
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "sol",
+              "calque": "Décor",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 4029002,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 216,
+            "type": "mesh",
+            "nom": "Plateforme 5",
+            "pos": [
+              37.2,
+              3.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              4,
+              1,
+              3
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "sol",
+              "calque": "Décor",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 4029002,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 217,
+            "type": "mesh",
+            "nom": "Joueur",
+            "pos": [
+              0,
+              2,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.6,
+              0.6,
+              0.6
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "joueur",
+              "calque": "Joueur",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){\n  const p = api.props();\n  p.pieces = 0; p.vies = 3; p.fini = false;\n  p.total = api.parTag('piece').length;\n  api.statut('Ramasse les ' + p.total + ' pieces, puis rejoins le drapeau');\n\n  api.auContact('piece', function(piece){\n    if(p.fini) return;\n    api.detruire(piece); p.pieces++;\n    api.statut('Pieces : ' + p.pieces + '/' + p.total);\n  });\n\n  api.auContact('ennemi', function(ennemi){\n    if(p.fini) return;\n    // On l'écrase si on lui tombe dessus, il nous coûte une vie sinon.\n    if(api.moi.position.y > ennemi.position.y + 0.3){\n      api.detruire(ennemi); api.rebondir(7); api.statut('Ennemi ecrase !');\n    } else { perdreUneVie(api, 'Aie !'); }\n  });\n\n  api.auContact('but', function(){\n    if(p.fini) return;\n    if(p.pieces >= p.total){ p.fini = true; api.statut('GAGNE ! ' + p.pieces + '/' + p.total + ' pieces'); }\n    else api.statut('Il manque ' + (p.total - p.pieces) + ' piece(s)');\n  });\n}\nfunction perdreUneVie(api, cause){\n  const p = api.props();\n  p.vies--;\n  if(p.vies <= 0){ p.fini = true; api.statut('Perdu — plus de vies'); }\n  else { api.statut(cause + ' Vies restantes : ' + p.vies); api.reapparaitre(); }\n}\nfunction mettreAJour(api){\n  if(api.props().fini) return;\n  const etat = api.deplacerPersonnage({vitesse:7, saut:9.5, gravite:24});\n  if(etat.tombe) perdreUneVie(api, 'Tombe !');\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "sphere",
+            "couleur": 15222060,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 218,
+            "type": "mesh",
+            "nom": "Pièce 1",
+            "pos": [
+              9.5,
+              2.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.55,
+              0.55,
+              0.55
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "piece",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().y0 = api.moi.position.y; }\nfunction mettreAJour(api){\n  api.moi.rotateY(2.2 * api.dt);\n  api.moi.position.y = api.props().y0 + Math.sin(api.temps * 3) * 0.15;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 16763955,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 8017152,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 219,
+            "type": "mesh",
+            "nom": "Pièce 2",
+            "pos": [
+              16,
+              3.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.55,
+              0.55,
+              0.55
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "piece",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().y0 = api.moi.position.y; }\nfunction mettreAJour(api){\n  api.moi.rotateY(2.2 * api.dt);\n  api.moi.position.y = api.props().y0 + Math.sin(api.temps * 3) * 0.15;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 16763955,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 8017152,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 220,
+            "type": "mesh",
+            "nom": "Pièce 3",
+            "pos": [
+              22.5,
+              4.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.55,
+              0.55,
+              0.55
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "piece",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().y0 = api.moi.position.y; }\nfunction mettreAJour(api){\n  api.moi.rotateY(2.2 * api.dt);\n  api.moi.position.y = api.props().y0 + Math.sin(api.temps * 3) * 0.15;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 16763955,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 8017152,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 221,
+            "type": "mesh",
+            "nom": "Pièce 4",
+            "pos": [
+              26,
+              4.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.55,
+              0.55,
+              0.55
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "piece",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().y0 = api.moi.position.y; }\nfunction mettreAJour(api){\n  api.moi.rotateY(2.2 * api.dt);\n  api.moi.position.y = api.props().y0 + Math.sin(api.temps * 3) * 0.15;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 16763955,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 8017152,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 222,
+            "type": "mesh",
+            "nom": "Pièce 5",
+            "pos": [
+              29.4,
+              4.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.55,
+              0.55,
+              0.55
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "piece",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().y0 = api.moi.position.y; }\nfunction mettreAJour(api){\n  api.moi.rotateY(2.2 * api.dt);\n  api.moi.position.y = api.props().y0 + Math.sin(api.temps * 3) * 0.15;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 16763955,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 8017152,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 223,
+            "type": "mesh",
+            "nom": "Pièce 6",
+            "pos": [
+              37.2,
+              5.5,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.55,
+              0.55,
+              0.55
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "piece",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().y0 = api.moi.position.y; }\nfunction mettreAJour(api){\n  api.moi.rotateY(2.2 * api.dt);\n  api.moi.position.y = api.props().y0 + Math.sin(api.temps * 3) * 0.15;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 16763955,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 8017152,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 224,
+            "type": "mesh",
+            "nom": "Ennemi 1",
+            "pos": [
+              22.5,
+              3.78,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.6,
+              0.6,
+              0.6
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "ennemi",
+              "calque": "Ennemis",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().x0 = api.moi.position.x; }\nfunction mettreAJour(api){\n  api.moi.position.x = api.props().x0 + Math.sin(api.temps * 1.6) * 1.5;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 8077237,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 225,
+            "type": "mesh",
+            "nom": "Ennemi 2",
+            "pos": [
+              37.2,
+              4.78,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.6,
+              0.6,
+              0.6
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "ennemi",
+              "calque": "Ennemis",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": [
+              {
+                "code": "function demarrer(api){ api.props().x0 = api.moi.position.x; }\nfunction mettreAJour(api){\n  api.moi.position.x = api.props().x0 + Math.sin(api.temps * 1.6) * 1.5;\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 8077237,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 226,
+            "type": "mesh",
+            "nom": "Drapeau",
+            "pos": [
+              39.5,
+              5.58,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.8,
+              1.6,
+              0.8
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "but",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cone",
+            "couleur": 16766720,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 9071872,
+              "opacite": 1
+            }
+          }
+        ],
+        "pistes": [],
+        "duree": 5,
+        "boucle": true,
+        "env": {
+          "ciel": "degrade",
+          "cielCouleur": "#14161a",
+          "cielHaut": "#4aa3e0",
+          "cielBas": "#cfe9ff",
+          "cielAsset": null,
+          "brouillard": false,
+          "brouillardCouleur": "#14161a",
+          "brouillardProche": 40,
+          "brouillardLoin": 90,
+          "ambiante": 0.75,
+          "ambianteCouleur": "#bfd4ff",
+          "soleil": 1,
+          "post": {
+            "actif": false,
+            "toneMapping": "aces",
+            "exposition": 1,
+            "bloom": true,
+            "bloomSeuil": 0.8,
+            "bloomIntensite": 0.7,
+            "bloomRayon": 1,
+            "contraste": 1,
+            "saturation": 1,
+            "temperature": 0,
+            "vignette": 0.25,
+            "grain": 0,
+            "fxaa": false
+          }
+        }
+      }
+    }
+  ],
+  "assets": []
+}

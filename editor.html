@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Éditeur 3D</title>
+<!-- L'ORDRE DES FEUILLES EST UNE DÉPENDANCE. Sans build, la cascade dépend de l'ordre de ces
+     balises, et aucun test ne peut l'évaluer (le harnais n'a pas de moteur de rendu). Il va du
+     plus général au plus spécifique : les tokens d'abord — tout le reste s'y réfère —, puis la
+     remise à zéro, puis la coquille, puis les panneaux, puis les widgets. Ajouter une feuille
+     au milieu sans y penser casse la cascade en silence : test/ordre-feuilles.test.mjs garde
+     cette liste. `editor.css` a disparu à la scission : une fois ses 904 lignes réparties, il
+     ne restait rien, et une feuille vide chargée pour rien est un piège pour le suivant.
+     La fonte d'icônes vient AVANT : elle ne déclare que des `@font-face` et des glyphes, donc
+     rien de ce qui suit n'a besoin de l'écraser. Elle vit dans vendor/ et non dans css/ parce
+     qu'elle n'est pas à nous — et parce que css/ interdit les couleurs, règle qui n'a aucun
+     sens pour une fonte. test/icones.test.mjs garde son vendoring : aucune icône par CDN. -->
+<link rel="stylesheet" href="vendor/phosphor/phosphor.css?v=148">
+<link rel="stylesheet" href="css/tokens.css?v=148">
+<link rel="stylesheet" href="css/base.css?v=148">
+<link rel="stylesheet" href="css/states.css?v=148">
+<link rel="stylesheet" href="css/components.css?v=148">
+<link rel="stylesheet" href="css/layout.css?v=148">
+<link rel="stylesheet" href="css/panels.css?v=148">
+<link rel="stylesheet" href="css/widgets.css?v=148">
+</head>
+<body>
+<!-- Indicateur de chargement d'un projet créé/ouvert depuis le Hub (moteur/hub.html). Posé
+     ici, hors de #app et AVANT tout script deferred, pour apparaître avant même que le moteur
+     (Three.js, ~75 fichiers) n'ait fini de charger — sinon la scène de démo par défaut
+     (js/startup.js) s'affiche une fraction de seconde avant d'être remplacée, ce qui se lit
+     comme "ça a ouvert le mauvais projet" avant de se corriger tout seul. Cette DÉCISION se
+     prend en JS synchrone (pas de <noscript>/CSS pur) : seul sessionStorage sait s'il y a
+     quelque chose à attendre. -->
+<div id="hub-loading-overlay" hidden>
+  <div id="hub-loading-spinner" aria-hidden="true"></div>
+  <span id="hub-loading-text">Ouverture du projet…</span>
+</div>
+<style>
+  #hub-loading-overlay{
+    position:fixed; inset:0; z-index:9999;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    background:var(--bg); color:var(--txt-strong);
+    font-family:system-ui, sans-serif; font-size:14px;
+  }
+  #hub-loading-overlay[hidden]{ display:none; }
+  #hub-loading-spinner{
+    width:32px; height:32px; border-radius:50%;
+    border:3px solid var(--edge); border-top-color:var(--accent);
+    animation:hub-loading-spin .8s linear infinite;
+  }
+  @keyframes hub-loading-spin{ to{ transform:rotate(360deg); } }
+</style>
+<script>
+  // Synchrone et minuscule à dessein : c'est ce qui lui permet de courir AVANT tout <script
+  // defer>, donc avant le premier rendu de la scène de démo. hideHubLoadingOverlay() est posée
+  // sur window pour que project.js:autoOpenPendingHubProject() (chargé plus tard, en defer)
+  // puisse la refermer une fois le vrai projet ouvert — dans un `finally`, succès ou erreur.
+  (function(){
+    var overlay = document.getElementById('hub-loading-overlay');
+    if(sessionStorage.getItem('hubPendingProjectName')) overlay.hidden = false;
+    window.hideHubLoadingOverlay = function(){ overlay.hidden = true; };
+  })();
+</script>
+<div id="app">
+
+  <!-- LA BARRE DU HAUT. Une seule, de 32px. Il y en avait DEUX empilées — `#menus` (27px) et
+       `#bar` (40px) —, soit 67px de chrome au-dessus de la scène pour deux rangées qui ne
+       disaient rien l'une de l'autre. `#menus` reste un élément à part ENTIÈRE, avec son id :
+       js/ui.js y ajoute un `.menu` par entrée (et les plugins en ajoutent après coup) ; il
+       change seulement de parent. Ce qui l'accompagne à droite — version et Jouer
+       (IA, Audio, Multijoueur sont au menu Fenêtres, la physique seule au menu Affichage) — vient de `#bar`, avec les mêmes ids et donc les mêmes écouteurs. -->
+  <div id="topbar">
+    <span id="brand"><i class="ph-fill ph-cube-transparent" aria-hidden="true"></i>Éditeur 3D</span>
+    <div id="menus"></div>
+    <span id="topbar-right">
+      <!-- Le projet ouvert. Rempli par js/ui.js, depuis les DEUX seuls endroits qui écrivent
+           le nom (project.js : l'accesseur `set name` et `applyProjectSettings`). -->
+      <span id="project-label" title="Le projet ouvert"></span>
+      <!-- Où le projet s'enregistre : ☁ Cloud, 📁 Dossier ou ⚠ Non enregistré
+           (js/project-storage.js:refreshStorageBadge). -->
+      <span id="storage-badge" title="Mode d'enregistrement du projet"></span>
+      <!-- L'état d'enregistrement du projet, juste après son nom : ● non enregistré,
+           ✓ à jour. Cliquer enregistre dans le dossier du projet (js/project-dirty.js). -->
+      <button id="btn-save-state" title="Toutes les modifications sont enregistrées dans le dossier du projet">✓ Enregistré</button>
+      <button id="btn-version" title="Version de l'éditeur — voir le journal des modifications"></button>
+      <button id="btn-play" class="game-btn"
+        title="Lance le jeu dans un nouvel onglet, comme un build exporté"><i class="ph-fill ph-play" aria-hidden="true"></i>Jouer</button>
+    </span>
+  </div>
+
+  <!-- LA BARRE D'OUTILS, adoptée par js/ui/floating-palette.js et posée sur le viewport.
+       Icônes SEULES : un outil de gizmo se reconnaît à sa forme, pas à son libellé, et trois
+       mots côte à côte doublaient la largeur de la palette au-dessus de la scène. Le nom reste
+       dans le `title` et dans le raccourci clavier annoncé avec lui.
+
+       `#g-space` n'est plus un `<select>` mais un contrôle segmenté : trois valeurs dans un
+       menu déroulant, c'est deux options cachées et deux clics pour en changer. Il garde son
+       id et continue d'émettre `change` — js/scene.js:255 n'a pas bougé (voir la couche de
+       compatibilité dans js/ui/segmented.js). -->
+  <div id="bar">
+    <div class="ui-seg" id="g-tools">
+      <!-- Pas de bouton « Sélectionner » : la maquette en montre un, l'éditeur n'a pas ce
+           mode — la sélection se fait au clic dans la vue, en permanence. Un quatrième bouton
+           inerte aurait été pire que son absence. -->
+      <button id="g-translate" class="ui-icon-btn" title="Déplacer (1)"><i class="ph ph-arrows-out-cardinal" aria-hidden="true"></i></button>
+      <button id="g-rotate" class="ui-icon-btn" title="Tourner (2)"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i></button>
+      <button id="g-scale" class="ui-icon-btn" title="Échelle (3)"><i class="ph ph-corners-out" aria-hidden="true"></i></button>
+    </div>
+    <div class="sep"></div>
+    <div class="ui-seg" id="g-space-seg" data-for="g-space" role="group" aria-label="Référentiel du gizmo">
+      <button data-space="local" title="Repère de l'objet">Local</button>
+      <button data-space="world" title="Repère du monde">Monde</button>
+      <button data-space="view" title="Repère de la caméra">Vue</button>
+    </div>
+    <!-- Le `<select>` d'origine SURVIT, caché : c'est lui qui porte la valeur et l'événement
+         `change` que js/scene.js écoute. Le segmenté n'est qu'une façade qui l'écrit. Le
+         remplacer aurait obligé à toucher au gizmo, qu'on ne veut pas casser pour un habillage. -->
+    <select id="g-space" title="Référentiel du gizmo" hidden>
+      <option value="local">Local</option>
+      <option value="world">Monde</option>
+      <option value="view">Vue</option>
+    </select>
+    <div class="sep"></div>
+    <!-- L'AIMANTATION reste avec le gizmo : elle ne change pas ce qu'on VOIT, elle change
+         comment on déplace. La ranger avec les modes d'affichage aurait mélangé deux sujets. -->
+    <button id="filter-magnet" class="ui-icon-btn"
+      title="Aimanter — déplacement par pas de 0,5 · rotation 15° · échelle 0,1"><i class="ph ph-magnet" aria-hidden="true"></i></button>
+    <div class="sep"></div>
+    <!-- LES OUTILS D'AFFICHAGE, comme la vue de scène d'Unity : ce qui change la façon dont la
+         scène est DESSINÉE, sans rien changer au projet. Ils étaient posés en bas à gauche du
+         viewport, séparés des outils, alors qu'ils répondent à la même question — « comment je
+         regarde ma scène en ce moment ».
+         La création d'objets, elle, a quitté cette palette : créer n'est pas regarder, et le
+         menu Objet la porte en entier (js/objects.js:refreshMenuObject). -->
+    <!-- LE MODE D'AFFICHAGE : un choix EXCLUSIF, donc un segmenté et non des bascules. Rempli
+         par js/scene.js depuis DrawMode.MODES — la liste des modes vit dans le module, pas ici,
+         sinon en ajouter un demanderait de rouvrir deux fichiers et le second serait oublié. -->
+    <div class="ui-seg" id="view-mode" role="group" aria-label="Mode d'affichage"></div>
+    <div class="sep"></div>
+    <div class="ui-seg" id="view-display">
+      <button id="filter-shadows" class="ui-icon-btn" title="Ombres"><i class="ph ph-drop-half-bottom" aria-hidden="true"></i></button>
+      <button id="filter-textures" class="ui-icon-btn" title="Textures"><i class="ph ph-image-square" aria-hidden="true"></i></button>
+      <button id="filter-shaders" class="ui-icon-btn"
+        title="Shaders — coupe les matériaux à graphe de shader : ceux qui en portent un reviennent à un PBR neutre"><i class="ph ph-tree-structure" aria-hidden="true"></i></button>
+      <button id="filter-grid" class="ui-icon-btn" title="Grille de sol"><i class="ph ph-grid-nine" aria-hidden="true"></i></button>
+    </div>
+  </div>
+
+  <!-- Le DOCK. Les zones sont construites a l execution par js/ui/dock.js, qui ADOPTE
+       les elements ci-dessous (#hier, #view, #insp, #project-zone, #console-body) :
+       ils restent ecrits ici, avec leurs ids, et changent seulement de parent. -->
+  <div id="dock"></div>
+
+  <div id="hier">
+    <div class="title-panel">Scènes
+      <button id="btn-scene-add" title="Ajouter une scène au projet">＋</button></div>
+    <div id="scenes-list"></div>
+    <div class="title-panel">Hiérarchie</div>
+    <input type="text" id="hier-filter" placeholder="🔎 Filtrer par nom…" spellcheck="false">
+    <div id="hier-body"></div>
+  </div>
+
+  <div id="palette-panel" style="display:none"></div>
+  <div id="postprofile-panel" style="display:none"></div>
+  <div id="network-panel" class="network-panel" style="display:none"></div>
+  <div id="sound-rack" class="sound-rack" style="display:none"></div>
+  <div id="blender-workshop-panel" class="network-panel" style="display:none"></div>
+  <!-- Le copilote IA : panneau du dock (id `copilot`), rempli par js/copilot.js (copBuildUI). -->
+  <div id="copilot" style="display:none"></div>
+  <span id="cop-toolbar" style="display:none"></span>
+  <div id="view">
+    <!-- Le gizmo de vue : axes cliquables, bascule perspective/orthographique, calage pixel. -->
+    <div id="view-gizmo"></div>
+    <!-- `#filters` a disparu d'ici : les filtres d'affichage sont remontés dans la palette
+         d'outils, avec l'aimantation. Ils étaient en bas à gauche du viewport, à l'opposé des
+         outils, alors qu'ils répondent à la même question que le gizmo — comment je regarde
+         et comment je manipule ma scène en ce moment. Leurs ids n'ont pas bougé. -->
+    <!-- Barre du pinceau de tuiles. CONTEXTUELLE : elle n'apparaît que devant une map de
+         tuiles. Toujours visible, elle proposerait un outil qui ne peint rien — et rien ne
+         dirait pourquoi. La création, elle, passe par le menu Objet et par « ＋ Créer ». -->
+    <div id="bar-tilemap" style="display:none">
+      <button data-tool2d="paint" title="Pinceau : cliquez-glissez pour poser des tuiles. Le voisinage est recalculé tout seul.">🖌</button>
+      <button data-tool2d="erase" title="Gomme : cliquez-glissez pour effacer.">⌫</button>
+      <button data-tool2d="rect" title="Rectangle : cliquez un coin, relâchez sur l'autre.">▭</button>
+      <button data-tool2d="pick" title="Prélever : cliquez une case pour reprendre sa tuile.">💧</button>
+      <select id="brush-mat" title="Le matériau que le pinceau pose. Les matériaux se définissent dans l'inspecteur de la carte."></select>
+      <span class="help-2d"><kbd>Échap</kbd> range l'outil</span>
+    </div>
+    <div id="graph-animator" style="display:none">
+      <div id="graph-bar">
+        <span id="graph-title"></span>
+        <button id="graph-add-state">＋ État</button>
+        <button id="graph-preview" title="Fait tourner la machine dans la vue, comme en jeu. Éteint par défaut : tant qu'il tourne, la machine pilote le personnage et on ne peut plus lui poser de clé à la main.">▶ Aperçu</button>
+        <span class="graph-help">Tirez la poignée <b>→</b> d'un état vers un autre pour créer
+          une transition · <kbd>Suppr</kbd> retire ce qui est sélectionné</span>
+      </div>
+      <!-- Les paramètres, réglables EN DIRECT. C'est ce qui permet d'éprouver une machine sans
+           rien câbler : on pousse « speed » à 1 et on regarde si la transition part. Sinon il
+           faudrait poser un événement sur un objet, lancer le game, et deviner. -->
+      <div id="graph-params"></div>
+      <!-- Le graphe À GAUCHE, les propriétés de ce qu'il sélectionne À DROITE, dans la MÊME
+           fenêtre — la disposition d'Unity. Avant, l'état/la transition ne s'éditaient que dans
+           l'inspecteur principal, et seulement si la vignette de l'asset était ALORS sélectionnée
+           dans le panneau Projet : cliquer un état depuis la fenêtre Animator n'ouvrait donc
+           rien du tout, et il n'y avait aucun moyen de deviner ce qui manquait. -->
+      <div id="graph-main">
+        <div id="graph-zone">
+          <svg id="graph-links"></svg>
+          <div id="graph-states"></div>
+        </div>
+        <div id="graph-inspector"></div>
+      </div>
+    </div>
+    <div id="banner-cam">Vue à travers <b id="banner-cam-name"></b> — <kbd>Échap</kbd> pour revenir</div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="preview-frame"><span id="preview-name"></span></div>
+    <div id="view-game-frame" style="display:none"></div>
+    <!-- Interface de game (UIDocument) : rendu en mode lecture uniquement. -->
+    <div id="banner-cloud" style="display:none"></div>
+    <div id="ui-layer"></div>
+    <!-- Le rectangle de sélection à la souris. Ses couleurs étaient écrites ICI, en dur et en
+         bleu : test/tokens-css.test.mjs ne regarde que css/, donc elles ont survécu au
+         changement de palette et le rectangle est resté seul bleu dans une interface ambre.
+         Elles sont passées dans css/panels.css, sous la garde. -->
+    <div id="rubber-band" style="display:none"></div>
+  </div>
+
+  <div id="insp">
+    <!-- Plus de barre de titre ici : le dock rend l onglet « Inspecteur » au-dessus de la
+         zone. Deux titres pour le meme panneau, c est le doublon a retirer. -->
+    <div id="insp-body"><div class="none">aucun objet sélectionné</div></div>
+  </div>
+
+  <!-- LE PORTE-ELEMENTS DU BAS. Ce bloc n est plus une zone : le dock ADOPTE #project-zone et
+       #console-body (deux panneaux distincts) et leurs barres d outils. Ce qui reste ici est
+       ce que la fenetre Animation adopte a son tour (js/windows.js) : #tools-anim et
+       #anim-body. Ils doivent rester dans la page, avec leurs ids et leurs ecouteurs. -->
+  <div id="project" style="display:none">
+    <div class="title-panel">
+      <!-- Les onglets Projet / Console sont rendus par le dock (js/ui/dock.js) : deux
+           barres d onglets superposees pour le meme choix, c etait le doublon a retirer.
+           #console-badge suit son onglet, pose par js/console.js. -->
+      <span id="console-badge"></span>
+      <span id="tools-project">
+        <button id="btn-import">＋ Importer (FBX, glTF, textures, sons)</button>
+        <button id="btn-new-asset" title="Créer un asset : script, matériau, graphe de shader, document UI, feuille de style, animation, sprite, palette de tuiles, table de contenu.">＋ Créer</button>
+        <button id="btn-make" title="Fabriquer une image ou un bruitage sans aucun fichier source : planche de tuiles, personnage, damier, saut, impact… L'aperçu se voit et s'écoute AVANT la création.">🎲 Fabriquer</button>
+        <button id="btn-new-folder" title="Nouveau dossier dans le dossier courant">📁 Dossier</button>
+        <button id="btn-refresh-folder" title="Relire le dossier de projet sur le disque MAINTENANT : la synchronisation automatique le fait toute seule, ce bouton sert quand on ne veut pas l'attendre — ou quand elle s'est arrêtée (accès au dossier perdu), auquel cas il la redémarre.">🔄 Rafraîchir</button>
+        <input type="file" id="file-import" multiple
+          accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.gif,.bmp,.mp3,.wav,.ogg,.m4a" style="display:none">
+      </span>
+      <span id="tools-anim" style="display:none">
+        <button id="an-start" title="Retour au début">⏮</button>
+        <button id="an-play" title="Lecture / pause (Espace)">▶</button>
+        <button id="an-loop" class="active" title="Lecture en boucle">🔁</button>
+        <span class="an-sep"></span>
+        <button id="an-key" title="Enregistrer la pose de l'objet sélectionné au temps courant">🔑 Poser une clé</button>
+        <button id="an-del-key" disabled title="Supprimer la clé sélectionnée">🗑 Clé</button>
+        <button id="an-preset-cam" title="Orbite, travelling, panoramique : pose les clés d&apos;un mouvement de caméra">🎥 Préréglages</button>
+        <button id="an-marker" disabled title="Pose un marqueur d&apos;événement sur le clip affiché, à la tête de lecture. Pendant la lecture il émet un événement nommé, qu&apos;un objet réglé sur « À la réception d&apos;un événement » peut écouter.">🔔 Marqueur</button>
+        <label class="an-field" title="Interpolation entre la clé sélectionnée et la suivante">Courbe
+          <select id="an-easing" disabled>
+            <option value="lineaire">Linéaire</option>
+            <option value="acc">Accélère</option>
+            <option value="dec">Décélère</option>
+            <option value="douce">Douce</option>
+            <option value="palier">Palier</option>
+          </select></label>
+        <span class="an-sep"></span>
+        <label class="an-field">Durée <input type="number" id="an-duration" min="1" max="120" step="0.5" value="5"> s</label>
+        <span id="an-time">0.00 s</span>
+      </span>
+      <span id="tools-console" style="display:none">
+        <button id="console-clear">🗑 Effacer</button>
+        <label class="an-field">Filtre <input type="text" id="console-filter" placeholder="objet ou texte…" spellcheck="false" style="width:130px"></label>
+        <span class="an-field" id="console-counters"></span>
+      </span>
+    </div>
+    <div id="project-zone">
+      <div id="folders-tree"></div>
+      <div id="project-body"><div class="none">Importez des modèles 3D et des textures, ou déposez des fichiers ici.
+        Glissez ensuite un modèle ou un prefab dans la view pour l'instancier, une texture sur un objet pour l'habiller.</div></div>
+    </div>
+    <div id="console-body" style="display:none"></div>
+    <div id="anim-body" style="display:none">
+      <!-- Le filtre d'os vit EN TÊTE DE LA COLONNE qu'il filtre, pas dans la bar de
+           transport : c'est là qu'on le cherche, et la bar débordait déjà. Il est dans le
+           HTML statique et non reconstruit par updateTimeline(), pour ne pas perdre le focus
+           à chaque frappe. -->
+      <div id="tl-names">
+        <div class="tl-header"><input type="text" id="an-filter-bone" disabled
+          placeholder="🔎 filtrer les os…" spellcheck="false"
+          title="N'affiche que les os dont le nom contient ce texte. Un rig humanoïde en anime cinquante-deux : sans filtre, on ne trouve pas celui qu'on cherche."></div>
+        <div id="tl-names-list"></div>
+      </div>
+      <div id="tl-zone">
+        <div id="tl-ruler"></div>
+        <div id="tl-tracks"></div>
+        <div id="tl-playhead"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- AU PREMIER NIVEAU, ET PAS DANS #view. Il y vivait, et le dock met #view en display:none dès
+     qu'un AUTRE onglet de sa zone est actif (Animator, par exemple) : le menu s'ouvrait alors
+     dans un sous-arbre caché. Concrètement « ＋ Créer » ne répondait plus tant que l'Animator
+     était au premier plan. C'est une fenêtre volante en position:fixed partagée par la vue, la
+     hiérarchie et le panneau Projet — elle n'appartient à aucun panneau. -->
+<div id="menu-context" class="menu dropdown" style="display:none;position:fixed"></div>
+
+<div id="modal">
+  <div id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title-txt">
+    <div id="modal-title"><span id="modal-title-txt"></span><button id="modal-close" aria-label="Fermer" title="Fermer">✕</button></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<input type="file" id="file-scene" accept=".p3d,.s3d,.json,application/json,application/gzip" style="display:none">
+
+<!-- Bump ?v=N sur TOUS les <script> de ce bloc à chaque modification d'un fichier js/ —
+     un navigateur qui garde un ancien fichier en hidden reproduit un bug fantôme
+     indiscernable d'une regression reelle. Verifiable : npm test dans moteur/. -->
+<!-- WebGPURenderer/TSL : specificateurs nus resolus vers moteur/vendor-esm/ (paquet npm
+     "three" officiel, pas de build UMD/global pour ces modules depuis ~r160). Voir
+     docs/superpowers/specs/2026-08-06-fondation-webgpu-tsl-design.md. -->
+<script type="importmap">
+{"imports": {
+  "three/webgpu": "./vendor-esm/three.webgpu.min.js",
+  "three/tsl": "./vendor-esm/three.tsl.min.js"
+}}
+</script>
+<script type="module" src="js/render-webgpu-bridge.mjs"></script>
+<script src="vendor/three-addons.min.js" defer></script>
+<script src="vendor/cannon.js" defer></script>
+<script src="vendor/fflate.js" defer></script>
+<script src="vendor/potpack.js" defer></script>
+<script type="module" src="js/version.js"></script>
+<!-- ---- Socle d'interface (js/ui/) : l'ordre de ces balises est une DEPENDANCE.
+     registry <- form-plan <- fields <- form <- panel. Voir docs/superpowers/specs/
+     2026-09-02-refonte-interface-editeur-design.md §4. ---- -->
+<script type="module" src="js/ui/icon.js"></script>
+<script type="module" src="js/ui/segmented.js"></script>
+<script type="module" src="js/ui/registry.js"></script>
+<script type="module" src="js/ui/prefs.js"></script>
+<script type="module" src="js/ui/form-plan.js"></script>
+<script type="module" src="js/ui/fields.js"></script>
+<script type="module" src="js/ui/form.js"></script>
+<script type="module" src="js/ui/panel.js"></script>
+<script type="module" src="js/ui/panels-inspector.js"></script>
+<script type="module" src="js/ui/panels-scene.js"></script>
+<script type="module" src="js/ui/panels-settings.js"></script>
+<script type="module" src="js/ui/dock-tree.js"></script>
+<script type="module" src="js/ui/dock.js"></script>
+<script type="module" src="js/ui/floating-palette.js"></script>
+<script type="module" src="js/ui/panels-shell.js"></script>
+<script type="module" src="js/editor-camera.js"></script>
+<script type="module" src="js/view-gizmo.js"></script>
+<script type="module" src="js/tile-palette.js"></script>
+<script type="module" src="js/palette-ui.js"></script>
+<script type="module" src="js/ui/panels-postprofile.js"></script>
+<script type="module" src="js/editor-overlay.js"></script>
+<script type="module" src="js/grid-floor.js"></script>
+<script type="module" src="js/lightmap-atlas.js"></script>
+<script type="module" src="js/script-trust.js"></script>
+<script type="module" src="js/script-scope.js"></script>
+<script type="module" src="js/script-library.js"></script>
+<script type="module" src="js/camera-overlays.js"></script>
+<script type="module" src="js/shadow-fit.js"></script>
+<script type="module" src="js/dev-guards.js"></script>
+<script type="module" src="js/load-retry.js"></script>
+<script type="module" src="js/draw-mode.js"></script>
+<script type="module" src="js/scene.js"></script>
+<script type="module" src="js/editor-input.js"></script>
+<script type="module" src="js/model-import.js"></script>
+<script type="module" src="js/model-replace.js"></script>
+<script type="module" src="js/model-nodes.js"></script>
+<script type="module" src="js/raycast-candidates.js"></script>
+<script type="module" src="js/component-data.js"></script>
+<script type="module" src="js/component-registry.js"></script>
+<script type="module" src="js/component.js"></script>
+<script type="module" src="js/systems.js"></script>
+<script type="module" src="js/plugin-host.js"></script>
+<script type="module" src="js/node.js"></script>
+<script type="module" src="js/objects.js"></script>
+<script type="module" src="js/rigid-body.js"></script>
+<script type="module" src="js/collider.js"></script>
+<script type="module" src="js/post-volume-viz.js"></script>
+<script type="module" src="js/components/component-mesh.js"></script>
+<script type="module" src="js/components/component-model.js"></script>
+<script type="module" src="js/components/component-skinned-mesh.js"></script>
+<script type="module" src="js/components/component-light.js"></script>
+<script type="module" src="js/components/component-camera.js"></script>
+<script type="module" src="js/components/component-camera-follow.js"></script>
+<script type="module" src="js/components/component-team-color.js"></script>
+<script type="module" src="js/fog-grid.js"></script>
+<script type="module" src="js/components/component-fog-of-war.js"></script>
+<script type="module" src="js/components/component-xr.js"></script>
+<script type="module" src="js/xr-runtime.js"></script>
+<script type="module" src="js/components/component-collider.js"></script>
+<script type="module" src="js/components/component-postvolume.js"></script>
+<script type="module" src="js/components/component-physics.js"></script>
+<script type="module" src="js/components/component-terrain.js"></script>
+<script type="module" src="js/components/component-particles.js"></script>
+<script type="module" src="js/components/component-reflection.js"></script>
+<script type="module" src="js/components/component-script.js"></script>
+<script type="module" src="js/components/component-events.js"></script>
+<script type="module" src="js/components/component-subscene.js"></script>
+<script type="module" src="js/components/component-tag.js"></script>
+<script type="module" src="js/components/component-uidocument.js"></script>
+<script type="module" src="js/components/component-animator.js"></script>
+<script type="module" src="js/presets.js"></script>
+<script type="module" src="js/component-views.js"></script>
+<!-- APRES component-views.js : les descripteurs s'enregistrent aupres de la facade
+     ComponentViews, qui doit donc exister. Chargé avant, l'enregistrement serait sauté
+     (il est gardé par `typeof`) et aucune vue migrée ne s'afficherait. -->
+<script type="module" src="js/ui/panels-components.js"></script>
+<script type="module" src="js/component-migration.js"></script>
+<script type="module" src="js/anim-markers.js"></script>
+<script type="module" src="js/anim-blend.js"></script>
+<script type="module" src="js/windows.js"></script>
+<script type="module" src="js/anim-asset.js"></script>
+<script type="module" src="js/sprite-2d.js"></script>
+<script type="module" src="js/anim-sprite.js"></script>
+<script type="module" src="js/tilemap.js"></script>
+<script type="module" src="js/physics-2d.js"></script>
+<script type="module" src="js/world-2d.js"></script>
+<script type="module" src="js/sky-camera.js"></script>
+<script type="module" src="js/camera-framing.js"></script>
+<script type="module" src="js/audio-falloff.js"></script>
+<script type="module" src="js/audio-bus.js"></script>
+<script type="module" src="js/chip-synth.js"></script>
+<script type="module" src="js/music-loop.js"></script>
+<script type="module" src="js/track-sampling.js"></script>
+<script type="module" src="js/components/component-sprite.js"></script>
+<script type="module" src="js/components/component-anim-sprite.js"></script>
+<script type="module" src="js/components/component-tilemap.js"></script>
+<script type="module" src="js/components/component-physics-2d.js"></script>
+<script type="module" src="js/components/component-audio.js"></script>
+<script type="module" src="js/editor-batching.js"></script>
+<script type="module" src="js/primitive-geometry.js"></script>
+<script type="module" src="js/primitives-extra.js"></script>
+<script type="module" src="js/synth.js"></script>
+<script type="module" src="js/steam-bridge.js"></script>
+<script type="module" src="js/locale.js"></script>
+<script type="module" src="js/gamepad-input.js"></script>
+<script type="module" src="js/touch-input.js"></script>
+<script type="module" src="js/components/component-synth.js"></script>
+<script type="module" src="js/components/component-touch-controls.js"></script>
+<script type="module" src="js/brush-tilemap.js"></script>
+<script type="module" src="js/animator.js"></script>
+<script type="module" src="js/animator-graph-geo.js"></script>
+<script type="module" src="js/animator-graph.js"></script>
+<script type="module" src="js/retargeting.js"></script>
+<script type="module" src="js/humanoid-avatar.js"></script>
+<script type="module" src="js/anim-models.js"></script>
+<!-- Décodeurs de compression : Draco et KTX2/Basis décodent dans un Worker, meshopt sur
+     le fil principal. Chargés AVANT assets.js et asset-compression.js, qui les branchent
+     sur les chargeurs de three. -->
+<script src="vendor/three-draco.min.js" defer></script>
+<script src="vendor/three-meshopt.min.js" defer></script>
+<script src="vendor/three-ktx2.min.js" defer></script>
+<script type="module" src="js/asset-compression.js"></script>
+<script type="module" src="js/assets.js"></script>
+<script type="module" src="js/environment.js"></script>
+<!-- AVANT selection.js et animation.js, qui lisent `osSelectionne`. C est un `let` : `typeof`
+     ne protege PAS de sa zone morte temporelle, contrairement a une var non declaree. -->
+<script type="module" src="js/skeleton.js"></script>
+<script type="module" src="js/selection.js"></script>
+<script type="module" src="js/hierarchy-icon.js"></script>
+<script type="module" src="js/hierarchy.js"></script>
+<script type="module" src="js/console.js"></script>
+<script type="module" src="js/shader-graph.js"></script>
+<script type="module" src="js/shader-graph-editor.js"></script>
+<script type="module" src="js/materials.js"></script>
+<script type="module" src="js/post-profile.js"></script>
+<script type="module" src="js/audio.js"></script>
+<script type="module" src="js/particles.js"></script>
+<script type="module" src="js/navigation.js"></script>
+<script type="module" src="js/terrain.js"></script>
+<script type="module" src="js/collider2d-handles.js"></script>
+<script type="module" src="js/post-volume-blend.js"></script>
+<script type="module" src="js/postfx.js"></script>
+<script type="module" src="js/probes.js"></script>
+<script type="module" src="js/inspector.js"></script>
+<script type="module" src="js/material-props.js"></script>
+<script type="module" src="js/sprite-atlas.js"></script>
+<script type="module" src="js/sprite-atlas-ui.js"></script>
+<script type="module" src="js/texture-preview.js"></script>
+<script type="module" src="js/import-settings.js"></script>
+<script type="module" src="js/material-extraction.js"></script>
+<script type="module" src="js/prefabs.js"></script>
+<!-- AVANT viewport.js, et pas ailleurs : la loop de rendu lit `cuissonLightmap`, qui
+     est une const. Chargé après, l'accès tomberait dans sa zone morte temporelle et
+     interromprait viewport.js en entier — le même piège que scene.js en r185. -->
+<script type="module" src="js/lightmap-rgbm.js"></script>
+<script type="module" src="js/lightmap-bake.js"></script>
+<script type="module" src="js/systems/tilemap-system.js"></script>
+<script type="module" src="js/systems/sprite-system.js"></script>
+<script type="module" src="js/systems/fog-system.js"></script>
+<script type="module" src="js/systems/camera-system.js"></script>
+<script type="module" src="js/viewport.js"></script>
+<script type="module" src="js/placement.js"></script>
+<script type="module" src="js/profiler.js"></script>
+<script type="module" src="js/animation.js"></script>
+<script type="module" src="js/physics.js"></script>
+<script type="module" src="js/scripts.js"></script>
+<script type="module" src="js/events.js"></script>
+<script type="module" src="js/analysis.js"></script>
+<script type="module" src="js/render-perf.js"></script>
+<script type="module" src="js/view-tools.js"></script>
+<script type="module" src="js/file-names.js"></script>
+<script type="module" src="js/project-folder.js"></script>
+<script type="module" src="js/folder-watch.js"></script>
+<script type="module" src="js/recents.js"></script>
+<script type="module" src="js/project-dirty.js"></script>
+<script type="module" src="js/write-cache.js"></script>
+<script type="module" src="js/history.js"></script>
+<script type="module" src="js/serialization.js"></script>
+<script type="module" src="js/play-mode.js"></script>
+<script type="module" src="js/project-settings.js"></script>
+<script type="module" src="js/cloud-project.js"></script>
+<script type="module" src="js/cloud-session.js"></script>
+<script type="module" src="js/escape-html.js"></script>
+<script type="module" src="js/conflict-screen.js"></script>
+<script type="module" src="js/readonly-ui.js"></script>
+<script type="module" src="js/scene-lock.js"></script>
+<script type="module" src="js/project.js"></script>
+<script type="module" src="js/project-storage.js"></script>
+<script type="module" src="js/layers.js"></script>
+<script type="module" src="js/subscenes.js"></script>
+<script type="module" src="js/autosave.js"></script>
+<script type="module" src="js/build-trimming.js"></script>
+<script type="module" src="js/build-desktop.js"></script>
+<script type="module" src="js/build.js"></script>
+<script type="module" src="js/game-ui.js"></script>
+<script type="module" src="js/game-character.js"></script>
+<script type="module" src="js/network-game.js"></script>
+<script type="module" src="js/network-editor.js"></script>
+<script type="module" src="js/sound-rack.js"></script>
+<script type="module" src="js/ui.js"></script>
+<script type="module" src="js/external-editor.js"></script>
+<script type="module" src="js/help.js"></script>
+<script type="module" src="js/copilot-providers.js"></script>
+<script type="module" src="js/copilot-budget.js"></script>
+<script type="module" src="js/copilot-inspect.js"></script>
+<script type="module" src="js/ai-rules.js"></script>
+<script type="module" src="js/ai-trace.js"></script>
+<script type="module" src="js/script-asset-lint.js"></script>
+<script type="module" src="js/ai-guidelines.js"></script>
+<script type="module" src="js/project-audit.js"></script>
+<script type="module" src="js/mcp-link.js"></script>
+<script type="module" src="js/copilot.js"></script>
+<!-- L'Atelier Blender : la liaison (seule porte vers l'addon), les commandes blender_* et le panneau.
+     Même URL que leurs imports (pas de ?v=) : un seul module chacun, donc un seul register(). -->
+<script type="module" src="js/blender-link.js"></script>
+<script type="module" src="js/blender-installer.js"></script>
+<script type="module" src="js/copilot-blender.js"></script>
+<script type="module" src="js/blender-workshop.js"></script>
+<script type="module" src="js/proc-texture.js"></script>
+<script type="module" src="js/proc-sound.js"></script>
+<script type="module" src="js/iso-sprite.js"></script>
+<!-- PAS DE <script> PROPRE POUR copilot-observer.js NI copilot-workshop.js : ui-factory.js
+     importe déjà `createSoundProc`/`createTextureProc` de copilot-workshop.js (qui importe à son
+     tour `kindProjectADate` de copilot-observer.js, et `CopilotTools` de copilot.js) — l'ordre est
+     donc garanti par le graphe de modules ES, pas par l'ordre des <script>. Une balise séparée
+     chargeait chaque fichier une SECONDE fois sous une URL différente (la même sans le ?v=), donc
+     l'exécutait deux fois : leurs CopilotTools.register() tournaient deux fois chacun, et le
+     second passage levait « déjà enregistré » — d'abord sur capture_view (copilot-observer.js),
+     puis sur create_texture (copilot-workshop.js). Voir test/copilote-observer.test.mjs et
+     test/copilote-registre.test.mjs. -->
+<script type="module" src="js/ui-factory.js"></script>
+<!-- Le filtrage du catalogue et la PORTE d'installation (les trois verrous de postMessage).
+     Aucun effet au chargement : que des déclarations, partagées avec plugins.html — c'est ce
+     qui fait juger une demande par le MÊME code des deux côtés de la frontière. -->
+<script type="module" src="js/plugin-catalog.js"></script>
+<script type="module" src="js/plugins.js"></script>
+<!-- La bibliothèque de prefabs par défaut (moteur/prefabs-default/) : des objets tout faits
+     (contrôleur FPS…), accessibles depuis N'IMPORTE QUEL projet — pas seulement depuis le Hub.
+     Après objects.js (rebuildTree, previewObject3D), avant les templates du Hub qui s'en servent. -->
+<script type="module" src="js/prefab-library.js"></script>
+<!-- Le Hub (moteur/hub.html) charge js/hub/hub-templates.js seul, avant même qu'un projet
+     existe. L'éditeur charge en plus les fichiers qui ATTACHENT le contenu réel des templates
+     (createSceneNode, addComponent... n'existent qu'ici) — après serialization.js (newProject2d)
+     et objects.js/component-data.js (createSceneNode, ensureGame), avant startup.js pour que
+     project.js:autoOpenPendingHubProject() trouve le registre déjà rempli. -->
+<script type="module" src="js/hub/hub-templates.js"></script>
+<script type="module" src="js/hub/template-fps.js"></script>
+<script type="module" src="js/hub/template-platformer-2d.js"></script>
+<script type="module" src="js/hub/template-third-person.js"></script>
+<script type="module" src="js/hub/template-webxr-vr.js"></script>
+<script type="module" src="js/startup.js"></script>
+</body>

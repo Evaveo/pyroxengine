@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aide — Éditeur 3D</title>
+<!-- Les tokens AVANT la feuille de la page : c'est la même palette que l'éditeur, et elle
+     n'est plus recopiée ici. -->
+<link rel="stylesheet" href="css/tokens.css?v=148">
+<link rel="stylesheet" href="css/states.css?v=148">
+<link rel="stylesheet" href="css/components.css?v=148">
+<link rel="stylesheet" href="css/help.css?v=148">
+</head>
+<body>
+
+<header id="help-header">
+  <button id="help-menu" class="help-icon-btn" aria-label="Sommaire" title="Sommaire">☰</button>
+  <a href="#getting-started" id="help-home" class="help-brand"><span class="help-brand-mark">?</span>Manuel de l'éditeur</a>
+  <div id="help-search-box">
+    <input type="search" id="help-q" placeholder="Rechercher dans le manuel…  ( / )" spellcheck="false" autocomplete="off">
+  </div>
+  <label class="help-adv-toggle" title="Déplier d'office les blocs « Avancé » de chaque page">
+    <input type="checkbox" id="help-adv-open"> Mode avancé
+  </label>
+  <a href="editor.html" id="help-back">← Éditeur</a>
+</header>
+
+<div id="help-columns">
+  <nav id="help-nav" aria-label="Sommaire"></nav>
+  <main id="help-page"></main>
+  <aside id="help-toc" aria-label="Sur cette page"></aside>
+</div>
+
+<!-- Trois tableaux de cette aide ne sont PAS recopiés : ils sont engendrés à l'affichage
+     à partir des tables que l'éditeur utilise lui-même (material-props.js, les tables de
+     help-content.js). Une propriété ajoutée là apparaît ici sans que personne y pense.
+     Ces fichiers ne font RIEN au chargement (déclarations seules) : c'est ce qui permet
+     de les charger dans une page qui n'embarque ni three.js ni l'éditeur. Vérifié par
+     test/aide.test.mjs.
+     Les parties du manuel (js/help/) sont importées par help-content.js ; leurs balises
+     ici, à la MÊME adresse (sans ?v=), ne les exécutent pas une seconde fois. -->
+<script type="module" src="js/material-props.js"></script>
+<!-- Le PIVOT d'abord : les parties et help-page.js l'importent en boucle (ils n'y lisent qu'au
+     rendu). Entré en premier, help-content.js s'évalue en DERNIER du cycle, après les parties
+     qu'il concatène. Une partie chargée en premier le faisait évaluer avant elle :
+     « Cannot access PAGES_START before initialization ». -->
+<script type="module" src="js/help-content.js"></script>
+<script type="module" src="js/help/help-format.js"></script>
+<script type="module" src="js/help/pages-start.js"></script>
+<script type="module" src="js/help/pages-interface.js"></script>
+<script type="module" src="js/help/pages-workflows.js"></script>
+<script type="module" src="js/help/pages-components-3d.js"></script>
+<script type="module" src="js/help/pages-components-2d.js"></script>
+<script type="module" src="js/help/pages-components.js"></script>
+<script type="module" src="js/help/pages-scripting.js"></script>
+<script type="module" src="js/help/pages-tutorials.js"></script>
+<script type="module" src="js/help/pages-reference.js"></script>
+<script type="module" src="js/help-page.js"></script>
+</body>
+</html>

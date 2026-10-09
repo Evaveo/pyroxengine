@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Édition — Éditeur 3D</title>
+<!-- réutilise les variables de couleur + les classes .ge-* (éditeur nodal de shader) de la
+     feuille de style principale, plutôt que de dupliquer une palette ici. -->
+<link rel="stylesheet" href="css/tokens.css?v=146">
+<link rel="stylesheet" href="css/base.css?v=146">
+<link rel="stylesheet" href="css/states.css?v=146">
+<link rel="stylesheet" href="css/components.css?v=146">
+<link rel="stylesheet" href="css/widgets.css?v=146">
+<!-- L'aperçu du shader (sphère, éditeur nodal) a besoin d'un VRAI WebGPURenderer : le renderer
+     WebGL classique n'exécute pas un NodeMaterial. Deux fenêtres ne pouvant pas partager un
+     contexte GPU, celle-ci a le sien — d'où le même import map + pont ESM qu'editor.html.
+     Les <script> classiques plus bas restent non différés : ils n'utilisent THREE qu'à
+     l'intérieur de fonctions appelées bien après (sur postMessage), jamais au chargement. -->
+<script type="importmap">
+{"imports": {
+  "three/webgpu": "./vendor-esm/three.webgpu.min.js",
+  "three/tsl": "./vendor-esm/three.tsl.min.js"
+}}
+</script>
+<script type="module" src="js/render-webgpu-bridge.mjs"></script>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#0d0f12;color:#d6d9de;
+    font-family:"Segoe UI",system-ui,sans-serif;}
+  #body{display:flex;flex-direction:column;height:100%;padding:10px;gap:8px;}
+  h1{font-size:13px;font-weight:600;margin:0 0 4px;color:#8a8f98;}
+  #bar-file{display:none;align-items:center;gap:6px;font-size:12px;color:#8a8f98;}
+  #bar-file.visible{display:flex;}
+  #picker-file{background:#12151a;color:#d6d9de;border:1px solid #31363f;border-radius:4px;
+    padding:3px 6px;font:12px "Segoe UI",system-ui,sans-serif;}
+  #body.ge-plein-ecran #bar-file{position:absolute;top:8px;left:8px;z-index:5;
+    background:rgba(13,15,18,.85);padding:4px 8px;border-radius:6px;}
+  #empty-project{padding:16px;color:#8a8f98;font-size:13px;}
+  #zones{flex:1;display:flex;gap:8px;min-height:0;}
+  .zone{flex:1;display:flex;flex-direction:column;gap:4px;min-height:0;}
+  .zone label{font-size:11.5px;color:#8a8f98;}
+  textarea{flex:1;resize:none;background:#12151a;color:#d6d9de;border:1px solid #31363f;
+    border-radius:6px;padding:8px;font:12.5px/1.4 "Cascadia Code","Consolas",monospace;}
+  #apercu{flex:1;display:flex;flex-direction:column;gap:4px;min-height:0;}
+  #apercu label{font-size:11.5px;color:#8a8f98;}
+  #apercu iframe{flex:1;background:#fff;border:1px solid #31363f;border-radius:6px;}
+  #closed{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(13,15,18,.92);font-size:13px;text-align:center;padding:20px;}
+  /* éditeur nodal de shader (tsl) : plein écran, pas de titre ni de marge — le canvas EST
+     la fenêtre, comme Shader Graph dans son propre tab. */
+  #body.ge-plein-ecran{padding:0;gap:0;position:relative;}
+  #body.ge-plein-ecran h1{display:none;}
+  #body.ge-plein-ecran #zones{gap:0;}
+  .ge-page{display:flex;flex-direction:column;height:100%;width:100%;}
+</style>
+</head>
+<body>
+<div id="body">
+  <h1>Édition en direct — les changements sont appliqués immédiatement dans l'éditeur</h1>
+  <div id="bar-file">
+    <label for="picker-file">Fichier</label>
+    <select id="picker-file"></select>
+  </div>
+  <div id="zones"></div>
+</div>
+<div id="closed">L'éditeur principal a été fermé ou rechargé.<br>Cette fenêtre peut être fermée.</div>
+<script type="module" src="js/external-editor.js"></script>
+<script type="module" src="js/shader-graph.js"></script>
+<script type="module">
+import {initEditorCodeExternal} from './js/code-editor.js';
+import {initEditorGraphShaderExternal} from './js/shader-graph-editor.js';
+import {initEditorTableExternal} from './js/table-editor.js';
+window.initEditorCodeExternal = initEditorCodeExternal;
+window.initEditorTableExternal = initEditorTableExternal;
+window.initEditorGraphShaderExternal = initEditorGraphShaderExternal;
+</script>
+<script>
+function _showOpenerFerme(){ document.getElementById('closed').style.display = 'flex'; }
+
+// Sélecteur "Fichier" en haut de la fenêtre : présent uniquement quand l'appelant fournit
+// data.listFiles ([{id, name}]) — c'est-à-dire quand la fenêtre a été ouverte depuis
+// le menu Fenêtres, ou depuis un asset qui a des frères du même kind dans le projet. Un
+// changement de sélection reposte le protocole vers la fenêtre principale, qui rappelle la
+// même fonction d'ouverture qu'un double-clic normal sur cet asset (aucun nouveau chemin de
+// sauvegarde/chargement).
+function _initSelecteurFichier(data){
+  const bar = document.getElementById('bar-file');
+  const select = document.getElementById('picker-file');
+  // `listFiles` depuis la migration des noms en anglais ; `listeFichiers` gardé pour une fenêtre
+  // restée ouverte sur une version précédente. Ne lire que l'ancien nom cachait le sélecteur.
+  const list = data.listFiles || data.listeFichiers;
+  if(!list || !list.length){
+    bar.classList.remove('visible');
+    return;
+  }
+  select.innerHTML = list.map(function(f){
+    return '<option value="' + f.id + '">' + f.name + '</option>';
+  }).join('');
+  select.value = data.id || '';
+  select.onchange = function(){
+    if(window.opener && !window.opener.closed){
+      window.opener.postMessage({type:'changerFichier', id: select.value}, location.origin);
+    }
+  };
+  bar.classList.add('visible');
+}
+
+// Cinq modules d'édition : html-css (deux textarea), animator (machine à états en JSON brut),
+// table (asset data en tableau, table-editor.js),
+// tsl (éditeur nodal de graphe de shader, shader-graph-editor.js) et code (éditeur de code
+// avec numéros de lignes et coloration, code-editor.js). Un futur type ajoutera sa propre
+// branche ici sans toucher au protocole ci-dessus (external-editor.js).
+function _initEditorExternal(type, data, sendUpdate){
+  const zones = document.getElementById('zones');
+  // Préambule commun à tous les types. Sans danger pour `animator`, qui ne fournit pas de
+  // `listeFichiers` : le sélecteur se hidden de lui-même et la garde ci-dessous ne mord pas.
+  _initSelecteurFichier(data);
+  const files = data.listFiles || data.listeFichiers;
+  if(!data.id && files && !files.length){
+    document.getElementById('body').classList.remove('ge-plein-ecran');
+    zones.innerHTML = '<div id="empty-project">Aucun fichier de ce type dans le projet.</div>';
+    return;
+  }
+  // Machine à états, en JSON brut — la sortie de secours quand le graphe ne suffit pas. On ne
+  // renvoie QUE du JSON valide : sans ce filtre, un fichier à moitié tapé écraserait la machine
+  // à chaque frappe, et l'utilisateur perdrait son travail en le saisissant.
+  if(type === 'animator'){
+    zones.innerHTML = '<div class="zone"><label>Machine (JSON)</label>'
+      + '<textarea id="zone-json" spellcheck="false"></textarea>'
+      + '<div id="state-json" style="padding:6px 0;font-size:12.5px"></div></div>';
+    const z = document.getElementById('zone-json');
+    const state = document.getElementById('state-json');
+    z.value = data.json || '{}';
+    z.addEventListener('input', function(){
+      try{
+        JSON.parse(z.value);
+        state.textContent = '✓ JSON valide — appliqué dans l\'éditeur';
+        state.style.color = '#98c379';
+        sendUpdate({json: z.value});
+      }catch(e){
+        state.textContent = '✕ ' + e.message + ' — rien n\'est appliqué tant que ce n\'est pas valide';
+        state.style.color = '#e06c75';
+      }
+    });
+    return;
+  }
+  if(type === 'tsl'){
+    document.getElementById('body').classList.add('ge-plein-ecran');
+    initEditorGraphShaderExternal(data, sendUpdate);
+    return;
+  }
+  // Table de contenu (asset data) en tableau, js/table-editor.js. « Voir le code » renvoie
+  // {action:'code'} : la fenêtre principale ouvre alors la même table dans l'éditeur de code.
+  if(type === 'table'){
+    document.getElementById('body').classList.add('ge-plein-ecran');
+    document.getElementById('body').style.padding = '10px';
+    document.title = (data.name || 'Table') + ' — Éditeur 3D';
+    initEditorTableExternal(data, sendUpdate);
+    return;
+  }
+  if(type === 'code'){
+    document.getElementById('body').classList.add('ge-plein-ecran');
+    document.title = (data.name || 'Code') + ' — Éditeur 3D';
+    initEditorCodeExternal(data, sendUpdate);
+    return;
+  }
+  if(type !== 'html-css'){
+    zones.textContent = 'Type d\'éditeur externe inconnu : ' + type;
+    return;
+  }
+  // donnees.sansFeuille : ouverture depuis le menu Fenêtres / le sélecteur sur un
+  // documentUI qui n'est rattaché à aucun composant UIDocument précis — il n'y a donc pas
+  // de feuilleStyle associée à éditer en face (cette association vit sur le composant, pas
+  // sur l'asset). On édite alors le HTML seul.
+  zones.innerHTML =
+    '<div class="zone"><label>HTML</label><textarea id="zone-html" spellcheck="false"></textarea></div>'
+    + (data.sansFeuille ? ''
+      : '<div class="zone"><label>CSS</label><textarea id="zone-css" spellcheck="false"></textarea></div>');
+  const zHtml = document.getElementById('zone-html');
+  const zCss = document.getElementById('zone-css');
+  zHtml.value = data.html || '';
+  if(zCss) zCss.value = data.css || '';
+
+  const apercu = document.createElement('div');
+  apercu.id = 'apercu';
+  apercu.innerHTML = '<label>Aperçu</label><iframe id="frame-preview" sandbox=""></iframe>';
+  zones.appendChild(apercu);
+  const frame = document.getElementById('frame-preview');
+
+  function rafraichirApercu(){
+    frame.srcdoc = '<!DOCTYPE html><html><head><style>' + (zCss ? zCss.value : '')
+      + '</style></head><body>' + zHtml.value + '</body></html>';
+  }
+  function surSaisie(){
+    sendUpdate(zCss ? {html: zHtml.value, css: zCss.value} : {html: zHtml.value});
+    rafraichirApercu();
+  }
+  zHtml.addEventListener('input', surSaisie);
+  if(zCss) zCss.addEventListener('input', surSaisie);
+  rafraichirApercu();
+}
+</script>
+</body>
+</html>

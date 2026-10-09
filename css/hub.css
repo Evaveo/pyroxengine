@@ -1,0 +1,149 @@
+/* moteur/css/hub.css — Project Hub. N'écrit aucune couleur en dur : tout vient de tokens.css
+   (test/tokens-css.test.mjs le garde pour toutes les feuilles de moteur/css/). */
+
+body{
+  background:var(--bg);
+  color:var(--txt);
+  font-family:system-ui, sans-serif;
+}
+
+#hub-app{
+  max-width:960px;
+  margin:0 auto;
+  padding:24px;
+}
+
+#hub-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:32px;
+}
+
+#hub-brand{
+  font-size:20px;
+  font-weight:600;
+  color:var(--txt-strong);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+#hub-brand i{ color:var(--accent); }
+
+#hub-skip{
+  background:transparent;
+  border:1px solid var(--edge);
+  color:var(--txt-dim);
+  border-radius:6px;
+  padding:8px 14px;
+  cursor:pointer;
+}
+#hub-skip:hover{ border-color:var(--edge-strong); color:var(--txt); }
+
+#hub-error{
+  background:var(--surface-sunken);
+  border:1px solid var(--edge);
+  color:var(--txt-strong);
+  border-radius:6px;
+  padding:10px 14px;
+  margin-bottom:16px;
+}
+
+#hub-busy{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:var(--txt-dim);
+  margin-bottom:16px;
+}
+#hub-busy::before{
+  content:"";
+  width:16px; height:16px; border-radius:50%;
+  border:2px solid var(--edge); border-top-color:var(--accent);
+  animation:hub-spin .8s linear infinite;
+}
+@keyframes hub-spin{ to{ transform:rotate(360deg); } }
+
+#hub-main section{ margin-bottom:36px; }
+
+#hub-main h2{
+  font-size:15px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  color:var(--txt-dim);
+  margin:0 0 12px;
+}
+
+.hub-hint{
+  color:var(--txt-dim);
+  font-size:13px;
+  margin:0 0 14px;
+}
+
+.hub-empty{
+  color:var(--txt-off);
+  font-style:italic;
+}
+
+.hub-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+  gap:12px;
+}
+
+/* ---- Cartes de projet récent ---- */
+.hub-recent-card{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
+  background:var(--panel);
+  border:1px solid var(--edge);
+  border-radius:8px;
+  padding:14px;
+  cursor:pointer;
+  text-align:left;
+  color:var(--txt);
+}
+.hub-recent-card:hover{ border-color:var(--accent); background:var(--panel2); }
+.hub-recent-card i{ color:var(--accent); font-size:20px; }
+.hub-recent-name{ font-weight:600; color:var(--txt-strong); }
+.hub-recent-date{ font-size:12px; color:var(--txt-dim); }
+
+/* ---- Cartes de template ---- */
+.hub-template-card{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  background:var(--panel);
+  border:1px solid var(--edge);
+  border-radius:8px;
+  padding:14px;
+  cursor:pointer;
+  text-align:left;
+  color:var(--txt);
+}
+.hub-template-card:hover{ border-color:var(--edge-strong); }
+.hub-template-card.selected{ border-color:var(--accent); background:var(--sel-wash); }
+.hub-template-label{ font-weight:600; color:var(--txt-strong); }
+.hub-template-desc{ font-size:12px; color:var(--txt-dim); }
+
+.hub-primary{
+  margin-top:16px;
+  background:var(--accent);
+  color:var(--on-accent);
+  border:none;
+  border-radius:6px;
+  padding:10px 18px;
+  font-weight:600;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+.hub-primary:hover{ background:var(--accent-bright); }
+
+/* Variante neutre : « Ouvrir un projet » n'est pas l'action mise en avant (Créer l'est),
+   mais reste un bouton principal de section — même forme, couleur en retrait. */
+.hub-primary.hub-secondary{ background:var(--panel2); color:var(--txt-strong); border:1px solid var(--edge); }
+.hub-primary.hub-secondary:hover{ background:var(--panel3); border-color:var(--edge-strong); }

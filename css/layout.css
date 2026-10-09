@@ -1,0 +1,70 @@
+/* ---------- COQUILLE ET DOCK : où les choses sont, jamais de quoi elles ont l'air ---------- */
+/*
+ * Les zones, leurs proportions et leurs poignées sont construites à l'exécution par
+ * js/ui/dock.js : il n'y a plus de grille figée dans cette feuille depuis le lot 1b. Ce qui
+ * reste ici est la géométrie — un flex, une taille minimale, un curseur de redimensionnement.
+ * Une couleur de panneau n'est pas de la mise en page : elle est dans panels.css.
+ */
+
+
+  /* La coquille : deux barres fixes en haut, le DOCK dessous. Les zones, leurs proportions et
+     leurs poignées sont construites à l'exécution par js/ui/dock.js — il n'y a plus de grille
+     figée, ni les trois largeurs `--lg`/`--ld`/`--lb` qui l'accompagnaient. */
+  #app{display:flex;flex-direction:column;height:100%;}
+  #dock{flex:1;min-height:0;display:flex;}
+
+  /* ---- Dock : splits, cellules, poignées, zones, onglets ---- */
+  .dock-split{display:flex;flex:1;min-width:0;min-height:0;}
+  .dock-row{flex-direction:row;}
+  .dock-col{flex-direction:column;}
+  .dock-cell{display:flex;min-width:0;min-height:0;}
+  .dock-handle{flex:0 0 5px;background:var(--bg);}
+  .dock-handle-v{cursor:col-resize;}
+  .dock-handle-h{cursor:row-resize;}
+  .dock-handle:hover,.dock-handle.active{background:var(--accent);}
+  .dock-zone{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;
+    background:var(--panel);border:1px solid var(--edge);}
+  .dock-body{flex:1;min-height:0;display:flex;flex-direction:column;}
+  /* Un panneau ADOPTÉ garde SA mise en page : `#project-zone` est une rangée (arbre des
+     dossiers à gauche, assets à droite), `#hier` et `#insp` sont des colonnes. Imposer
+     `flex-direction:column` ici retournait le panneau Projet — l'arbre passait au-dessus des
+     assets — parce qu'aucun de ces éléments ne déclare sa direction : ils héritaient de la
+     nôtre. On ne pose donc que la place à prendre. */
+  .dock-panel{flex:1;min-width:0;min-height:0;}
+  /* Un hôte CRÉÉ par le dock (panneau sans élément à adopter) n'a, lui, aucune règle : il en
+     reçoit une ici. */
+  .dock-host{display:flex;flex-direction:column;overflow:auto;}
+  .dock-tabs{display:flex;align-items:center;gap:4px;}
+  /* Une barre d'outils suit son panneau dans la barre d'onglets de sa zone. */
+  .dock-toolbar{display:flex;align-items:center;gap:4px;margin-left:auto;}
+  .dock-spring{flex:1;}
+  /* Le « ? » de la zone : aide sur le panneau actif (js/help.js écoute ses clics). */
+  .dock-help{flex:none;width:20px;height:20px;border-radius:50%;border:1px solid var(--edge);
+    background:none;color:var(--txt-dim);font-size:11px;font-weight:700;cursor:pointer;margin-left:4px;}
+  .dock-help:hover{color:var(--accent);border-color:var(--accent);}
+  .dock-toolbar button{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+    padding:3px 8px;border-radius:var(--r-2);font-size:11.5px;cursor:pointer;}
+  .dock-toolbar button:hover{background:var(--panel3);}
+  /* Un onglet du dock. Les quatre `!important` qu'il portait (fond, bordure, marges, taille)
+     tranchaient un conflit avec `#project .title-panel button` — le conteneur des anciens
+     onglets du panneau bas, disparu avec la grille au lot 1b. Le conflit n'existe plus ; ce qui
+     reste est une question de spécificité, et `.dock-tabs .tab` (0,2,0) suffit à l'emporter sur
+     toute règle à une seule classe. */
+  .dock-tabs .tab{background:none;border:none;color:var(--txt-dim);cursor:grab;
+    padding:3px 10px;font-size:12px;text-transform:none;letter-spacing:normal;
+    font-weight:600;border-radius:var(--r-2);}
+  .dock-tabs .tab.active{color:var(--txt);background:var(--panel2);}
+
+  /* ---- Glisser-déposer d'un onglet ---- */
+  .dock-tabs .tab.dragging{cursor:grabbing;opacity:.5;}
+  /* En mode Lecture le glissement est refusé : il faut que ça se VOIE, sinon on croit à une
+     panne du dock. */
+  .dock-tabs .tab.locked{cursor:not-allowed;}
+  /* Le rectangle de prévisualisation annonce l'emplacement EXACT du dépôt. `pointer-events:none`
+     est indispensable : sans lui, il intercepterait le `pointermove` qui le dessine. */
+  .dock-preview{position:fixed;display:none;z-index:400;pointer-events:none;
+    background:var(--accent-wash-strong);border:1px solid var(--accent);border-radius:var(--r-1);}
+
+  /* ---- poignées de redimensionnement ---- */
+  /* Les trois poignées de la grille ont disparu avec elle : le dock en pose une par séparation. */
+  .dock-handle{transition:background .15s;}

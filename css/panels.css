@@ -1,0 +1,609 @@
+/* ---------- PANNEAUX : hiérarchie, vue, inspecteur, projet, console ---------- */
+/*
+ * Les surfaces où l'on travaille, et les champs du socle déclaratif (js/ui/form.js) qui les
+ * remplissent. Chargée après layout.css : une règle d'ici précise ce que la coquille a placé.
+ */
+
+  /* ---- scènes du project ---- */
+  #btn-scene-add{background:none;border:1px solid var(--edge);color:var(--txt-dim);
+    border-radius:var(--r-1);padding:0 7px;cursor:pointer;font-size:13px;margin-left:auto;}
+  #btn-scene-add:hover{color:var(--accent);border-color:var(--accent);}
+  #scenes-list{flex:none;max-height:120px;overflow-y:auto;padding:4px;
+    border-bottom:1px solid var(--edge);}
+  .scene-item{display:flex;align-items:center;gap:6px;padding:var(--sp-2) var(--sp-4);border-radius:var(--r-1);
+    cursor:pointer;font-size:12.5px;color:var(--txt-dim);}
+  .scene-item:hover{background:var(--panel2);}
+  .scene-item.active{color:var(--accent);background:var(--row-active);}
+  .scene-item .scene-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .scene-item .scene-x{background:none;border:none;color:var(--txt-dim);cursor:pointer;
+    font-size:13px;padding:0 2px;visibility:hidden;}
+  .scene-item:hover .scene-x{visibility:visible;}
+  .scene-item .scene-x:hover{color:var(--invalid);}
+
+  /* ---- filtre hiérarchie ---- */
+  #hier-filter{flex:none;margin:6px 8px 2px;background:var(--panel2);border:1px solid var(--edge);
+    border-radius:var(--r-2);color:var(--txt);padding:var(--sp-2) var(--sp-4);font-size:12px;}
+  #hier-filter::placeholder{color:var(--txt-dim);}
+
+  /* ---- hiérarchie ---- */
+  #hier{flex:1;min-width:0;min-height:0;background:var(--panel);border-right:1px solid var(--edge);
+    display:flex;flex-direction:column;min-height:0;}
+  .title-panel{padding:var(--sp-4) var(--sp-5);font-size:11px;text-transform:uppercase;
+    letter-spacing:.08em;color:var(--txt-dim);border-bottom:1px solid var(--edge);
+    font-weight:600;flex:none;display:flex;align-items:center;gap:8px;}
+  #hier-body{flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-2);}
+  /* LES RAILS D'INDENTATION. L'arbre est une liste PLATE : un nœud profond n'est pas imbriqué
+     dans son parent (js/hierarchy.js aplatit la récursion en HTML), donc on ne peut pas
+     hériter d'un `border-left` par niveau. Le rail est un dégradé répété — un trait d'1px tous
+     les 14px — dont la LARGEUR est celle de l'indentation, portée par `--depth`. Sans lui, on
+     compte les pixels pour savoir quel objet est enfant duquel dès trois niveaux.
+
+     Toutes les règles d'état ci-dessous écrivent `background-color` et non `background` : le
+     raccourci remettrait `background-image` à zéro, et le rail disparaîtrait sous le curseur
+     et sur la ligne sélectionnée — exactement les deux lignes qu'on regarde. */
+  .node{--indent:14px;
+    padding:var(--sp-2) var(--sp-4);
+    padding-left:calc(var(--sp-3) + var(--depth, 0) * var(--indent));
+    border-radius:var(--r-1);cursor:pointer;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;user-select:none;
+    background-image:repeating-linear-gradient(to right,
+      var(--edge) 0 1px, transparent 1px var(--indent));
+    background-repeat:no-repeat;
+    background-size:calc(var(--depth, 0) * var(--indent)) 100%;
+    background-position:var(--sp-3) 0;}
+  .node:hover{background-color:var(--panel2);}
+  .node{display:flex;align-items:center;gap:var(--sp-3);}
+  .node.sel{background-color:var(--sel-wash);color:var(--sel);}
+  .node.multi{background-color:var(--ok-dark);color:var(--ok-text);}
+  .node.hidden{opacity:.45;}
+  /* Instance de modèle importé et ses nœuds (os, maillages) : la couleur du genre « modèle » du
+     panneau Projet — ce qu'on voit là vient du fichier, comme l'instance d'un prefab Unity. */
+  .node.model-root .node-name,.node.model-node .node-name{color:var(--c-model);}
+  .node.model-node .node-name{opacity:.85;}
+  .node .fold{width:13px;flex:none;color:var(--txt-dim);cursor:pointer;text-align:center;font-size:11px;display:flex;align-items:center;justify-content:center;}
+  .node .fold:hover{color:var(--accent);}
+  .node .fold.empty{cursor:default;visibility:hidden;}
+  .node .node-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  /* Le compte d'un groupe replié. `flex:none` : c'est le NOM qui se tronque quand la place
+     manque, jamais le compte — un « 12 » coupé en « 1 » mentirait. */
+  .node .node-count{flex:none;background:var(--panel2);color:var(--txt-dim);
+    border-radius:var(--r-1);padding:0 var(--sp-3);font-size:10px;
+    font-variant-numeric:tabular-nums;}
+  .node .eye{flex:none;opacity:0;cursor:pointer;font-size:12px;display:flex;align-items:center;transition:opacity .1s;}
+  .node:hover .eye{opacity:.85;}
+  .node .eye.off{opacity:.55;}
+  .node input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--accent);
+    border-radius:var(--r-1);color:var(--txt);font-size:12px;padding:1px 5px;}
+  .node.hover{outline:1px dashed var(--accent);background-color:var(--row-hover);}
+  #hier-body.hover-root{outline:1px dashed var(--accent);outline-offset:-4px;}
+
+  /* ---- viewport ---- */
+  /* `overflow:hidden` : le canvas est dimensionné en pixels par `resize()` (viewport.js), et
+     entre un rétrécissement de la zone et le rappel du ResizeObserver il est PLUS GRAND qu'elle.
+     Sans ce rognage il peignait par-dessus le dock voisin (panneau Projet). */
+  #view{flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;}
+  /* Le rectangle de sélection à la souris. Sa géométrie est posée par js/viewport.js (left,
+     top, width, height, display) ; son APPARENCE vient d'ici. Elle était écrite dans
+     l'attribut `style` de editor.html, en bleu et en dur — hors de portée de
+     test/tokens-css.test.mjs, qui ne lit que css/ : le rectangle a donc traversé le
+     changement de palette sans bouger, seul élément bleu d'une interface ambre. */
+  #rubber-band{position:absolute;pointer-events:none;border:1px dashed var(--accent);
+    background:var(--accent-wash);}
+  #view canvas{display:block;}
+  #view.repo::after{content:"Déposer ici";position:absolute;inset:10px;
+    border:2px dashed var(--accent);border-radius:var(--r-4);display:flex;align-items:center;
+    justify-content:center;font-size:16px;color:var(--accent);
+    background:var(--bg-veil-soft);pointer-events:none;}
+  #status{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+    background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-3);
+    padding:7px 16px;font-size:12.5px;color:var(--accent);display:none;
+    box-shadow:0 6px 24px rgba(0,0,0,.45);white-space:nowrap;max-width:80%;
+    overflow:hidden;text-overflow:ellipsis;}
+  #banner-cam{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+    background:var(--panel);border:1px solid var(--accent);border-radius:var(--r-3);
+    padding:6px 16px;font-size:12.5px;display:none;}
+  #banner-cam b{color:var(--accent);}
+  #preview-frame{position:absolute;right:12px;bottom:12px;border:1px solid var(--edge);
+    border-radius:var(--r-1);display:none;pointer-events:none;}
+  #preview-frame span{position:absolute;top:-20px;left:0;font-size:11px;color:var(--txt-dim);}
+  #view-game-frame{position:absolute;left:12px;bottom:12px;border:1px solid var(--accent);
+    border-radius:var(--r-1);display:none;pointer-events:none;}
+  kbd{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-1);
+    padding:0 4px;font-size:10.5px;color:var(--txt);}
+
+  /* ---- inspecteur ---- */
+  #insp{flex:1;min-width:0;min-height:0;background:var(--panel);border-left:1px solid var(--edge);
+    display:flex;flex-direction:column;min-height:0;}
+  #insp-body{flex:1;overflow-y:auto;padding:10px 12px;}
+  .none{color:var(--txt-dim);font-style:italic;padding:4px;}
+  .sec{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--txt-dim);
+    margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--edge);font-weight:600;}
+  .field{display:flex;align-items:center;gap:8px;margin:5px 0;}
+  .field label{flex:0 0 76px;color:var(--txt-dim);font-size:12px;}
+  .field input[type=text]{flex:1;min-width:0;}
+  .field input[type=color]{flex:0 0 44px;height:24px;padding:0;border:1px solid var(--edge);
+    background:none;border-radius:var(--r-1);cursor:pointer;}
+  .field input[type=number]{width:60px;}
+  input[type=text],input[type=number]{background:var(--panel2);border:1px solid var(--edge);
+    color:var(--txt);border-radius:var(--r-1);padding:var(--sp-2) var(--sp-3);font-size:12px;
+    font-variant-numeric:tabular-nums;}
+  input:focus{outline:1px solid var(--accent);}
+
+  /* ---- LES TROIS ÉTATS DU SOCLE, enfin visibles ----
+     Ils sont posés par js/ui/fields.js et js/ui/form.js depuis le lot 1a, et personne ne les
+     voyait : la moitié de la valeur de la multi-sélection manquait, et une saisie refusée
+     n'avait aucun retour. */
+
+  /* DIVERGENT : plusieurs cibles, plusieurs valeurs. Le champ montre « — ». La bordure est
+     tiretée pour qu'on ne le confonde pas avec un champ VIDE — l'un dit « je ne sais pas »,
+     l'autre « il n'y a rien », et écrire dans les deux n'a pas le même effet. */
+  .mixed{color:var(--mixed);border-style:dashed;}
+  .mixed::placeholder{color:var(--mixed);opacity:1;}
+  /* Une case à cocher indéterminée : ni cochée ni décochée, et ça doit se voir. Le navigateur
+     dessine déjà un trait à la place de la coche ; on l'atténue pour que l'œil la distingue
+     d'une case cochée en un coup d'œil. */
+  input[type=checkbox]:indeterminate{opacity:.6;outline:1px dashed var(--mixed);}
+
+  /* INVALIDE : la saisie n'est pas lisible (`1.2e`, `-`). Le socle N'ÉCRIT RIEN et le dit ici.
+     Sans cette règle, la valeur restait à l'ancienne sans un mot — exactement le silence que
+     `readF` produisait avant le socle. */
+  .invalid{border-color:var(--invalid);color:var(--invalid);}
+  .invalid:focus{outline-color:var(--invalid);}
+
+  /* FOCUS CLAVIER : un anneau sur TOUT ce qui se traverse au clavier, et pas seulement sur les
+     champs texte. C'est ce qui rend la navigation au clavier utilisable — sans lui, on tabule
+     à l'aveugle. `:focus-visible` et non `:focus` : un clic à la souris ne doit pas laisser
+     d'anneau derrière lui. */
+  .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible,
+  .field button:focus-visible, .field-list button:focus-visible{
+    outline:2px solid var(--focus); outline-offset:1px;}
+  .vec3{display:flex;gap:4px;flex:1;min-width:0;}
+  /* `.field input[type=number]{width:60px}` l'emporte en SPECIFICITE sur `.vec3 input` :
+     les trois champs gardaient donc 60 px chacun au lieu de se repartir, et la rangee
+     Position/Rotation/Echelle depassait le panneau de quelques pixels — assez pour lui
+     coller une bar de defilement horizontale permanente. On repasse devant. */
+  .field .vec3 input[type=number]{flex:1;width:0;min-width:0;}
+  .btn-insp{display:block;width:100%;background:var(--panel2);border:1px solid var(--edge);
+    color:var(--txt);border-radius:var(--r-2);padding:7px 10px;cursor:pointer;margin:5px 0;
+    text-align:left;font-size:12.5px;}
+  .btn-insp:hover{background:var(--panel3);border-color:var(--edge-strong);}
+  .btn-insp.danger:hover{border-color:var(--invalid-strong);color:var(--invalid-soft);}
+  .btn-insp.accent{border-color:var(--accent);color:var(--accent);}
+  .btn-insp:disabled{opacity:.4;cursor:default;}
+
+  /* ---- composants (Noeud + Composant) ---- */
+  .sec-components{display:flex;justify-content:space-between;align-items:center;}
+  .sec-components #btn-add-component{width:auto;margin:0;padding:4px 10px;}
+  .block-component{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-2);
+    padding:8px 10px;margin:8px 0;}
+  .header-component{display:flex;align-items:center;gap:6px;
+    font-weight:600;font-size:12.5px;}
+  .block-component .body-component{margin-top:6px;}
+  .block-component.folded .body-component{display:none;}
+  .fold-component{cursor:pointer;flex:0 0 auto;color:var(--txt-dim);width:12px;text-align:center;}
+  .active-component{flex:0 0 auto;margin:0;}
+  .name-component{flex:1;}
+  .block-component.disabled .name-component{color:var(--txt-dim);}
+  .block-component.disabled .body-component{opacity:.45;pointer-events:none;}
+  .remove-component{background:none;border:1px solid var(--edge);color:var(--txt-dim);
+    border-radius:var(--r-1);width:22px;height:22px;cursor:pointer;line-height:1;flex:0 0 auto;}
+  .remove-component:hover{border-color:var(--invalid-strong);color:var(--invalid-soft);}
+  #search-component{width:100%;box-sizing:border-box;margin-bottom:8px;}
+  .category-component{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--txt-dim);margin:10px 0 4px;}
+  .item-component{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-1);cursor:pointer;font-size:12.5px;}
+  .item-component:hover{background:var(--panel2);}
+
+  /* ---- console ---- */
+  #console-body{flex:1;overflow-y:auto;padding:6px 10px;font-family:Consolas,"Cascadia Mono",monospace;
+    font-size:11.5px;line-height:1.7;}
+  #console-badge{color:var(--invalid);font-size:10px;}
+  .c-line{display:flex;gap:8px;align-items:baseline;border-bottom:1px solid var(--edge-veil);
+    padding:1px 4px;border-radius:var(--r-1);}
+  .c-line:hover{background:var(--panel2);}
+  .c-line[data-oid]{cursor:pointer;}
+  .c-time{color:var(--txt-dim);font-size:10px;flex:none;}
+  .c-ico{flex:none;width:16px;text-align:center;}
+  .c-obj{color:var(--accent);flex:none;}
+  .c-msg{min-width:0;word-break:break-word;white-space:pre-wrap;}
+  .c-line.warn .c-msg{color:var(--warn);}
+  .c-line.error .c-msg{color:var(--invalid);}
+
+  /* ---- panneau project (assets) ---- */
+  #project{flex:1;min-width:0;min-height:0;background:var(--panel);border-top:1px solid var(--edge);
+    display:flex;flex-direction:column;min-height:0;}
+  #project .title-panel button{background:var(--panel2);border:1px solid var(--edge);
+    color:var(--txt);border-radius:var(--r-2);padding:3px 10px;cursor:pointer;font-size:11.5px;
+    text-transform:none;letter-spacing:normal;font-weight:400;}
+  #project .title-panel button:hover{background:var(--panel3);}
+  #project-body{flex:1;overflow-x:hidden;overflow-y:auto;display:flex;flex-wrap:wrap;gap:10px;
+    padding:10px 12px;align-items:flex-start;align-content:flex-start;}
+  #project-body.hover{outline:2px dashed var(--accent);outline-offset:-6px;}
+  .tile{flex:none;width:92px;cursor:grab;position:relative;user-select:none;}
+  .vignette.script{display:flex;align-items:center;justify-content:center;font-size:34px;
+    background-color:var(--surface-row);}
+
+  /* ---- explorateur : arborescence de dossiers ---- */
+  #project-zone{flex:1;display:flex;min-height:0;}
+  #folders-tree{flex:0 0 160px;border-right:1px solid var(--edge);overflow-y:auto;
+    padding:var(--sp-3) var(--sp-2);font-size:12px;}
+  .folder-line{display:flex;align-items:center;gap:4px;padding:var(--sp-1) var(--sp-3);border-radius:var(--r-1);
+    cursor:pointer;color:var(--txt-dim);white-space:nowrap;}
+  .folder-line:hover{background:var(--panel2);}
+  .folder-line .d-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  /* Flèche de repli. Vide (dossier sans sous-dossier), elle garde sa largeur : les noms d'un
+     même niveau restent alignés. */
+  .folder-line .d-arrow{flex:none;width:10px;text-align:center;font-size:10px;color:var(--txt-dim);}
+  .folder-line .d-arrow:not(:empty):hover{color:var(--accent);}
+  .folder-line .d-tools{flex:none;display:none;gap:1px;}
+  .folder-line:hover .d-tools{display:flex;}
+  .folder-line .d-tools button{background:none;border:none;color:var(--txt-dim);
+    cursor:pointer;font-size:11px;padding:0 2px;line-height:1.4;}
+  .folder-line .d-tools button:hover{color:var(--accent);}
+  /* La croix de suppression survolée passe au rouge, et non à l'accent comme ses voisines.
+     Le `!important` qu'elle portait tranchait sa perte face à `.folder-line .d-tools button:hover`
+     (0,3,1) : la même déclaration, écrite avec la classe du bouton, la gagne (0,4,1). */
+  .folder-line .d-tools button.d-del:hover{color:var(--invalid);}
+  .folder-line.active{color:var(--accent);background:var(--row-active);}
+  .folder-line.hover{outline:1px dashed var(--accent);}
+  .tile.folder .vignette{display:flex;align-items:center;justify-content:center;
+    font-size:34px;background-color:var(--surface-tile);cursor:pointer;}
+  .tile.folder.hover .vignette{outline:2px dashed var(--accent);outline-offset:-2px;}
+  .tile.folder .ren{position:absolute;top:2px;left:2px;background:none;border:none;
+    color:var(--txt-dim);cursor:pointer;font-size:11px;visibility:hidden;}
+  .tile.folder:hover .ren{visibility:visible;}
+  .tile.folder .ren:hover{color:var(--accent);}
+  .tile:active{cursor:grabbing;}
+  /* Un modèle se déplie sur ses maillages, comme un FBX dans la fenêtre Project d'Unity. La
+     flèche est en haut à gauche, à l'opposé de la croix de suppression. */
+  .tile .expand{position:absolute;top:2px;left:2px;background:none;border:none;
+    color:var(--txt-dim);cursor:pointer;font-size:11px;line-height:1;padding:1px 3px;}
+  .tile .expand:hover{color:var(--accent);}
+  .tile.submesh{width:72px;}
+  .tile.submesh .vignette{display:flex;align-items:center;justify-content:center;font-size:26px;
+    background-color:var(--surface-row);color:var(--txt-dim);cursor:pointer;}
+  .vignette{width:92px;height:92px;border-radius:var(--r-3);background-color:var(--panel2);
+    background-size:cover;background-position:center;border:1px solid var(--edge);
+    border-bottom-width:3px;}
+  .tile[data-kind=texture] .vignette{border-bottom-color:var(--c-texture);}
+  .tile[data-kind=model] .vignette{border-bottom-color:var(--c-model);}
+  .tile[data-kind=prefab] .vignette{border-bottom-color:var(--c-prefab);}
+  .tile[data-kind=audio] .vignette{border-bottom-color:var(--warn);}
+  .tile .paint{position:absolute;top:24px;left:4px;background:var(--bg-veil);border:none;
+    border-radius:var(--r-1);color:var(--txt-dim);cursor:pointer;font-size:12px;padding:1px 4px;
+    visibility:hidden;}
+  .tile:hover .paint{visibility:visible;}
+  .tile .paint:hover{color:var(--accent);}
+  .tile .paint.active{visibility:visible;color:var(--on-accent-light);background:var(--accent);}
+  .tile .edit-shader{position:absolute;top:24px;left:4px;background:var(--accent);border:none;
+    border-radius:var(--r-1);color:var(--on-accent);cursor:pointer;font-size:10.5px;font-weight:600;padding:2px 5px;}
+  .tile.paint .vignette{outline:2px solid var(--accent);outline-offset:-2px;}
+  /* asset sélectionné : ses paramètres d'import sont dans l'inspecteur */
+  .tile.selection .vignette{outline:2px solid var(--sel);outline-offset:-2px;}
+  .tile.selection .name{color:var(--sel);}
+  #view.paint canvas{cursor:crosshair;}
+  #view.sculpt canvas{cursor:cell;}
+
+  /* ---- copilot IA ---- */
+  /* Un panneau du dock (id `copilot`) : il remplit sa zone — les messages défilent, la saisie reste
+     en bas. Plus de position:fixed ni de chrome à lui : titre et fermeture sont ceux du dock. */
+  #copilot{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;height:100%;
+    background:var(--panel);overflow:hidden;}
+  #cop-toolbar button{background:none;border:none;color:var(--txt-dim);cursor:pointer;
+    font-size:13px;padding:2px 5px;}
+  #cop-toolbar button:hover{color:var(--txt);}
+  #cop-config{flex:none;max-height:60%;overflow-y:auto;padding:10px;border-bottom:1px solid var(--edge);background:var(--panel2);}
+  #cop-config .cop-note{font-size:10.5px;color:var(--txt-dim);margin:6px 0;line-height:1.45;}
+  #cop-messages{flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+  .cop-msg{max-width:92%;padding:7px 10px;border-radius:var(--r-3);font-size:12px;line-height:1.5;
+    white-space:normal;word-break:break-word;}
+  .cop-msg.me{align-self:flex-end;background:var(--copilot-me);}
+  .cop-msg.ai{align-self:flex-start;background:var(--panel2);}
+  .cop-msg.action{align-self:flex-start;background:none;color:var(--txt-dim);
+    font-size:10.5px;padding:0 4px;font-family:ui-monospace,Consolas,monospace;}
+  .cop-msg.cost{align-self:flex-end;background:none;color:var(--txt-dim);font-size:10px;padding:0 4px;}
+  .cop-msg.error{align-self:flex-start;background:var(--invalid-deepest);color:var(--invalid-pale2);}
+  .cop-msg.pending{opacity:.6;font-size:16px;}
+  #cop-input{flex:none;display:flex;gap:6px;padding:8px;border-top:1px solid var(--edge);}
+  #cop-input textarea{flex:1;resize:none;background:var(--panel2);color:var(--txt);
+    border:1px solid var(--edge);border-radius:var(--r-2);padding:var(--sp-3) var(--sp-4);font-size:12px;
+    font-family:inherit;}
+  #cop-input button{width:38px;border:none;border-radius:var(--r-2);background:var(--accent);
+    color:var(--on-accent-light);cursor:pointer;font-size:14px;}
+  #cop-input button:hover{filter:brightness(1.15);}
+  #btn-copilot{background:linear-gradient(135deg,var(--copilot-a),var(--copilot-b));border-color:var(--copilot-edge);}
+
+  /* ---- listes dynamiques (événements, calques d'une caméra, conditions) ----
+     Le cadre et le bouton « × » étaient dessinés par .ev-block, une classe posée à la main
+     dans le HTML des événements. Le socle rend TOUTES les listes de la même façon ; le style
+     suit, et vaut du coup pour celles qui viendront. */
+  .field-list{border:1px solid var(--edge);border-radius:var(--r-2);padding:var(--sp-3) var(--sp-4);margin:6px 0;}
+  .field-list .sec2{display:flex;align-items:center;gap:6px;margin:0 0 4px;}
+  .field-list .sec2 button{margin-left:auto;padding:var(--sp-2) var(--sp-4);font-size:11.5px;}
+  .field-list .field{margin:4px 0;}
+  .field-list .list-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .field-list .list-row > .field{flex:1;min-width:0;margin:2px 0;}
+  .field-list .list-row > .field-list{flex:1 0 100%;}
+  /* Le « × » de retrait : discret jusqu'au survol — retirer une règle ne se propose pas, ça
+     se trouve quand on le cherche. */
+  .field-list .list-row > button{background:none;border:none;color:var(--txt-dim);
+    cursor:pointer;font-size:13px;flex:none;padding:0 2px;}
+  .field-list .list-row > button:hover{color:var(--invalid);}
+
+/* ---------- Interface de game (HUD) ----------
+   #ui-layer est le MÊME conteneur en édition et en mode lecture : ce qu'on
+   place est littéralement ce que le joueur verra. Il ne capte la souris qu'en
+   mode édition d'UI (classe .edit) ou quand un bouton est active en game ;
+   sinon il laisserait l'orbite de la caméra inutilisable. */
+#ui-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:4;}
+#ui-layer.edit{pointer-events:auto;background:rgba(0,0,0,.06);}
+#ui-layer.game .ui-button{pointer-events:auto;}
+
+/* En-tête de la section Interface dans la hiérarchie : les éléments d'UI
+   appartiennent au project, pas à la scène — la séparation doit se voir. */
+#hier-body .hier-section{padding:6px 8px 4px;margin-top:4px;border-top:1px solid var(--edge);
+  color:var(--txt-dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+#hier-body .node[data-ui-name]{cursor:pointer;}
+
+/* Bandeau multijoueur : discret, mais toujours visible pendant une partie en
+   ligne. Ne pas savoir si on est connecté est la première source de « ça ne
+   marche pas » quand on teste à deux. */
+
+/* ---------- Squelette (inspecteur) ---------- */
+/* L'arbre peut compter des dizaines d'os — un rig Mixamo en a 65. Il défile dans sa propre
+   boîte plutôt que de repousser tout le reste de l'inspecteur hors de l'écran. */
+.sq-tree{max-height:180px;overflow-y:auto;margin:4px 8px 8px;padding:var(--sp-2) var(--sp-3);
+          background:var(--fond-2,var(--surface-sunken));border-radius:var(--r-1);font-size:11px;line-height:1.5}
+.sq-bone{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt-dim,var(--txt-dim))}
+.sq-clips{margin:2px 8px 4px;font-size:11px}
+.sq-clip{padding:1px 6px;color:var(--txt-dim,var(--txt-dim))}
+.sq-duration{opacity:.6}
+.sq-bone{cursor:pointer}
+.sq-bone:hover{color:var(--txt,var(--txt-strong));background:rgba(255,255,255,.05)}
+.sq-bone.sel{color:var(--accent-bright);background:var(--bright-wash-strong);border-radius:var(--r-1)}
+.sq-help{margin:0 8px 6px;padding:var(--sp-2) var(--sp-3);font-size:11px;line-height:1.45;
+         color:var(--txt-dim,var(--txt-dim));background:var(--bright-wash);border-radius:var(--r-1)}
+/* Clip importé dans la timeline : en lecture seule, donc visuellement distinct des pistes
+   editables. Les cles y sont des barres et non des losanges — on ne les attrape pas. */
+.sq-clip{cursor:pointer;border-radius:var(--r-1);display:flex;align-items:center;gap:6px}
+.sq-clip:hover{background:rgba(255,255,255,.06)}
+.sq-clip.sel{color:var(--warn);background:var(--warn-wash-strong)}
+.sq-clip .sq-duration{margin-left:auto}
+/* Animation empruntee a un autre fichier : le ✕ ne se montre qu'au hover de SA ligne, sinon
+   une colonne de croix donnerait l'impression que tous les clips sont supprimables. */
+.sq-detach{opacity:0;padding:0 3px;color:var(--txt-dim,var(--txt-dim));border-radius:var(--r-1)}
+.sq-clip:hover .sq-detach{opacity:.7}
+.sq-detach:hover{opacity:1;color:var(--invalid);background:var(--invalid-wash-mid)}
+.sec2{margin:8px 8px 2px;font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+      color:var(--txt-dim,var(--txt-dim));opacity:.75}
+/* Couches par os en cours : en LECTURE SEULE, elles sont posees par script. D'ou le vert de
+   la piste de marqueurs plutot que le bleu des elements cliquables — rien a cliquer ici. */
+.sq-layers{margin:0 8px 4px;font-size:11px}
+.sq-layer{display:flex;align-items:center;gap:6px;padding:var(--sp-1) var(--sp-3);border-radius:var(--r-1);
+           color:var(--ok);background:var(--ok-wash)}
+.sq-from{margin-left:auto;opacity:.7;font-size:10px}
+.sq-external{margin:0 8px 4px;font-size:11px}
+.sq-external{display:flex;align-items:center;gap:6px;padding:var(--sp-1) var(--sp-3);border-radius:var(--r-1);
+            cursor:pointer;color:var(--txt-dim,var(--txt-dim))}
+.sq-external:hover{background:var(--bright-wash-mid);color:var(--txt,var(--txt-strong))}
+.sq-external .sq-duration{margin-left:auto}
+/* Le taux de reciblage DECIDE : a 100 % le transfert est exact, en dessous des os resteront
+   immobiles. La couleur le dit avant le clic, le titre dit lesquels. */
+.sq-rate{font-size:10px;padding:0 4px;border-radius:var(--r-1);background:rgba(255,255,255,.06)}
+.sq-rate.ok{color:var(--ok)}
+.sq-rate.medium{color:var(--warn)}
+.sq-rate.low{color:var(--invalid)}
+/* Mode d'une piste : « = » remplace le clip, « + » s'y ajoute. Les deux ne veulent pas dire
+   la meme chose du tout, et rien d'autre a l'ecran ne les distingue. */
+.tl-mode{margin-left:auto;padding:0 5px;border-radius:var(--r-1);font-size:11px;font-weight:600;
+         background:rgba(255,255,255,.06);color:var(--txt-dim,var(--txt-dim));cursor:pointer}
+.tl-mode:hover{background:rgba(255,255,255,.14);color:var(--txt,var(--txt-strong))}
+.tl-mode.add{color:var(--ok);background:var(--ok-wash-strong)}
+/* Additif SANS clip : la piste ne fait rien. Le dire ici evite de chercher pourquoi. */
+.tl-mode.add.inert{color:var(--invalid);background:var(--invalid-wash);text-decoration:line-through}
+.tl-name{display:flex;align-items:center;gap:6px}
+.tl-name.clip-header{color:var(--warn);font-weight:600;margin-top:2px;cursor:pointer;
+                    display:flex;align-items:center;gap:6px}
+.tl-name.clip-header:hover{background:var(--warn-wash)}
+.tl-count{margin-left:auto;font-weight:400;font-size:10px;opacity:.7}
+.tl-name.clip-bone{color:var(--txt-dim,var(--txt-dim));padding-left:16px;font-size:10px;opacity:.85;
+                cursor:pointer}
+.tl-name.clip-bone:hover{color:var(--txt,var(--txt-strong));background:rgba(255,255,255,.05)}
+/* L'os en cours d'edit, des deux cotes de la timeline : c'est le seul link visible entre
+   l'arbre du squelette dans l'inspecteur et la ligne ou la key va se poser. Meme bleu que
+   `.sq-bone.sel`, sans quoi les deux surlignages ne se liraient pas comme le meme etat. */
+.tl-name.clip-bone.aims{color:var(--accent-bright);opacity:1;background:var(--bright-wash-strong)}
+.tl-track.clip-bone.aims{background:var(--bright-wash)}
+/* Le MEME `margin-top` que `.tl-name.clip-header` : sans lui, la colonne des noms descend de
+   2 px de plus que celle des pistes a partir de l'en-tete du clip, et tout ce qui suit est
+   decale. Deux colonnes qui ne s'alignent plus, c'est un name en face des mauvaises cles. */
+.tl-track.clip-header{background:var(--warn-wash-faint2);margin-top:2px}
+/* La piste de marqueurs : la seule LIGNE EDITABLE du groupe d'un clip importe, d'ou une
+   couleur a elle (vert) qui la distingue et du clip (ambre) et de nos pistes (bleu). */
+.tl-name.clip-markers{color:var(--ok);padding-left:16px;font-size:10px;
+                       display:flex;align-items:center;gap:6px}
+.tl-track.clip-markers{background:var(--ok-wash-faint)}
+.marker{position:absolute;top:4px;width:0;height:0;cursor:pointer}
+.marker::before{content:'';position:absolute;left:-4px;top:0;width:8px;height:8px;
+                  background:var(--ok);border-radius:var(--r-1);transform:rotate(45deg)}
+.marker:hover::before{background:var(--ok-bright)}
+/* Le name ne s'affiche qu'au hover : quinze marqueurs sur une seconde de marche donneraient
+   quinze etiquettes superposees, illisibles et qui masqueraient les cles. */
+.marker-name{position:absolute;left:7px;top:-2px;font-size:9px;color:var(--ok);
+              white-space:nowrap;opacity:0;pointer-events:none}
+.marker:hover .marker-name{opacity:1}
+.tl-track.clip-bone{background:var(--warn-wash-faint)}
+.key.clip{width:2px;height:9px;border-radius:0;background:var(--warn);opacity:.7;
+          transform:translateX(-1px);pointer-events:none}
+
+/* AnimatorController : les problemes de la machine, dans l'inspecteur. Une machine fausse ne
+   leve aucune error — le personnage reste fige et rien ne dit pourquoi. C'est le seul ecran
+   ou on peut le dire a temps, donc il se voit. */
+.anim-issue{margin:4px 8px;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-1);font-size:11px;line-height:1.45;
+            color:var(--invalid-pale);background:var(--invalid-wash);border:1px solid var(--invalid-edge-wash)}
+.anim-issue ul{margin:4px 0 0 14px;padding:0}
+.anim-issue li{margin:2px 0}
+/* L'état courant du lecteur, dans le bloc AnimatorController : un champ `info` du socle. */
+#f-anim-ctrl-state{color:var(--ok);font-weight:600}
+
+/* ---------------- Écran de résolution de conflit ---------------- */
+/* Trois colonnes : le fichier disputé, la version enregistrée, la mienne. Les deux versions
+   sont MISES SUR LE MÊME PLAN — une mise en forme qui pousserait vers l'une des deux
+   déciderait à la place de l'utilisateur, dans un écran dont c'est tout le sujet. */
+#cft-table{width:100%; border-collapse:collapse; margin:var(--e3) 0}
+#cft-table th{text-align:left; font-weight:600; color:var(--txt-dim);
+  padding:var(--e2); border-bottom:1px solid var(--edge)}
+#cft-table td{padding:var(--e2); border-bottom:1px solid var(--edge); vertical-align:top}
+#cft-table td.cft-path{font-family:Consolas,"Cascadia Mono",monospace; word-break:break-all}
+#cft-table label{display:flex; gap:var(--e2); align-items:baseline; cursor:pointer}
+.cft-actions{display:flex; gap:var(--e2); flex-wrap:wrap; justify-content:flex-end;
+  margin-top:var(--e4)}
+/* « Enregistrer » est la seule action qui écrit : elle se distingue, les trois autres non. */
+.cft-actions .primary{font-weight:600}
+
+/* ---------- Fenêtre Palette de tuiles (js/palette-ui.js) ----------
+   Calquée sur la Tile Palette d'Unity : barre d'outils, grille de vignettes, réglages de la
+   tuile choisie. La grille défile seule : un tileset de cent tuiles ne doit pas pousser les
+   réglages hors de la fenêtre. */
+.tile-palette-window{display:flex;flex-direction:column;height:100%;min-height:0}
+.tp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px;
+  border-bottom:1px solid var(--edge);background:var(--panel2)}
+.tp-bar select{max-width:190px}
+.tp-tools{display:inline-flex;gap:2px}
+.tp-tools button{min-width:28px}
+.tp-tools button.active{background:var(--accent);color:var(--on-accent)}
+.tp-grid{flex:1 1 auto;min-height:90px;overflow:auto;padding:6px;display:grid;
+  grid-template-columns:repeat(auto-fill,52px);grid-auto-rows:52px;gap:4px;align-content:start;
+  background:var(--surface-deep)}
+.tp-grid.drop{outline:2px dashed var(--accent);outline-offset:-4px}
+.tp-cell{position:relative;width:52px;height:52px;padding:1px;border:1px solid var(--edge);
+  border-radius:3px;cursor:pointer;
+  /* Damier : une tuile à trous doit se distinguer d'une case vide. */
+  background:repeating-conic-gradient(var(--surface-tile) 0 25%,var(--surface-sunken) 0 50%) 0 0/12px 12px}
+.tp-cell canvas{width:48px;height:48px;display:block;image-rendering:pixelated}
+.tp-cell:hover{border-color:var(--edge-strongest)}
+.tp-cell.selected{border:2px solid var(--sel);padding:0;box-shadow:0 0 0 1px var(--sel-wash)}
+.tp-badge{position:absolute;right:2px;bottom:1px;font-size:9px;font-weight:700;
+  color:var(--on-accent);background:var(--accent);border-radius:2px;padding:0 2px;line-height:12px}
+.tp-empty{grid-column:1/-1;padding:18px 10px;color:var(--txt-dim);text-align:center;line-height:1.5}
+.tp-props{flex:0 0 auto;max-height:45%;overflow:auto;padding:6px;border-top:1px solid var(--edge)}
+.tp-props-title{font-weight:600;color:var(--txt-strong);margin:2px 0 4px}
+#tp-remove{margin:4px 0 8px}
+.ip-tp-grid{display:flex;flex-wrap:wrap;gap:3px;margin:6px 0}
+.ip-tp-grid canvas{width:32px;height:32px;image-rendering:pixelated;border:1px solid var(--edge);
+  background:var(--surface-deep)}
+
+/* Fenêtre Multijoueur (js/network-editor.js) */
+.network-panel{padding:8px 10px;overflow:auto;font-size:12px;}
+.network-panel .net-block{margin-top:12px;padding-top:10px;border-top:1px solid var(--edge);}
+.network-panel .net-title{font-weight:700;letter-spacing:.5px;margin-bottom:6px;color:var(--txt);}
+.network-panel .net-row{display:flex;align-items:center;gap:8px;margin:4px 0;}
+.network-panel .net-row > span:first-child{min-width:110px;color:var(--txt-dim);}
+.network-panel .net-dim{color:var(--txt-dim);line-height:1.5;}
+.network-panel .net-err{color:var(--invalid);}
+.network-panel .net-warn{color:var(--warn);line-height:1.5;}
+.network-panel .net-ok{color:var(--ok);}
+.network-panel .net-code{font-size:18px;letter-spacing:3px;color:var(--accent);}
+.network-panel .net-key{font-size:11px;user-select:all;word-break:break-all;}
+.network-panel .net-players{margin:4px 0 8px 18px;padding:0;}
+.network-panel .net-input{width:90px;text-transform:uppercase;letter-spacing:3px;background:var(--surface-raised);border:1px solid var(--edge);color:var(--txt);padding:4px 6px;border-radius:4px;}
+.network-panel .net-btn{background:var(--surface-raised);border:1px solid var(--edge);color:var(--txt);padding:4px 10px;border-radius:4px;cursor:pointer;}
+.network-panel .net-btn:hover{border-color:var(--accent);}
+.network-panel .net-btn.accent{border-color:var(--accent);color:var(--accent);}
+.network-panel .net-btn.danger:hover{border-color:var(--invalid);color:var(--invalid);}
+#btn-network.active{color:var(--ok);}
+
+/* ---- Le Rack sonore (js/sound-rack.js) ----
+   Des modules empilés comme dans un rack 19 pouces : une façade par module, sérigraphie claire,
+   afficheurs 7 segments rouges. Les couleurs sont les jetons --rack-* de tokens.css. */
+.sound-rack{padding:var(--sp-4);overflow:auto;display:flex;flex-direction:column;gap:var(--sp-4);}
+.rack-module{background:var(--rack-face);color:var(--rack-ink);border:1px solid var(--rack-edge);
+  border-radius:var(--r-2);padding:var(--sp-4) var(--sp-5);font-family:var(--font-mono);
+  font-size:11px;letter-spacing:.06em;position:relative;}
+.rack-module::before,.rack-module::after{content:"";position:absolute;top:6px;width:6px;height:6px;
+  border-radius:50%;background:var(--rack-screw);}
+.rack-module::before{left:6px;} .rack-module::after{right:6px;}
+.rack-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3) var(--sp-4);margin:0 var(--sp-4) var(--sp-4);}
+.rack-name{font-size:13px;color:var(--rack-step-4);}
+.rack-sub{color:var(--rack-ink-dim);}
+.rack-strips{display:flex;gap:var(--sp-5);justify-content:center;flex-wrap:wrap;}
+.rack-strip{display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);
+  background:var(--rack-plate);border:1px solid var(--rack-edge);border-radius:var(--r-1);
+  padding:var(--sp-4) var(--sp-4) var(--sp-3);min-width:64px;}
+.rack-strip-cap{height:4px;width:100%;border-radius:2px;}
+.rack-seg{background:var(--rack-seg-bg);color:var(--rack-seg);font-size:16px;padding:1px 6px;
+  border:1px solid var(--rack-edge);border-radius:3px;min-width:44px;text-align:right;}
+.rack-fader{writing-mode:vertical-lr;direction:rtl;height:120px;width:24px;margin:0;
+  accent-color:var(--rack-step-4);cursor:ns-resize;}
+.rack-label{color:var(--rack-ink);}
+.rack-btn{background:var(--rack-plate);color:var(--rack-ink);border:1px solid var(--rack-screw);
+  border-radius:3px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;
+  padding:3px 8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.rack-btn:focus-visible,.rack-fader:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+.rack-led{width:7px;height:7px;border-radius:50%;background:var(--rack-led-off);}
+.rack-btn[aria-pressed="true"] .rack-led{background:var(--rack-led-on);}
+.rack-note{color:var(--rack-ink-dim);margin:var(--sp-4) var(--sp-4) 0;line-height:1.5;}
+.rack-module.is-soon{opacity:.55;}
+
+/* SX-1 : le synthé à bruitages. Une rangée de presets, un sélecteur d'onde, puis les réglages par
+   section — chaque ligne : sérigraphie, curseur, valeur. */
+.rack-row{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:0 var(--sp-2) var(--sp-4);align-items:center;}
+.rack-select{background:var(--rack-seg-bg);color:var(--rack-ink);border:1px solid var(--rack-edge);
+  border-radius:3px;font-family:var(--font-mono);font-size:11px;padding:2px 4px;max-width:140px;}
+.rack-btn.is-step-1{border-color:var(--rack-step-1);} .rack-btn.is-step-2{border-color:var(--rack-step-2);}
+.rack-btn.is-step-3{border-color:var(--rack-step-3);} .rack-btn.is-step-4{border-color:var(--rack-step-4);}
+.rack-btn[aria-pressed="true"]{background:var(--rack-edge);color:var(--rack-step-4);}
+.rack-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp-4);
+  margin:0 var(--sp-2);}
+.rack-section{background:var(--rack-plate);border:1px solid var(--rack-edge);border-radius:var(--r-1);
+  padding:var(--sp-3) var(--sp-4);}
+.rack-section-title{color:var(--rack-ink-dim);margin-bottom:var(--sp-2);}
+.rack-ctl{display:grid;grid-template-columns:56px minmax(0,1fr) 58px;gap:var(--sp-3);align-items:center;
+  min-height:22px;}
+.rack-ctl input[type=range]{width:100%;margin:0;accent-color:var(--rack-step-2);}
+.rack-ctl-value{color:var(--rack-seg);text-align:right;}
+.rack-scope{display:block;width:100%;height:64px;background:var(--rack-seg-bg);
+  border:1px solid var(--rack-edge);border-radius:3px;margin:0 0 var(--sp-4);}
+
+/* Replier un module : seul l'en-tête reste. */
+.rack-fold{background:none;border:0;color:var(--rack-ink);font-size:14px;cursor:pointer;min-width:24px;min-height:24px;padding:0 4px;}
+.rack-fold:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+.rack-module.is-collapsed > :not(.rack-head){display:none;}
+.rack-module.is-collapsed .rack-head{margin-bottom:0;}
+
+/* BX-16 : les grilles. Une ligne = une sérigraphie + 16 pas, colorés par groupes de quatre. */
+.bx-sections{display:flex;flex-direction:column;gap:var(--sp-4);margin:0 var(--sp-2);}
+.bx-row{display:grid;grid-template-columns:52px repeat(16,minmax(0,1fr));gap:2px;align-items:center;
+  margin-bottom:2px;}
+.bx-label{color:var(--rack-ink-dim);font-size:10px;overflow:hidden;white-space:nowrap;}
+.bx-cell{height:20px;min-width:0;padding:0;border:2px solid var(--rack-edge);border-radius:2px;
+  cursor:pointer;background:transparent;}
+/* L'ÉTAT NE TIENT PLUS À L'OPACITÉ SEULE (contraste < 3:1, revue du 2026-09-29, § 4.1) : éteinte =
+   contour de la couleur du groupe ; allumée = pleine ; tenue = demi-hauteur pleine. */
+.bx-cell.is-step-1{border-color:var(--rack-step-1);--bx-c:var(--rack-step-1);}
+.bx-cell.is-step-2{border-color:var(--rack-step-2);--bx-c:var(--rack-step-2);}
+.bx-cell.is-step-3{border-color:var(--rack-step-3);--bx-c:var(--rack-step-3);}
+.bx-cell.is-step-4{border-color:var(--rack-step-4);--bx-c:var(--rack-step-4);}
+.bx-cell.is-on{background:var(--bx-c);}
+.bx-cell.is-hold{background:linear-gradient(to top, var(--bx-c) 50%, transparent 50%);}
+.bx-cell.is-accent{outline:2px solid var(--rack-ink);outline-offset:-2px;}
+.bx-cell:focus-visible{outline:2px solid var(--focus);outline-offset:1px;}
+.bx-leds{margin:0 var(--sp-2) var(--sp-3);}
+.bx-led{height:6px;border-radius:3px;background:var(--rack-led-off);margin:0 20%;}
+.bx-led.is-on{background:var(--rack-led-on);}
+.bx-track-head{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;}
+.bx-tempo{flex:1;min-width:80px;accent-color:var(--rack-step-1);}
+.bx-swing{width:70px;accent-color:var(--rack-step-2);}
+@media (prefers-reduced-motion: reduce){ .bx-led{transition:none;} }
+
+/* La croix d'un onglet ouvert à la demande (js/ui/dock.js). */
+.tab .tab-close{margin-left:var(--sp-3);opacity:.6;padding:0 3px;border-radius:var(--r-1);}
+.tab .tab-close:hover{opacity:1;background:var(--panel2);}
+
+/* PANNEAU ÉTROIT : la grille passe en deux rangées de 8 pas, et SX-1 ne déborde plus (§ 4.1). */
+.sound-rack{container-type:inline-size;}
+.rack-sections{grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));}
+@container (max-width: 340px){
+  .bx-row{grid-template-columns:44px repeat(8,minmax(0,1fr));}
+  .bx-row > :nth-child(10){grid-column-start:2;}
+}

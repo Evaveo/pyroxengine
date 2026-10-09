@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catalogue de plugins — Éditeur 3D</title>
+<!-- Les tokens AVANT la feuille de la page : c'est la palette de l'éditeur, elle n'est
+     jamais recopiée (test/tokens-css.test.mjs interdit toute couleur ailleurs). -->
+<link rel="stylesheet" href="css/tokens.css?v=1">
+<link rel="stylesheet" href="css/states.css?v=1">
+<link rel="stylesheet" href="css/components.css?v=1">
+<link rel="stylesheet" href="css/plugins-page.css?v=1">
+</head>
+<body>
+
+<header id="cat-header">
+  <a href="editor.html" id="cat-back">← Éditeur</a>
+  <h1>Catalogue de plugins</h1>
+  <input type="search" id="cat-q" placeholder="Rechercher un plugin…" spellcheck="false"
+         aria-label="Rechercher un plugin">
+</header>
+
+<!-- L'installation en un clic n'existe QUE si cette page a été ouverte par l'éditeur : c'est
+     lui qui installe, pas elle. Ouverte seule, la page reste entièrement lisible et propose le
+     téléchargement du .js. Cette bannière dit lequel des deux cas on est, plutôt que de laisser
+     un bouton sans effet. -->
+<p id="cat-standalone" role="status" hidden></p>
+
+<nav id="cat-filters" aria-label="Filtrer par catégorie"></nav>
+
+<main id="cat-list" aria-live="polite"></main>
+
+<p id="cat-error" role="alert" hidden></p>
+
+<!-- La même porte que celle de l'éditeur : le filtrage et les verrous d'installation. -->
+<script type="module" src="js/plugin-catalog.js"></script>
+<script type="module" src="js/plugins-page.js"></script>
+</body>
+</html>

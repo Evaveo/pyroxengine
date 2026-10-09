@@ -1,0 +1,758 @@
+/* ---------- WIDGETS : barres, menus, modale, éditeurs flottants ---------- */
+/*
+ * Ce qui se pose PAR-DESSUS les panneaux ou à côté d'eux — barre de menus, barre d'outils,
+ * modale, timeline, graphe de shader, graphe d'animateur, éditeur de code, fenêtres flottantes,
+ * gizmo de vue. Chargée en dernier avant editor.css : ces éléments se superposent, et c'est le
+ * seul endroit où l'ordre de cascade tranche réellement.
+ */
+
+  /* ---- LA BARRE DU HAUT ---- */
+  /* Une seule rangée de 32px : marque, menus, puis à droite le projet ouvert et les actions
+     qui concernent le PRODUIT (version, copilote, Jouer, Physics, Multijoueur). Il y en avait
+     deux empilées, `#menus` (27px) et `#bar` (40px) — 67px de chrome pour deux rangées qui
+     ne se répondaient pas. C'est `#topbar` qui porte désormais le fond et la bordure ; `#menus`
+     n'est plus qu'un groupe posé dedans, ce qui lui permet de garder son id et ses écouteurs. */
+  #topbar{flex:0 0 32px;display:flex;align-items:stretch;gap:var(--sp-3);padding:0 var(--sp-4);
+    background:var(--panel);border-bottom:1px solid var(--edge);user-select:none;}
+  #brand{display:flex;align-items:center;gap:var(--sp-3);color:var(--accent);
+    font-weight:600;font-size:12.5px;white-space:nowrap;flex:none;}
+  #topbar-right{display:flex;align-items:center;gap:var(--sp-3);margin-left:auto;flex:none;}
+  /* Le nom du projet se lit, il ne s'actionne pas : il reste du texte atténué, et se tronque
+     plutôt que de pousser les boutons hors de la barre. */
+  /* Mode d'enregistrement (js/project-storage.js) : ☁ cloud, 📁 dossier, ⚠ non enregistré. */
+  #storage-badge{font-size:11px;color:var(--txt-dim);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;}
+  #storage-badge[data-mode="unsaved"]{color:var(--warn);}
+  #project-label{color:var(--txt-dim);font-size:11.5px;max-width:220px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;}
+  /* L'ÉTAT D'ENREGISTREMENT SE LIT DE LOIN. Une pastille discrète ne se voyait pas : perdre du
+     travail est le seul incident irréversible de l'éditeur, donc son avertissement prend la
+     place d'un vrai bouton — plus haut et plus gras que ses voisins, avec son texte en clair.
+     Non enregistré, il s'allume en plein (surface d'alerte) : c'est la seule exception assumée
+     à la règle « l'accent se pose en ligne, jamais en aplat » — un contour de plus au milieu de
+     quatre boutons contournés ne se serait pas distingué. À jour, il redevient une mention. */
+  #topbar-right #btn-save-state{height:30px;padding:0 var(--sp-5);gap:var(--sp-2);
+    border:1px solid var(--edge);border-radius:var(--r-2);background:none;
+    color:var(--txt-dim);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;
+    transition:background .12s,border-color .12s,color .12s;}
+  #topbar-right #btn-save-state:hover{border-color:var(--accent);color:var(--accent);
+    background:var(--accent-wash);}
+  #topbar-right #btn-save-state.unsaved{border-color:var(--warn);color:var(--warn);
+    background:var(--warn-wash);}
+  #topbar-right #btn-save-state.unsaved:hover{background:var(--warn-wash-strong);
+    border-color:var(--warn-bright);color:var(--warn-bright);}
+  /* PENDANT L'ÉCRITURE, le bouton EST la barre de progression : le remplissage est un dégradé
+     à arrêt net piloté par --save-progress (posé en pourcentage par js/project-dirty.js), donc
+     aucun second élément à créer — le libellé reste un simple textContent, et le pourcentage
+     s'y réécrit sans jamais détruire la barre. */
+  #topbar-right #btn-save-state.saving{cursor:progress;border-color:var(--accent);
+    color:var(--accent);
+    background:linear-gradient(to right,
+      var(--accent-wash-strong) 0 var(--save-progress,0%),
+      transparent var(--save-progress,0%) 100%);}
+  /* Un bouton désactivé s'atténue partout ailleurs dans l'éditeur ; celui-ci doit rester LISIBLE
+     — c'est précisément le moment où on le regarde. */
+  #topbar-right #btn-save-state.saving:disabled{opacity:1;}
+  #topbar-right button{display:flex;align-items:center;gap:var(--sp-2);height:24px;
+    padding:0 var(--sp-4);background:none;border:1px solid var(--edge);border-radius:var(--r-2);
+    color:var(--txt);font-size:12px;cursor:pointer;white-space:nowrap;
+    transition:background .12s,border-color .12s,color .12s;}
+  #topbar-right button:hover{border-color:var(--accent);color:var(--accent);}
+  /* Le seul bouton accentué de la barre — et un CONTOUR, pas un aplat : la règle du système
+     est que l'accent se pose en ligne et en marque, jamais en surface pleine. */
+  #topbar-right #btn-play{border-color:var(--accent);color:var(--accent);font-weight:600;}
+  #topbar-right #btn-play:hover{background:var(--accent-wash);}
+  /* La version est une mention, pas une action : elle s'efface jusqu'à ce qu'on la survole. */
+  #topbar-right #btn-version{border-color:transparent;color:var(--txt-dim);font-size:11px;}
+  #topbar-right #btn-version:hover{color:var(--txt-dim);border-color:var(--edge);}
+
+  #menus{display:flex;align-items:stretch;user-select:none;}
+  .menu{position:relative;display:flex;align-items:center;padding:0 12px;font-size:12.5px;
+    color:var(--txt);cursor:default;}
+  .menu:hover,.menu.open{background:var(--panel2);}
+  .dropdown{position:absolute;top:100%;left:0;min-width:230px;background:var(--panel);
+    border:1px solid var(--edge);border-radius:0 0 var(--r-3) var(--r-3);box-shadow:0 10px 30px rgba(0,0,0,.5);
+    padding:5px;z-index:50;display:none;}
+  .menu.open > .dropdown{display:block;}
+  /* SOUS-MENUS (Fichier → Exporter ▸…) : ouverts au survol, ou au clavier et au toucher par la
+     classe `open` (js/ui.js). Enfant direct ci-dessus, sinon ouvrir le menu ouvrait aussi tous
+     ses sous-menus. */
+  .menu-sub{position:relative;}
+  .menu-sub > .submenu{top:-6px;left:100%;border-radius:var(--r-3);margin-left:2px;}
+  /* Les libellés d'un menu tiennent sur UNE ligne : la liste s'élargit plutôt que de les couper. */
+  #menus .dropdown{width:max-content;}
+  #menus .item{white-space:nowrap;}
+  .menu-sub:hover > .submenu,.menu-sub.open > .submenu{display:block;}
+  .menu-sub:hover > .item,.menu-sub.open > .item{background:var(--panel2);}
+  /* Le menu contextuel partagé (clic droit, « ＋ Créer »…) passe AU-DESSUS de tout : les
+     fenêtres flottantes montent à z-index 300 (js/windows.js) et l'aperçu de dock à 400, donc
+     le z-index 50 de .dropdown le faisait passer derrière elles. */
+  #menu-context{z-index:600;}
+  .item{display:flex;justify-content:space-between;align-items:center;gap:20px;width:100%;
+    background:none;border:none;color:var(--txt);padding:6px 10px;border-radius:var(--r-1);
+    cursor:pointer;font-size:12.5px;text-align:left;}
+  .item:hover{background:var(--panel2);}
+  .item.disabled{color:var(--txt-dim);opacity:.5;cursor:default;}
+  .item.disabled:hover{background:none;}
+  .item .shortcut{color:var(--txt-dim);font-size:11px;}
+  .item .checked{width:14px;display:inline-block;color:var(--accent);}
+  .menu-sep{height:1px;background:var(--edge);margin:5px 8px;}
+
+  /* ---- fenêtre modale ---- */
+  #modal{position:fixed;inset:0;background:var(--scrim);display:none;
+    align-items:center;justify-content:center;z-index:100;}
+  #modal.open{display:flex;}
+  #modal-box{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-4);
+    min-width:380px;max-width:640px;max-height:80vh;overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  #modal-title{padding:12px 18px;font-weight:600;border-bottom:1px solid var(--edge);
+    display:flex;justify-content:space-between;align-items:center;}
+  #modal-close{background:none;border:none;color:var(--txt-dim);font-size:16px;cursor:pointer;}
+  #modal-close:hover{color:var(--txt);}
+  #modal-body{padding:14px 18px;line-height:1.8;font-size:12.5px;}
+  #modal-body table{width:100%;border-collapse:collapse;}
+  #modal-body td{padding:3px 6px;}
+  #modal-body td:first-child{color:var(--txt-dim);white-space:nowrap;}
+  #modal-body textarea{width:100%;height:280px;background:var(--bg);border:1px solid var(--edge);
+    border-radius:var(--r-3);color:var(--txt);font-family:Consolas,"Cascadia Mono",monospace;
+    font-size:12px;padding:10px;resize:vertical;line-height:1.5;tab-size:2;}
+  #modal-body code{background:var(--panel2);border-radius:var(--r-1);padding:0 4px;font-size:11.5px;}
+
+  /* ---- éditeur nodal de graphe de shader (graphe-shader-editeur.js) ----
+     Fenêtre séparée (window.open, via editeur-externe.js/html) — comme Shader Graph d'Unity
+     dans son propre tab. Ports façon Unity : pastille + libellé sur le bord gauche
+     (entrée) ou droit (sortie) du nœud ; un port d'entrée non branché affiche un petit field
+     éditable inline (.ge-w) au lieu d'obliger à glisser un nœud Constante séparé. */
+  .ge-bar{display:flex;gap:10px;align-items:center;padding:8px 12px;flex:none;
+    background:var(--panel);border-bottom:1px solid var(--edge);}
+  .ge-name{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-2);color:var(--txt);
+    padding:4px 8px;font-size:12.5px;font-weight:600;min-width:160px;}
+  .ge-bar label{font-size:11.5px;color:var(--txt-dim);display:flex;align-items:center;gap:5px;}
+  .ge-bar select{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-2);
+    color:var(--txt);padding:3px 6px;font-size:11.5px;}
+  /* `relative` pour l'aperçu, qui s'y ancre : l'accrocher à .ge-canvas le ferait défiler
+     avec le graphe, alors qu'il doit rester posé dans le coin comme celui d'Unity. */
+  .ge-body{display:flex;flex:1 1 auto;min-height:0;position:relative;}
+  .ge-preview{position:absolute;right:12px;bottom:12px;width:212px;z-index:15;padding:6px;
+    background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-3);
+    box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .ge-preview-title{font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--txt-dim);padding:0 2px 5px;}
+  .ge-preview canvas{display:block;width:200px;height:200px;border-radius:var(--r-2);
+    background:var(--bg);cursor:grab;touch-action:none;}
+  .ge-preview-note{font-size:10px;color:var(--warn-soft);padding:5px 2px 0;line-height:1.3;}
+  .ge-blackboard{width:212px;flex:none;border-right:1px solid var(--edge);background:var(--panel);
+    padding:8px;font-size:11.5px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+  .ge-bb-title{font-weight:600;color:var(--txt-dim);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.04em;}
+  /* Une entrée du blackboard : nom éditable et valeur par défaut ÉDITÉE ICI (jamais sur un
+     nœud, comme dans Shader Graph), et la ligne entière se glisse sur le plan pour y poser
+     un renvoi — autant de fois qu'on veut. */
+  .ge-bb-item{display:flex;flex-direction:column;gap:4px;padding:5px 6px;border-radius:var(--r-2);
+    background:var(--panel2);cursor:grab;}
+  .ge-bb-item:hover{outline:1px solid var(--accent);}
+  .ge-bb-head{display:flex;align-items:center;gap:5px;}
+  .ge-bb-default{display:flex;align-items:center;gap:4px;padding-left:12px;}
+  .ge-bb-bullet{width:7px;height:7px;border-radius:50%;background:var(--ok-soft);flex:none;}
+  .ge-bb-head .ge-w-text{width:100%;min-width:0;flex:1 1 auto;}
+  .ge-bb-default .ge-w{flex:1 1 auto;min-width:0;width:auto;}
+  .ge-bb-type{color:var(--txt-dim);font-size:10px;flex:none;}
+  .ge-bb-del{background:none;border:0;color:var(--txt-dim);cursor:pointer;font-size:11px;
+    padding:0 2px;flex:none;}
+  .ge-bb-del:hover{color:var(--invalid);}
+  /* Le plan n'est PAS une zone qui défile : il est translaté/zoomé (transform, posé par
+     graphe-shader-editeur.js). D'où `overflow:hidden` — aucune barre de défilement, et surtout
+     aucune butée : le graphe s'étend où il veut, coordonnées négatives comprises. */
+  .ge-canvas{position:relative;flex:1 1 auto;overflow:hidden;background:var(--bg);
+    background-image:radial-gradient(var(--edge) 1px, transparent 1px);background-size:18px 18px;}
+  .ge-plane{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;}
+  .ge-node{position:absolute;min-width:150px;background:var(--panel2);border:1px solid var(--edge);
+    border-radius:var(--r-2);cursor:grab;user-select:none;box-shadow:0 4px 14px rgba(0,0,0,.35);}
+  .ge-node.ge-selected{border-color:var(--sel);box-shadow:0 0 0 1px var(--sel);}
+  .ge-node-master{border-color:var(--ok-soft);min-width:170px;}
+  .ge-node-title{padding:5px 9px;font-size:11.5px;font-weight:600;border-bottom:1px solid var(--edge);
+    background:var(--surface-node);border-radius:var(--r-2) var(--r-2) 0 0;}
+  .ge-node-master .ge-node-title{background:var(--ok-deep);color:var(--ok-pale);}
+  .ge-node-body{padding:6px 0;font-size:11px;}
+  /* Les blocs Vertex / Fragment du Master Node de Shader Graph. */
+  .ge-block-title{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--txt-dim);padding:5px 13px 2px;border-top:1px solid var(--edge);margin-top:4px;}
+  .ge-node-body > .ge-block-title:first-child{border-top:0;margin-top:0;}
+  /* Comme Shader Graph : ENTRÉES à gauche, SORTIES à droite, la bille à cheval sur le bord
+     du nœud. `flex-direction:row-reverse` faisait exactement l'inverse sur les sorties —
+     l'ordre DOM [libellé, pastille] s'affichait retourné, donc la pastille de sortie
+     atterrissait à GAUCHE du nœud. La pastille est désormais positionnée en absolu sur le
+     bord, ce qui la met au bon endroit sans dépendre de l'ordre du DOM. */
+  .ge-port{display:flex;align-items:center;gap:6px;padding:2px 13px;position:relative;
+    min-height:19px;}
+  .ge-port-in{justify-content:flex-start;}
+  .ge-port-out{justify-content:flex-end;text-align:right;}
+  .ge-port-label{color:var(--txt-dim);}
+  .ge-badge{position:absolute;width:11px;height:11px;border-radius:50%;
+    background:var(--txt-dim);border:2px solid var(--panel2);cursor:crosshair;flex:none;}
+  .ge-port-in > .ge-badge{left:-6px;}
+  .ge-port-out > .ge-badge{right:-6px;}
+  /* Couleur par TYPE de port, comme Shader Graph : on voit d'un coup d'œil ce qui peut se
+     brancher sur quoi, avant même de tirer le fil. `dynamic` garde le gris neutre. */
+  .ge-badge[data-port-type="float"]{background:var(--txt-dim);}
+  .ge-badge[data-port-type="vec2"]{background:var(--ok-soft);}
+  .ge-badge[data-port-type="vec3"]{background:var(--warn-bright);}
+  .ge-badge[data-port-type="vec4"]{background:var(--accent-soft);}
+  .ge-badge:hover{background:var(--accent);}
+  .ge-badge.ge-bound{background:var(--accent);}
+  .ge-field-node{display:flex;align-items:center;gap:6px;padding:3px 9px;}
+  .ge-field-label{color:var(--txt-dim);font-size:10.5px;min-width:40px;}
+  .ge-w{background:var(--bg);border:1px solid var(--edge);border-radius:var(--r-1);color:var(--txt);
+    font-size:11px;padding:1px 4px;width:56px;}
+  .ge-w-text{width:100px;}
+  /* les deux composantes d'un port vec2 tiennent sur la ligne du port */
+  .ge-w-vec2{width:42px;}
+  input.ge-w[type="color"]{width:28px;padding:1px;height:18px;}
+  /* Le SVG est transparent au pointeur, SES CHEMINS non : un enfant qui redéclare
+     pointer-events reste cliquable sous un parent en `none`. C'est ce qui rend un câble
+     sélectionnable sans que la nappe SVG n'avale les clics destinés aux nœuds. */
+  /* Une nappe de taille nulle en `overflow:visible` ne peignait AUCUN câble : le plan étant
+     désormais transformé et non plus défilé, la nappe couvre une grande surface décalée de
+     10000 px dans les deux sens (un nœud peut vivre en coordonnées négatives), et le groupe
+     posé par renderCables remet les câbles dans ce repère. */
+  .ge-svg{position:absolute;left:-10000px;top:-10000px;width:20000px;height:20000px;
+    pointer-events:none;}
+  .ge-svg path.ge-cable{fill:none;stroke:var(--accent);stroke-width:2;opacity:.9;pointer-events:none;}
+  /* doublure large et invisible : viser un trait de 2 px à la souris est intenable */
+  .ge-svg path.ge-cable-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer;}
+  .ge-link-active .ge-svg path.ge-cable-hit{pointer-events:none;}
+  .ge-svg path.ge-cable-selected{stroke:var(--sel);stroke-width:3;opacity:1;}
+  .ge-svg path.ge-cable-preview{fill:none;stroke:var(--accent);stroke-width:2;opacity:.75;
+    stroke-dasharray:6 4;pointer-events:none;}
+  /* pendant un tirage : les pastilles du bout opposé s'allument, les autres s'effacent */
+  .ge-badge.ge-compatible{background:var(--ok-soft);box-shadow:0 0 0 3px var(--ok-halo);}
+  .ge-badge.ge-incompatible{opacity:.25;}
+  .ge-status{font-size:10.5px;color:var(--warn-soft);margin-left:auto;}
+  /* « Create Node » de Shader Graph : recherche en haut, catégories repliables en dessous. */
+  .ge-menu-ctx{position:absolute;z-index:20;background:var(--panel);border:1px solid var(--edge);
+    border-radius:var(--r-3);box-shadow:0 10px 30px rgba(0,0,0,.5);padding:5px;width:230px;
+    font-size:11.5px;}
+  .ge-menu-search{width:100%;background:var(--bg);border:1px solid var(--edge);
+    border-radius:var(--r-1);color:var(--txt);font-size:11.5px;padding:4px 6px;margin-bottom:4px;}
+  .ge-menu-list{max-height:300px;overflow-y:auto;}
+  .ge-menu-group{color:var(--txt-dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+    padding:5px 6px 2px;cursor:pointer;user-select:none;}
+  .ge-menu-group:hover{color:var(--txt);}
+  .ge-menu-item{padding:4px 8px 4px 18px;border-radius:var(--r-1);cursor:pointer;color:var(--txt);}
+  .ge-menu-item:hover,.ge-menu-item.ge-menu-active{background:var(--accent);color:var(--on-accent);}
+  .ge-menu-empty{color:var(--txt-dim);padding:6px 8px;}
+  .ge-w-list{width:auto;max-width:96px;}
+  /* rectangle de sélection tiré dans le empty */
+  .ge-marquee{position:absolute;z-index:12;pointer-events:none;border:1px solid var(--sel);
+    background:var(--select-wash);border-radius:var(--r-1);}
+  /* familles de nœuds, repérables à la couleur du bandeau comme dans Shader Graph */
+  .ge-node-title{border-left:3px solid transparent;}
+  .ge-node[data-cat="input"] .ge-node-title{border-left-color:var(--code-reads);}
+  .ge-node[data-cat="math"] .ge-node-title{border-left-color:var(--accent-soft);}
+  .ge-node[data-cat="texture"] .ge-node-title{border-left-color:var(--warn-bright);}
+  .ge-node[data-cat="property"] .ge-node-title{border-left-color:var(--ok-soft);}
+  .ge-node[data-cat="uv"] .ge-node-title{border-left-color:var(--ok-pale);}
+  .ge-node[data-cat="proc"] .ge-node-title{border-left-color:var(--sel);}
+  .ge-node[data-cat="artistic"] .ge-node-title{border-left-color:var(--warn-soft);}
+  .ge-help{font-size:10.5px;color:var(--txt-dim);}
+  /* Le code TSL n'est plus un miroir en lecture seule : sa barre porte de quoi l'exécuter. */
+  .ge-code-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt);
+    cursor:pointer;white-space:nowrap;}
+  #ge-code-note{margin-left:4px;}
+
+  /* L'aide n'est plus une modale mais une page à part (aide.html) : son habillage vit
+     dans css/aide.css, et rien de ce qui la concerne ne reste ici. */
+
+  /* préférences : « Sans suffixe = couleur » ne tient pas dans les 76 px de l'inspecteur */
+  #pref-body .field label{flex:0 0 128px;}
+  #pref-body #pref-result code{white-space:nowrap;}
+  .btn-modal{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+    border-radius:var(--r-2);padding:6px 14px;cursor:pointer;font-size:12.5px;}
+  .btn-modal:hover{background:var(--panel3);}
+  .btn-modal.accent{border-color:var(--accent);color:var(--accent);}
+
+  /* ---- Bibliothèque de prefabs par défaut (modalPrefabLibrary, js/ui.js) ---- */
+  .prefab-lib-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+    gap:10px;margin-top:4px;}
+  .prefab-lib-card{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-3);
+    padding:10px 12px;cursor:pointer;text-align:left;}
+  .prefab-lib-card:hover{border-color:var(--accent);background:var(--panel3);}
+  .prefab-lib-label{font-weight:600;color:var(--txt-strong);font-size:12.5px;margin-bottom:4px;}
+  .prefab-lib-desc{color:var(--txt-dim);font-size:11.5px;line-height:1.4;}
+
+  /* ---- LA PALETTE D'OUTILS, posée sur le viewport ---- */
+  /* Elle est construite par js/ui/floating-palette.js, qui ADOPTE `#bar` — d'où deux blocs
+     ici : l'enveloppe flottante, et `#bar` qui n'est plus une barre pleine largeur mais son
+     contenu. `position:absolute` sans `right`/`bottom` : la position vient du module, qui la
+     borne dans le viewport ; poser une contrainte ici la lui reprendrait à moitié. */
+  #tool-palette{position:absolute;top:8px;left:8px;z-index:6;display:flex;
+    flex-direction:column;background:var(--panel-veil);border:1px solid var(--edge);
+    border-radius:var(--r-3);box-shadow:0 10px 30px rgba(0,0,0,.5);overflow:hidden;}
+  /* Pendant le glissement, l'ombre se lève et le curseur change : sans ça, rien ne distingue
+     « je déplace la palette » de « je viens de rater le bouton ». */
+  #tool-palette.dragging{box-shadow:0 18px 44px rgba(0,0,0,.6);}
+  .palette-head{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-1) var(--sp-4);
+    border-bottom:1px solid var(--edge);color:var(--txt-off);cursor:grab;
+    /* La poignée est la SEULE zone qui glisse ; sans ça, un clic manqué sur un bouton
+       emporterait la palette. `user-select:none` empêche de sélectionner le mot « Outils »
+       au lieu de déplacer. */
+    user-select:none;}
+  #tool-palette.dragging .palette-head{cursor:grabbing;color:var(--accent);}
+  .palette-head:hover{color:var(--txt-dim);}
+  .palette-title{font-size:10px;letter-spacing:.06em;text-transform:uppercase;}
+
+  /* ---- le contenu de la palette (anciennement la barre du haut) ---- */
+  /* `overflow-x:auto` a disparu avec la pleine largeur : une palette flottante n'a pas de
+     largeur imposée, donc rien à faire défiler — elle prend la place de son contenu. */
+  #bar{display:flex;align-items:center;gap:4px;padding:var(--sp-3) var(--sp-4);}
+  /* AUCUNE règle `#bar button` ici. Elle existait — fond `--panel2`, bordure, padding — et
+     elle écrasait `.ui-icon-btn` de components.css par simple spécificité (0,1,1 contre
+     0,1,0) : les boutons d'outil reprenaient un fond plein et une bordure permanente, ce qui
+     effaçait exactement la différence entre l'outil courant et les autres. Le vocabulaire
+     porte l'apparence ; cette feuille ne garde que ce qui est propre à la palette. */
+  #bar > .sep{width:1px;align-self:stretch;background:var(--edge);margin:0 var(--sp-2);
+    flex:none;}
+  #bar #bar-types-creatable{display:flex;align-items:center;gap:var(--sp-1);}
+
+  /* ---- filters d'affichage ---- */
+  /* En BAS à gauche, et plus en haut à gauche : la palette d'outils se pose par défaut dans
+     ce coin-là, et les deux se superposaient exactement. Le viewport porte quatre surfaces
+     flottantes — palette (haut gauche), bandeau de caméra (haut centre), gizmo de vue (haut
+     droite), état (bas centre) ; le bas gauche était le seul coin libre. */
+  /* `#filters` n'existe plus : les filtres d'affichage sont dans la palette d'outils, en
+     boutons icône du vocabulaire. Leurs règles propres ont donc disparu avec le conteneur —
+     `.ui-icon-btn` et son état `.active` disent déjà tout ce qu'elles disaient. */
+
+  /* ---- mode game ---- */
+  .game-btn{font-weight:600;}
+
+  /* ---- profiler ---- */
+  #profiler{position:absolute;top:44px;left:12px;width:246px;display:none;z-index:8;
+    background:var(--bg-veil-strong);border:1px solid var(--edge);border-radius:var(--r-3);
+    padding:8px;font-size:11px;font-family:ui-monospace,Consolas,monospace;
+    pointer-events:auto;}
+  #prof-header{display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:6px;font-family:inherit;}
+  #prof-header select{background:var(--panel2);color:var(--txt);border:1px solid var(--edge);
+    border-radius:var(--r-1);font-size:10px;padding:1px 3px;}
+  #prof-header button{background:none;border:none;color:var(--txt-dim);cursor:pointer;
+    font-size:12px;padding:0 2px;}
+  #prof-header button:hover{color:var(--txt);}
+  #prof-graph{display:block;width:100%;height:38px;margin-bottom:6px;
+    background:rgba(0,0,0,.35);border-radius:var(--r-1);}
+  .prof-l{display:flex;justify-content:space-between;gap:8px;line-height:1.65;}
+  .prof-l > span:first-child{color:var(--txt-dim);}
+  .prof-l i{color:var(--txt-dim);font-style:normal;opacity:.75;}
+  .prof-l .ok{color:var(--ok);}
+  .prof-l .medium{color:var(--warn);}
+  .prof-l .bad{color:var(--invalid);font-weight:700;}
+  .prof-sec{margin:5px 0 2px;color:var(--accent);font-size:10px;text-transform:uppercase;
+    letter-spacing:.4px;}
+  .prof-note{margin-top:6px;color:var(--txt-dim);font-size:9.5px;line-height:1.4;
+    font-family:system-ui,sans-serif;}
+  .tile .name{display:block;margin-top:4px;font-size:11px;color:var(--txt-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+  .tile .kind{position:absolute;top:4px;left:4px;font-size:9.5px;padding:1px 5px;
+    border-radius:var(--r-1);background:var(--bg-veil);color:var(--txt-dim);}
+  .tile .del{position:absolute;top:4px;right:4px;width:18px;height:18px;border:none;
+    border-radius:var(--r-1);background:var(--bg-veil);color:var(--txt-dim);cursor:pointer;
+    font-size:12px;line-height:1;display:none;}
+  .tile:hover .del{display:block;}
+  .tile .del:hover{color:var(--invalid-soft);background:var(--invalid-deep);}
+
+  /* ---- timeline ---- */
+  /* Les onglets sont ceux du DOCK : leur style est dans layout.css, avec le reste de la
+     coquille. */
+  #tools-project,#tools-anim{display:flex;align-items:center;gap:6px;margin-left:10px;
+    text-transform:none;letter-spacing:normal;font-weight:400;}
+  #tools-anim button{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+    border-radius:var(--r-2);padding:3px 9px;cursor:pointer;font-size:12px;}
+  #tools-anim button:hover{background:var(--panel3);}
+  #tools-anim button.active{border-color:var(--accent);color:var(--accent);}
+  #tools-anim button:disabled{opacity:.4;cursor:default;}
+  #tools-anim select{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+    border-radius:var(--r-2);padding:3px 6px;font-size:12px;}
+  #tools-anim select:disabled{opacity:.4;}
+  .an-sep{width:1px;height:18px;background:var(--edge);}
+  .an-field{color:var(--txt-dim);font-size:11.5px;display:flex;align-items:center;gap:5px;}
+  .an-field input{width:52px;}
+  #an-time{color:var(--accent);font-variant-numeric:tabular-nums;font-size:12px;min-width:52px;}
+
+  #anim-body{flex:1;display:flex;min-height:0;overflow-y:auto;}
+  #tl-names{flex:0 0 150px;border-right:1px solid var(--edge);}
+  .tl-header{height:22px;border-bottom:1px solid var(--edge);display:flex;align-items:center;
+             padding:0 6px;}
+  /* Le field occupe toute la tête de colonne : il filtre exactement ce qui est dessous, et il
+     ne peut pas déborder puisqu'il en épouse la largeur. */
+  .tl-header input{width:100%;min-width:0;height:16px;font-size:10px;padding:0 4px;
+                   background:var(--fond-2,var(--surface-sunken));color:var(--txt,var(--txt-strong));
+                   border:1px solid var(--edge);border-radius:var(--r-1);}
+  .tl-header input:disabled{opacity:.35;}
+  .tl-name{height:26px;line-height:26px;padding:0 10px;font-size:12px;color:var(--txt-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  .tl-name.sel{color:var(--sel);background:var(--sel-wash-soft);}
+  #tl-zone{flex:1;position:relative;min-width:0;cursor:crosshair;}
+  #tl-ruler{height:22px;border-bottom:1px solid var(--edge);position:relative;
+    background:var(--panel2);user-select:none;}
+  .tl-grad{position:absolute;top:2px;font-size:9.5px;color:var(--txt-dim);transform:translateX(2px);}
+  .tl-tick{position:absolute;bottom:0;width:1px;height:6px;background:var(--txt-dim);opacity:.6;}
+  .tl-track{height:26px;position:relative;border-bottom:1px solid var(--edge-veil-strong);}
+  .tl-track.sel{background:var(--sel-wash-faint);}
+  .key{position:absolute;top:8px;width:10px;height:10px;margin-left:-5px;cursor:pointer;
+    background:var(--sel);transform:rotate(45deg);border:1px solid var(--bg);border-radius:var(--r-1);}
+  .key:hover{background:var(--sel-bright);}
+  .key.sel{background:var(--accent);box-shadow:0 0 0 2px var(--accent-hex-wash);}
+  #tl-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--accent);
+    pointer-events:none;}
+  #tl-playhead::before{content:"";position:absolute;top:0;left:-5px;border:5px solid transparent;
+    border-top-color:var(--accent);}
+  #tl-empty{padding:18px 16px;color:var(--txt-dim);font-style:italic;font-size:12px;}
+
+  /* case à cocher inspecteur */
+  .field input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);}
+  /* Un field sans effet (intensité de normale ou d'AO dont la map manque) doit SE VOIR,
+     sinon c'est un curseur qui a l'air de marcher et ne fait rien. */
+  .field input:disabled,.field select:disabled{opacity:.35;cursor:not-allowed;}
+  .field:has(input:disabled) label,.field:has(select:disabled) label{opacity:.5;}
+  /* paramètres d'import d'un asset (inspecteur) */
+  .ip-info{flex:1;min-width:0;font-size:12px;color:var(--txt);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;}
+  .ip-note{font-size:11.5px;color:var(--txt-dim);line-height:1.5;margin:6px 0 2px;}
+  /* Aperçu de l'inspecteur d'import : le modèle rendu hors écran, et la planche d'UV. Fond
+     damier pour que l'alpha du rendu se voie, comme dans un éditeur d'image. */
+  /* Les onglets du panneau d'import d'un modèle (Modèle / Rig / Matériaux), comme Unity. */
+  .ip-tabs{display:flex;gap:2px;margin:2px 0 8px;border-bottom:1px solid var(--edge);}
+  .ip-tab{flex:1;background:none;border:none;border-bottom:2px solid transparent;
+    color:var(--txt-dim);cursor:pointer;font-size:12px;padding:5px 4px;}
+  .ip-tab:hover{color:var(--txt);}
+  .ip-tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+  /* ---- Fenêtre « Avatar humanoïde » ---- */
+  .avatar-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:10px;}
+  .avatar-body{flex:0 0 120px;width:120px;height:210px;}
+  .avatar-summary{flex:1;min-width:0;}
+  .avatar-count{font-size:15px;margin-bottom:4px;}
+  .avatar-alert{font-size:12px;color:var(--invalid-soft);line-height:1.5;}
+  .avatar-ok{font-size:12px;color:var(--ok);line-height:1.5;}
+  .avatar-map{max-height:44vh;overflow-y:auto;padding-right:4px;}
+  /* La pastille d'état, répétée devant chaque libellé : c'est elle qu'on balaie du regard pour
+     trouver ce qui manque, pas le texte. Mêmes trois états que sur la silhouette. */
+  .avatar-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;
+    vertical-align:middle;border:1px solid var(--edge-strong);}
+  .avatar-line.ok .avatar-dot{background:var(--ok);border-color:var(--ok);}
+  .avatar-line.missing .avatar-dot{background:var(--invalid);border-color:var(--invalid);}
+  .avatar-line.missing label{color:var(--invalid-soft);}
+  .avatar-line.empty .avatar-dot{background:none;border-style:dashed;}
+  .ip-preview{margin:6px 0;border:1px solid var(--edge);border-radius:4px;overflow:hidden;
+              background:var(--panel2);display:flex;justify-content:center;align-items:center;}
+  .ip-preview img,.ip-preview canvas{display:block;max-width:100%;height:auto;}
+  /* Aperçu d'une texture : sur un damier, pour que la transparence se voie. Une petite image
+     (pixel art) est agrandie jusqu'à 256 px au plus, au lieu de rester un timbre-poste. */
+  .ip-preview-tex{background-color:var(--panel2);
+    background-image:linear-gradient(45deg,var(--edge) 25%,transparent 25%,transparent 75%,var(--edge) 75%),
+      linear-gradient(45deg,var(--edge) 25%,transparent 25%,transparent 75%,var(--edge) 75%);
+    background-size:16px 16px;background-position:0 0,8px 8px;}
+  .ip-preview-tex img{min-width:min(100%,256px);max-height:320px;object-fit:contain;width:auto;}
+  .ip-preview-tex.pixelated img{image-rendering:pixelated;}
+  /* Miniature d'un emplacement de texture (matériau, propriété de shader). */
+  .ip-tex-thumb{flex:0 0 22px;width:22px;height:22px;border:1px solid var(--edge);
+    border-radius:var(--r-1);background:var(--panel2) center/cover no-repeat;}
+  /* ---- L'en-tête d'un asset dans l'inspecteur (js/import-settings.js) ----
+     Vignette, nom (double-clic pour renommer), chemin du dossier, presets d'import : le
+     bandeau d'Unity. Il remplace une ligne de section et un champ « Nom » pleine largeur. */
+  .ip-head{display:flex;align-items:flex-start;gap:8px;margin:0 0 8px;
+    padding-bottom:8px;border-bottom:1px solid var(--edge);}
+  .ip-head-thumb{flex:0 0 44px;width:44px;height:44px;border:1px solid var(--edge);
+    border-radius:var(--r-1);background:var(--panel2);overflow:hidden;
+    display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;}
+  .ip-head-thumb img{width:100%;height:100%;object-fit:contain;display:block;}
+  .ip-head-main{flex:1;min-width:0;}
+  /* Le nom à gauche, ce que le panneau montre à DROITE, et le nom se coupe plutôt que de
+     passer à la ligne : un nom d'asset exporté d'un DCC est long, et un titre sur deux lignes
+     décalerait tout le bandeau. */
+  .ip-head-title{display:flex;align-items:baseline;gap:8px;
+    font-size:13px;color:var(--txt);cursor:text;}
+  /* `display:flex` l'emporterait sur le `display:none` que le navigateur donne à [hidden] :
+     sans cette ligne, le titre resterait visible SOUS le champ pendant le renommage. */
+  .ip-head-title[hidden]{display:none;}
+  .ip-head-title b{font-weight:600;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ip-head-title span{margin-left:auto;flex:0 0 auto;
+    color:var(--txt-dim);font-size:11.5px;white-space:nowrap;}
+  .ip-head-rename{width:100%;box-sizing:border-box;font-size:13px;}
+  .ip-head-path{display:flex;align-items:center;gap:4px;margin-top:3px;}
+  .ip-head-folder{flex:1;min-width:0;font-size:11.5px;color:var(--txt-dim);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ip-head-actions{flex:0 0 auto;}
+  .ip-head-icon{background:none;border:1px solid transparent;color:var(--txt-dim);
+    border-radius:var(--r-1);cursor:pointer;font-size:15px;line-height:1;padding:3px 5px;}
+  .ip-head-icon:hover{color:var(--txt);border-color:var(--edge-strong);background:var(--panel2);}
+  /* Les petits boutons de l'inspecteur (rotation de l'aperçu, copie d'un chemin, retrait d'une
+     ligne de liste) : ils n'avaient AUCUN style et sortaient en gris de navigateur. */
+  .btn-mini{background:var(--panel2);border:1px solid var(--edge);color:var(--txt-dim);
+    border-radius:var(--r-1);cursor:pointer;font-size:11px;line-height:1;padding:3px 6px;}
+  .btn-mini:hover{color:var(--txt);border-color:var(--edge-strong);}
+  /* La fenêtre des presets d'import : une ligne par preset. */
+  .prs-row{display:flex;align-items:center;gap:6px;margin:4px 0;}
+  .prs-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* emplacement de matériau d'un modèle : le name vient du fichier, il peut être long */
+  .ip-slot label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--txt);}
+  /* cible de glisser-déposer d'une tile du panneau Projet */
+  .ip-slot.hover{outline:1px dashed var(--accent);outline-offset:2px;border-radius:var(--r-1);}
+  .ip-slot.hover label{color:var(--accent);}
+  .field select{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--edge);
+    color:var(--txt);border-radius:var(--r-1);padding:4px 6px;font-size:12px;}
+  .field-name input[type=text]{flex:1;min-width:0;}
+  .field-name .field-name-tag{flex:0 0 90px;}
+  .field-name .field-name-layer{flex:0 0 92px;background:var(--panel2);border:1px solid var(--edge);
+    color:var(--txt);border-radius:var(--r-1);padding:4px 6px;font-size:12px;}
+
+/* ---- Graphe de machine a etats (a la place de la view 3D) ---- */
+/* Les onglets flottent SUR la view, comme les filters d'affichage : la grille du haut est deja
+   dense, et un troisieme etage de barres reduirait la view pour deux boutons. */
+             gap:4px;z-index:4}
+                    color:var(--txt-dim);border-radius:var(--r-4);padding:4px 16px;cursor:pointer;
+                    font-size:11.5px}
+
+/* La bar 2D, sous les onglets. Même langage que les onglets — pastille sombre translucide
+   posée sur la view — pour qu'elle se lise comme une extension de l'espace 2D et non comme un
+   panneau de plus. Centrée aussi, sinon les deux barres se disputent le regard. */
+#bar-tilemap{position:absolute;top:44px;left:50%;transform:translateX(-50%);display:flex;
+          align-items:center;gap:4px;z-index:4;background:var(--panel-veil-strong);
+          border:1px solid var(--edge);border-radius:var(--r-4);padding:4px 8px}
+#bar-tilemap button{background:transparent;border:1px solid transparent;color:var(--txt-dim);
+                 border-radius:var(--r-4);padding:3px 10px;cursor:pointer;font-size:11.5px}
+#bar-tilemap button:hover{background:var(--panel3);color:var(--txt)}
+/* L'outil armé doit se voir SANS ambiguïté : il change ce que fait le clic gauche dans toute la
+   view, et un état modal qu'on ne voit pas produit des clics qui « ne font rien ». */
+#bar-tilemap button.active{background:var(--accent);border-color:var(--accent);color:var(--surface-deep)}
+#bar-tilemap select{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+                 border-radius:var(--r-2);padding:2px 6px;font-size:11px;max-width:130px}
+#bar-tilemap .sep-2d{width:1px;align-self:stretch;background:var(--edge);margin:2px 4px}
+#bar-tilemap .help-2d{color:var(--txt-dim);font-size:10.5px;padding-left:4px}
+#bar-tilemap .help-2d kbd{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-1);
+                       padding:0 4px;font-size:10px}
+
+#graph-animator{position:absolute;inset:0;background:var(--bg);display:flex;
+                 flex-direction:column;z-index:3}
+#graph-bar{flex:none;display:flex;align-items:center;gap:12px;padding:8px 12px 8px 12px;
+              border-bottom:1px solid var(--edge);background:var(--panel)}
+#graph-title{font-weight:600;font-size:12.5px}
+#graph-bar button{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+                     border-radius:var(--r-2);padding:4px 12px;cursor:pointer;font-size:12px}
+#graph-bar button:hover{background:var(--panel3);border-color:var(--edge-strong)}
+.graph-help{margin-left:auto;color:var(--txt-dim);font-size:11px}
+.graph-help kbd{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-1);
+                 padding:0 4px;font-size:10px}
+
+/* Graphe à gauche, inspecteur à droite : la disposition de la fenêtre Animator d'Unity.
+   `min-height:0` sans quoi un enfant défilant force la hauteur du flex et le graphe déborde
+   la fenêtre au lieu de défiler dans sa propre zone. */
+#graph-main{flex:1;display:flex;min-height:0}
+/* Les propriétés de l'état / de la transition sélectionné. Vide (et donc masqué) tant que rien
+   n'est sélectionné : une colonne vide en permanence mangerait la largeur du graphe. */
+#graph-inspector{flex:none;width:300px;overflow-y:auto;background:var(--panel);
+                 border-left:1px solid var(--edge)}
+#graph-inspector:empty{display:none}
+#graph-inspector .gi-empty{padding:18px 14px;color:var(--txt-dim);font-size:11.5px;line-height:1.6}
+#graph-inspector .gi-head{padding:8px 12px;border-bottom:1px solid var(--edge);
+                          background:var(--panel2);font-weight:600;font-size:12px;
+                          position:sticky;top:0;z-index:1}
+
+/* La zone defile : un graphe depasse vite la window, et le rogner sans defilement rendrait
+   les etats du bas inatteignables. */
+#graph-zone{flex:1;position:relative;overflow:auto;
+             background-image:radial-gradient(circle,var(--surface-graph) 1px,transparent 1px);
+             background-size:22px 22px}
+#graph-links{position:absolute;top:0;left:0;pointer-events:none}
+/* TRANSPARENT AUX CLICS, ses boîtes NON. `#graph-states` couvre toute l'étendue du graphe et
+   passe AU-DESSUS du SVG des transitions (il vient après lui dans le DOM) : en `pointer-events`
+   par défaut, il interceptait donc tout clic tombant à côté d'une boîte — y compris ceux visant
+   une transition, qui n'était alors JAMAIS sélectionnable, quelle que soit l'épaisseur du trait.
+   Les clics traversent maintenant jusqu'au tracé de capture .link-hit ; les boîtes, elles,
+   redeviennent cliquables une par une. */
+#graph-states{position:relative;pointer-events:none}
+#graph-states .graph-state{pointer-events:auto}
+.graph-empty{padding:40px;color:var(--txt-dim);font-size:12.5px;line-height:1.7;max-width:520px}
+
+.link{fill:none;stroke:var(--graph-link);stroke-width:1.6;pointer-events:stroke;cursor:pointer}
+.link.sel{stroke:var(--accent);stroke-width:2.4}
+.link.temp{stroke:var(--accent);stroke-dasharray:4 4}
+/* Même patron que .ge-cable-hit (graphe de shader) : un trait de 1,6px est illisible à la
+   souris. La cible cliquable réelle est ce tracé invisible, posé sous le trait visible. */
+.link-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
+.link-tag{fill:var(--graph-link);font-size:15px}
+
+.graph-state{position:absolute;width:150px;height:44px;box-sizing:border-box;
+             background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-2);
+             padding:5px 8px;cursor:move;user-select:none;overflow:hidden}
+.graph-state:hover{border-color:var(--edge-strong)}
+.graph-state.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* L'etat de DEPART se reconnait sans le chercher : c'est la premiere question qu'on se pose
+   devant un graphe qu'on n'a pas ecrit. */
+.graph-state.start{border-left:4px solid var(--warn)}
+/* L'etat JOUE en ce moment : le seul retour qui dit si la machine fait ce qu'on croit. */
+.graph-state.current{background:var(--ok-deeper);border-color:var(--ok)}
+.ge-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ge-clip{font-size:10.5px;color:var(--txt-dim);white-space:nowrap;overflow:hidden;
+         text-overflow:ellipsis}
+.ge-clip.missing{color:var(--invalid)}
+.ge-handle{position:absolute;right:4px;bottom:2px;font-size:11px;color:var(--txt-dim);
+            cursor:crosshair;padding:0 3px;border-radius:var(--r-1)}
+.ge-handle:hover{color:var(--accent);background:var(--accent-wash)}
+
+/* Parametres de la machine, reglables en direct pendant l'apercu. */
+#graph-params{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+               padding:6px 12px;border-bottom:1px solid var(--edge);background:var(--panel);
+               font-size:11.5px;min-height:30px}
+.gp{display:flex;align-items:center;gap:5px;color:var(--txt-dim)}
+.gp input[type=number]{width:64px;background:var(--panel2);border:1px solid var(--edge);
+                       color:var(--txt);border-radius:var(--r-1);padding:2px 5px;font-size:11.5px}
+.gp-decl{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+         border-radius:var(--r-4);padding:2px 10px;cursor:pointer;font-size:11.5px}
+.gp-decl:hover{border-color:var(--warn);color:var(--warn)}
+.gp-empty{color:var(--txt-dim);opacity:.7;font-style:italic}
+#graph-preview.active{border-color:var(--ok);color:var(--ok)}
+  /* ---------- Éditeur de code (js/editeur-code.js) ---------- */
+  /* Les deux couches — <pre> coloré et <textarea> transparente — DOIVENT partager police,
+     interligne, marges et gestion des espaces au pixel près : le moindre écart décale le
+     texte peint par rapport au texte typed. Toute retouche ici se fait sur les DEUX. */
+  .ec-page{display:flex;flex-direction:column;height:100%;width:100%;}
+  .ec-bar{display:flex;gap:10px;align-items:center;padding:8px 12px;flex:none;
+    border-bottom:1px solid var(--edge);background:var(--panel);}
+  .ec-tag{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--txt-dim);}
+  .ec-name{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-2);
+    color:var(--txt);font-size:12px;padding:3px 8px;width:220px;}
+  .ec-help{font-size:10.5px;color:var(--txt-dim);}
+  .ec-status{font-size:10.5px;color:var(--ok-soft);margin-left:auto;}
+  .ec-host{flex:1 1 auto;min-height:0;}
+
+  .ec{display:flex;height:100%;background:var(--bg);
+    font:12.5px/1.55 "Cascadia Code","Consolas","Menlo",monospace;}
+  .ec-gutter{flex:none;padding:10px 8px 10px 12px;text-align:right;color:var(--txt-dim);
+    background:var(--panel);border-right:1px solid var(--edge);overflow:hidden;
+    white-space:pre;user-select:none;font:inherit;tab-size:2;}
+  .ec-zone{position:relative;flex:1 1 auto;min-width:0;}
+  .ec-colored,.ec-input{position:absolute;inset:0;margin:0;padding:10px 12px;border:0;
+    font:inherit;tab-size:2;white-space:pre;overflow-wrap:normal;word-break:normal;}
+  .ec-colored{overflow:hidden;pointer-events:none;color:var(--txt);}
+  .ec-input{overflow:auto;resize:none;background:transparent;color:transparent;
+    caret-color:var(--txt);outline:none;}
+  .ec-input::selection{background:var(--select-wash-strong);color:transparent;}
+  .ec-t-com{color:var(--code-comment);font-style:italic;}
+  .ec-t-txt{color:var(--warn-text);}
+  .ec-t-num{color:var(--code-number);}
+  .ec-t-key{color:var(--accent-soft);}
+  .ec-t-reads{color:var(--code-reads);}
+  .ec-t-fn{color:var(--ok-soft);}
+  .ec-title-fixed{font-size:12px;color:var(--txt);font-weight:600;}
+
+  /* panneau « code TSL équivalent » du graphe de shader (tiroir bas, repliable) */
+  .ge-button{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-2);
+    color:var(--txt);font-size:11.5px;padding:3px 9px;cursor:pointer;}
+  .ge-button:hover{border-color:var(--accent);}
+  .ge-button-active{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
+  .ge-code{position:absolute;left:190px;right:0;bottom:0;height:44%;z-index:16;
+    display:flex;flex-direction:column;background:var(--panel);
+    border-top:1px solid var(--edge);box-shadow:0 -10px 30px rgba(0,0,0,.4);}
+  .ge-code[hidden]{display:none;}
+  .ge-code-bar{display:flex;align-items:center;gap:10px;padding:6px 10px;flex:none;
+    border-bottom:1px solid var(--edge);}
+  .ge-code-title{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--txt-dim);}
+  .ge-code-bar .ge-button{margin-left:auto;}
+  .ge-code-host{flex:1 1 auto;min-height:0;}
+
+/* ---------- Placard d'un panneau en échec (js/ui/panel.js) ---------- */
+/* Un panneau qui lève est isolé et remplacé par ce placard. Il n'avait AUCUN style : le message
+   se fondait dans la zone, et l'utilisateur voyait un panneau « vide » au lieu d'un panneau en
+   erreur. Le bouton est sa seule porte de sortie quand la cause était passagère. */
+.panel-error{
+  display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+  margin:8px; padding:10px 12px;
+  border:1px solid var(--invalid); border-radius:var(--r-3);
+  background:color-mix(in srgb, var(--invalid) 12%, transparent);
+  color:var(--text); font-size:12px; line-height:1.45;
+}
+.panel-error-retry{
+  padding:4px 10px; cursor:pointer;
+  border:1px solid var(--edge); border-radius:var(--r-2);
+  background:var(--panel); color:var(--text); font:inherit;
+}
+.panel-error-retry:hover{ background:var(--edge); }
+
+/* ---------- Fenêtres flottantes (js/fenetres.js) ---------- */
+/* Le modèle d'Unity : Window ▸ Animation / Animator. Elles flottent AU-DESSUS de la view 3D,
+   qui reste visible — c'est tout l'intérêt, on scrube et on regarde le résultat. */
+.window{
+  position:fixed; display:flex; flex-direction:column;
+  background:var(--panel); border:1px solid var(--edge); border-radius:var(--r-3);
+  box-shadow:0 12px 32px rgba(0,0,0,.55);
+  min-width:320px; min-height:140px; overflow:hidden;
+}
+.win-bar{
+  display:flex; align-items:center; gap:8px; flex:0 0 auto;
+  padding:6px 8px 6px 12px; background:var(--panel2); border-bottom:1px solid var(--edge);
+  cursor:move; user-select:none; touch-action:none;
+}
+.win-title{ font-size:12.5px; font-weight:600; color:var(--txt); flex:1; }
+.win-close, .win-popout{
+  background:none; border:none; color:var(--txt-dim); cursor:pointer;
+  font-size:13px; line-height:1; padding:3px 6px; border-radius:var(--r-1);
+}
+.win-close:hover{ background:var(--invalid-deeper); color:var(--invalid-pale); }
+.win-popout:hover{ background:var(--panel3); color:var(--txt); }
+/* Le body est le conteneur de l'élément ADOPTÉ : il doit lui donner toute la place, sans
+   quoi une timeline conçue pour une bande fixe garderait sa hauteur d'origine. */
+.win-body{ flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.win-body > *{ min-height:0; }
+.win-body > #anim-body{ flex:1; display:flex; }
+.win-body > #graph-animator{ flex:1; display:flex; flex-direction:column; position:static; }
+/* MÊME CORRECTIF, POUR LE DOCK (js/ui/dock.js) — pas seulement la fenêtre flottante
+   (js/windows.js, règle ci-dessus). #graph-animator porte `position:absolute;inset:0` par
+   défaut (hérité de l'époque où il prenait toute la vue 3D, voir animator-graph.js) : aucun
+   ancêtre du dock (.dock-body/.dock-panel/.dock-zone) n'est `position:relative`, donc cet
+   `inset:0` remonte jusqu'au premier ancêtre positionné de la PAGE ENTIÈRE — pas la zone du
+   dock — dès qu'on DOCKE ce panneau au lieu de le laisser flottant. C'est le bug : « docker la
+   fenêtre Animator » faisait disparaître tout le reste de l'éditeur derrière elle. */
+.dock-panel#graph-animator{ flex:1; display:flex; flex-direction:column; position:static; }
+/* La bar de transport de la timeline vient d'une rangée d'outils : dans une fenêtre elle
+   redevient une simple ligne, qui ne s'étire pas. */
+.win-body > #tools-anim{
+  flex:0 0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:6px 8px; border-bottom:1px solid var(--edge);
+}
+.win-size{
+  position:absolute; right:0; bottom:0; width:16px; height:16px;
+  cursor:nwse-resize; touch-action:none;
+  background:linear-gradient(135deg, transparent 50%, var(--edge-strongest) 50%, var(--edge-strongest) 60%, transparent 60%,
+             transparent 70%, var(--edge-strongest) 70%, var(--edge-strongest) 80%, transparent 80%);
+}
+
+/* ---------- Panneau Paramètres de l'Animator ---------- */
+/* Chaque paramètre porte sa croix, et le panneau son bouton ＋ : c'est le panneau Parameters
+   d'Unity. Sans eux il fallait ouvrir le JSON, donc connaître le format. */
+.gp-block{ display:inline-flex; align-items:center; gap:2px; }
+.gp-x{
+  background:none; border:none; color:var(--txt-off); cursor:pointer;
+  font-size:12px; line-height:1; padding:2px 4px; border-radius:var(--r-1);
+}
+.gp-x:hover{ background:var(--invalid-deeper); color:var(--invalid-pale); }
+.gp-plus{
+  background:var(--panel2); border:1px solid var(--edge); color:var(--txt); border-radius:var(--r-1);
+  cursor:pointer; font-size:11.5px; padding:3px 8px; margin-left:4px;
+}
+.gp-plus:hover{ border-color:var(--accent); color:var(--accent); }
+
+/* Une condition de transition : paramètre · opérateur · valeur · ×. C'est une ligne de liste
+   du socle depuis que la vue est un descripteur — le style suit `.list-row`. */
+#f-gr-conds .list-row select, #f-gr-conds .list-row input{ font-size:11.5px; }
+#f-gr-conds .list-row > .field{ margin:0; }
+
+
+/* ---------- Gizmo de vue ---------- */
+#view-gizmo { position: absolute; top: 8px; right: 8px; z-index: 5; text-align: center;
+              user-select: none; }
+#view-gizmo .gizmo-label { display: block; width: 100%; margin-top: 2px; font-size: 11px; }
+#view-gizmo .gizmo-snap { display: block; font-size: 11px; margin-top: 2px; }
+
+/* L'intitulé d'un menu contextuel : un titre, pas une entrée cliquable (§ 4.15). */
+.menu-header{padding:var(--sp-2) var(--sp-4);color:var(--txt-dim);font-size:11px;letter-spacing:.04em;
+  text-transform:uppercase;cursor:default;}

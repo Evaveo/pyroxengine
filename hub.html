@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Éditeur 3D — Projets</title>
+<!-- UN PROJET HEBERGE N'EST PAS AFFAIRE DE HUB. `/editeur/` sert cette page (c'est l'index
+     du dossier), et `?projet=N` n'y veut rien dire : seul editor.html charge js/project.js,
+     donc `openCloudProjectFromUrl()`. Le tableau de bord du cloud pointait sur `/editeur/?projet=N`
+     depuis la v0.154.0 — le bouton « Ouvrir dans l'editeur » ouvrait donc le hub, et le projet
+     ne s'ouvrait jamais. Personne ne l'a vu : la page s'affiche, elle est juste la mauvaise.
+     La redirection est INLINE et en tete : differee, elle laisserait le hub s'initialiser
+     pour rien, et on verrait passer la mauvaise page. -->
+<script>
+  (function(){
+    var id = new URLSearchParams(location.search).get('projet');
+    if (id && /^[0-9]+$/.test(id)) location.replace('editor.html' + location.search);
+  })();
+</script>
+<link rel="stylesheet" href="vendor/phosphor/phosphor.css?v=1">
+<link rel="stylesheet" href="css/tokens.css?v=1">
+<link rel="stylesheet" href="css/base.css?v=1">
+<link rel="stylesheet" href="css/hub.css?v=1">
+</head>
+<body>
+<div id="hub-app">
+
+  <header id="hub-header">
+    <span id="hub-brand"><i class="ph-fill ph-cube-transparent" aria-hidden="true"></i>Éditeur 3D</span>
+    <button id="hub-skip" title="Ouvrir l'éditeur sans choisir de projet">Ouvrir l'éditeur à vide</button>
+  </header>
+
+  <main id="hub-main">
+
+    <p id="hub-error" role="alert" hidden></p>
+    <p id="hub-busy" role="status" hidden></p>
+
+    <section id="hub-section-recents">
+      <h2>Projets récents</h2>
+      <div id="hub-recents" class="hub-grid"></div>
+    </section>
+
+    <section id="hub-section-open">
+      <h2>Ouvrir un projet</h2>
+      <p class="hub-hint">Choisissez un dossier de projet déjà existant sur votre disque.</p>
+      <button id="hub-open" class="hub-primary hub-secondary">
+        <i class="ph-fill ph-folder-open" aria-hidden="true"></i>
+        Choisir un dossier de projet…
+      </button>
+    </section>
+
+    <section id="hub-section-create">
+      <h2>Nouveau projet</h2>
+      <p class="hub-hint">Choisissez un template, puis un dossier sur votre disque : les fichiers du projet y seront écrits.</p>
+      <div id="hub-templates" class="hub-grid"></div>
+      <button id="hub-create" class="hub-primary">
+        <i class="ph-fill ph-folder-plus" aria-hidden="true"></i>
+        Choisir un dossier et créer le projet
+      </button>
+      <!-- Visible seulement avec un compte connecté (js/cloud-session.js:probeSession). -->
+      <button id="hub-create-cloud" class="hub-primary hub-secondary" hidden>
+        <i class="ph-fill ph-cloud-arrow-up" aria-hidden="true"></i>
+        Créer directement sur le cloud
+      </button>
+    </section>
+
+  </main>
+
+</div>
+
+<script type="module" src="js/escape-html.js"></script>
+<script type="module" src="js/file-names.js"></script>
+<script type="module" src="js/project-folder.js"></script>
+<script type="module" src="js/recents.js"></script>
+<script type="module" src="js/hub/hub-templates.js"></script>
+<script type="module" src="js/load-retry.js"></script>
+<script type="module" src="js/cloud-project.js"></script>
+<script type="module" src="js/cloud-session.js"></script>
+<script type="module" src="js/hub/hub-create.js"></script>
+<script type="module" src="js/escape-html.js"></script>
+<script type="module" src="js/hub/hub-ui.js"></script>
+</body>
+</html>

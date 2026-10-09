@@ -1,0 +1,42 @@
+{
+  "_lisezmoi": [
+    "LE CATALOGUE DES PLUGINS — lu par plugins.html, servi avec l'éditeur.",
+    "",
+    "Une entrée par fichier de exemples/. `file` est le SEUL champ qui lie le catalogue au code :",
+    "test/catalogue-plugins.test.mjs vérifie que chaque fichier annoncé existe et que chaque",
+    "plugin du dossier est annoncé. Un catalogue qui cite un fichier absent donnerait un bouton",
+    "« Installer » qui échoue ; un plugin non cité serait introuvable alors qu'il est livré.",
+    "",
+    "`requires` dit ce qu'il faut AVANT d'installer : c'est ce qu'on lit trop tard quand ça ne",
+    "marche pas. `extends` dit ce que le plugin ajoute à l'éditeur, en clair."
+  ],
+  "plugins": [
+    {
+      "file": "plugin-pont-mcp.js",
+      "title": "Pont MCP",
+      "icon": "🔌",
+      "category": "Automatisation",
+      "summary": "Laisse un agent externe piloter cet éditeur, avec les mêmes commandes que le copilote.",
+      "description": "L'éditeur ne peut pas écouter un port : c'est donc lui qui appelle le pont (moteur/mcp/serveur-mcp.mjs, à lancer à côté). Il publie le catalogue de commandes du copilote, puis boucle : il demande du travail, l'exécute, renvoie le résultat. Chaque appel passe par pushHistory(), donc tout ce qu'un agent fait ici reste annulable au Ctrl+Z.",
+      "extends": ["Menu Extensions"],
+      "requires": [
+        "Le serveur de pont lancé à côté : node moteur/mcp/serveur-mcp.mjs",
+        "Le jeton affiché par ce serveur au démarrage, à coller dans la fenêtre du pont"
+      ],
+      "warning": "Tant que le pont tourne, un processus de la machine agit sur le projet ouvert. Le jeton est ce qui empêche n'importe quelle page ouverte dans ce navigateur d'en faire autant."
+    },
+    {
+      "file": "plugin-materiau-hologramme.js",
+      "title": "Matériau hologramme",
+      "icon": "💠",
+      "category": "Matériaux",
+      "summary": "Un matériau en nœuds TSL : balayage lumineux, transparence par l'angle de vue, scintillement.",
+      "description": "Montre comment un plugin déclare un matériau complet — sa table de propriétés génère l'inspecteur, borne les saisies et décrit le matériau au copilote, et make(p, ctx) rend un matériau three écrit en nœuds TSL. C'est le patron à copier pour tout shader maison.",
+      "extends": ["Matériau « Hologramme »"],
+      "requires": [
+        "Un navigateur avec WebGPU : le matériau est écrit en TSL, et le pont WebGPU doit être prêt"
+      ],
+      "warning": ""
+    }
+  ]
+}

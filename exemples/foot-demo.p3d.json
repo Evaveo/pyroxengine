@@ -1,0 +1,1842 @@
+{
+  "version": 7,
+  "nomProjet": "Coup Franc - football",
+  "courante": 0,
+  "entrees": {
+    "actions": {
+      "avancer": [
+        "z",
+        "w",
+        "ArrowUp"
+      ],
+      "reculer": [
+        "s",
+        "ArrowDown"
+      ],
+      "gauche": [
+        "q",
+        "a",
+        "ArrowLeft"
+      ],
+      "droite": [
+        "d",
+        "ArrowRight"
+      ],
+      "sauter": [
+        " "
+      ],
+      "interagir": [
+        "e"
+      ]
+    },
+    "axes": {
+      "horizontal": [
+        "gauche",
+        "droite"
+      ],
+      "vertical": [
+        "reculer",
+        "avancer"
+      ]
+    }
+  },
+  "dossiers": [],
+  "layers": [
+    {
+      "id": 0,
+      "nom": "Défaut",
+      "visible": true,
+      "verrouille": false
+    },
+    {
+      "id": 1,
+      "nom": "Joueur",
+      "visible": true,
+      "verrouille": false
+    },
+    {
+      "id": 2,
+      "nom": "Ennemis",
+      "visible": true,
+      "verrouille": false
+    },
+    {
+      "id": 3,
+      "nom": "Décor",
+      "visible": true,
+      "verrouille": false
+    }
+  ],
+  "scenes": [
+    {
+      "nom": "Scène 1",
+      "donnees": {
+        "objets": [
+          {
+            "id": 199,
+            "type": "camera",
+            "nom": "Caméra 4",
+            "pos": [
+              0,
+              70,
+              34
+            ],
+            "quat": [
+              0.10616883676608452,
+              0.7755227810583789,
+              -0.1355587732795209,
+              0.6073848970349573
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": [
+              {
+                "code": "function mettreAJour(api){\n  // Vue haute et LARGE : Sensible Soccer se joue de loin, avec de petits\n  // joueurs, parce qu'on doit voir venir la passe. Une caméra trop basse rend\n  // le jeu illisible même s'il fonctionne — c'est ce que montrait le premier\n  // essai, mesures à l'appui. On suit le ballon en longueur, en gardant toute\n  // la largeur du terrain.\n  const b = api.trouver('Ballon');\n  if(!b) return;\n  const m = api.moi, k = Math.min(1, api.dt * 3);\n  m.position.x += (b.position.x * 0.55 - m.position.x) * k;\n  m.position.y += (70 - m.position.y) * k;\n  m.position.z += (b.position.z * 0.2 + 34 - m.position.z) * k;\n  api.regarder(b);\n}",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "fov": 50
+          },
+          {
+            "id": 203,
+            "type": "directional",
+            "nom": "Soleil",
+            "pos": [
+              0,
+              40,
+              20
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "lum": {
+              "couleur": 16767392,
+              "intensite": 0.8
+            }
+          },
+          {
+            "id": 211,
+            "type": "mesh",
+            "nom": "Pelouse",
+            "pos": [
+              0,
+              -0.4,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              40,
+              0.5,
+              26.5
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "terrain",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 3046706,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 212,
+            "type": "mesh",
+            "nom": "Ligne mediane",
+            "pos": [
+              0,
+              -0.12,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.12,
+              0.02,
+              25
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 15267305,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 213,
+            "type": "mesh",
+            "nom": "Rond central",
+            "pos": [
+              0,
+              -0.12,
+              0
+            ],
+            "quat": [
+              0.7071067811865475,
+              0,
+              0,
+              0.7071067811865476
+            ],
+            "ech": [
+              3,
+              3,
+              0.6
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "torus",
+            "couleur": 15267305,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 214,
+            "type": "mesh",
+            "nom": "Poteau Gauche Haut",
+            "pos": [
+              -30.4,
+              1,
+              5.5
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.25,
+              1.6,
+              0.25
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 215,
+            "type": "mesh",
+            "nom": "Poteau Gauche Bas",
+            "pos": [
+              -30.4,
+              1,
+              -5.5
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.25,
+              1.6,
+              0.25
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 216,
+            "type": "mesh",
+            "nom": "Barre Gauche",
+            "pos": [
+              -30.4,
+              2.1,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.22,
+              0.14,
+              7.2
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 217,
+            "type": "mesh",
+            "nom": "Poteau Droite Haut",
+            "pos": [
+              30.4,
+              1,
+              5.5
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.25,
+              1.6,
+              0.25
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 218,
+            "type": "mesh",
+            "nom": "Poteau Droite Bas",
+            "pos": [
+              30.4,
+              1,
+              -5.5
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.25,
+              1.6,
+              0.25
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 219,
+            "type": "mesh",
+            "nom": "Barre Droite",
+            "pos": [
+              30.4,
+              2.1,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.22,
+              0.14,
+              7.2
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cube",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 220,
+            "type": "mesh",
+            "nom": "Ballon",
+            "pos": [
+              0,
+              0.35,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.16,
+              0.16,
+              0.16
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "ballon",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "sphere",
+            "couleur": 16448250,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 4539717,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 221,
+            "type": "mesh",
+            "nom": "Domicile 1",
+            "pos": [
+              -27,
+              0.6,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "domicile",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 222,
+            "type": "mesh",
+            "nom": "Domicile 2",
+            "pos": [
+              -16,
+              0.6,
+              -9
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "domicile",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 223,
+            "type": "mesh",
+            "nom": "Domicile 3",
+            "pos": [
+              -16,
+              0.6,
+              9
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "domicile",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 224,
+            "type": "mesh",
+            "nom": "Domicile 4",
+            "pos": [
+              -6,
+              0.6,
+              -4
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "domicile",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 225,
+            "type": "mesh",
+            "nom": "Domicile 5",
+            "pos": [
+              -6,
+              0.6,
+              4
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "domicile",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 226,
+            "type": "mesh",
+            "nom": "Exterieur 1",
+            "pos": [
+              27,
+              0.6,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "exterieur",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 227,
+            "type": "mesh",
+            "nom": "Exterieur 2",
+            "pos": [
+              16,
+              0.6,
+              -9
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "exterieur",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 228,
+            "type": "mesh",
+            "nom": "Exterieur 3",
+            "pos": [
+              16,
+              0.6,
+              9
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "exterieur",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 229,
+            "type": "mesh",
+            "nom": "Exterieur 4",
+            "pos": [
+              6,
+              0.6,
+              -4
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "exterieur",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 230,
+            "type": "mesh",
+            "nom": "Exterieur 5",
+            "pos": [
+              6,
+              0.6,
+              4
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              0.45,
+              0.75,
+              0.45
+            ],
+            "visible": true,
+            "ombreProjetee": true,
+            "ombreRecue": true,
+            "parent": null,
+            "phys": {
+              "actif": false,
+              "masse": 1,
+              "rebond": 0.3,
+              "friction": 0.4
+            },
+            "jeu": {
+              "tag": "exterieur",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": {
+              "forme": "auto",
+              "dims": [
+                1,
+                1,
+                1
+              ],
+              "rayon": 1,
+              "hauteur": 2,
+              "offset": [
+                0,
+                0,
+                0
+              ],
+              "trigger": false
+            },
+            "scripts": null,
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "geo": "cylinder",
+            "couleur": 16044095,
+            "texAsset": null,
+            "nonEclaire": false,
+            "mat": {
+              "rugosite": 0.55,
+              "metal": 0.1,
+              "emissif": 0,
+              "opacite": 1
+            }
+          },
+          {
+            "id": 231,
+            "type": "groupe",
+            "nom": "Arbitre",
+            "pos": [
+              0,
+              0,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": [
+              {
+                "code": "\n// Écrans, ballon, joueurs, tirs, buts, score.\n//\n// Séparation qui structure tout : les ÉQUIPES sont des données (nom, couleur)\n// et les CAMPS sont des objets de scène (Domicile, Exterieur, avec leurs\n// postes). On choisit une équipe, elle est peinte sur un camp. C'est ainsi que\n// fonctionne le jeu d'origine, et ça évite de créer onze objets par équipe.\n\nvar CAMPS = [\n  {nom: 'Domicile',  tag: 'domicile',  sens:  1,\n   postes: [[-27, 0], [-16, -9], [-16, 9], [-6, -4], [-6, 4]]},\n  {nom: 'Exterieur', tag: 'exterieur', sens: -1,\n   postes: [[27, 0], [16, -9], [16, 9], [6, -4], [6, 4]]}\n];\n\nfunction equipes(api){ return api.donnees('Equipes') || []; }\nfunction monEquipe(api){ return equipes(api)[api.etat.choix] || equipes(api)[0]; }\nfunction equipeAdverse(api){\n  const e = equipes(api);\n  return e[(api.etat.choix + 1) % e.length] || e[1] || e[0];\n}\n\n// Trois écrans, trois Noeuds UIDocument (voir création dans le script de\n// construction) : afficher un écran, c'est activer/désactiver son Noeud —\n// api.uiDocument sert seulement à écrire le texte affiché dans chacun.\nfunction uiAccueil(api){ return api.uiDocument(api.trouver('UI Accueil')); }\nfunction uiSelection(api){ return api.uiDocument(api.trouver('UI Selection')); }\nfunction uiMatch(api){ return api.uiDocument(api.trouver('UI Match')); }\n\nfunction ecran(api, nom){\n  api.etat.ecran = nom;\n  api.activer(api.trouver('UI Accueil'), nom === 'accueil');\n  api.activer(api.trouver('UI Selection'), nom === 'selection');\n  api.activer(api.trouver('UI Match'), nom !== 'accueil' && nom !== 'selection');\n  if(nom === 'selection') majChoix(api);\n}\n\nfunction majChoix(api){\n  const e = monEquipe(api);\n  const ui = uiSelection(api);\n  if(!e || !ui) return;\n  // Régénère le fragment entier : c'est la seule façon de peindre la couleur\n  // de l'équipe choisie (data-bind ne synchronise que du texte, pas un style).\n  ui.html = '<div class=\"ecran selection\">'\n    + '<div class=\"titre\">VOTRE ÉQUIPE</div>'\n    + '<div class=\"choix\" style=\"color:' + e.couleur + '\">' + e.nom.toUpperCase() + '</div>'\n    + '<div class=\"aide\">Gauche / Droite pour changer · Espace pour valider</div>'\n    + '</div>';\n}\n\n// Peint les maillots : l'équipe choisie joue à domicile, l'autre à l'extérieur.\n// Le gardien garde sa couleur distincte, comme au football.\nfunction habiller(api){\n  const mienne = monEquipe(api), autre = equipeAdverse(api);\n  [[CAMPS[0], mienne], [CAMPS[1], autre]].forEach(function(paire){\n    paire[0].postes.forEach(function(xy, i){\n      const j = api.trouver(paire[0].nom + ' ' + (i + 1));\n      if(!j || !j.material) return;\n      j.material.color.set(i === 0 ? '#f4d03f' : paire[1].couleur);\n    });\n  });\n  const ui = uiMatch(api);\n  if(ui){\n    ui.valeurs.domicile = mienne.nom.toUpperCase();\n    ui.valeurs.exterieur = autre.nom.toUpperCase();\n  }\n}\n\nfunction demarrer(api){\n  const p = api.props();\n  p.vx = 0; p.vz = 0; p.vy = 0; p.tir = 0; p.attente = 0;\n  if(api.etat.choix === undefined) api.etat.choix = 0;\n  api.etat.butsDomicile = api.etat.butsDomicile || 0;\n  api.etat.butsExterieur = api.etat.butsExterieur || 0;\n  placerTout(api);\n  habiller(api);\n  majScore(api);\n  ecran(api, api.etat.ecran === 'match' ? 'match' : 'accueil');\n\n  // Réplication : le ballon et les onze joueurs. Le décor, les cages et\n  // l'interface ne sont PAS répliqués — tout le monde charge le même projet,\n  // il n'y a rien à transmettre pour ce qui ne bouge pas.\n  api.reseau.repliquer(api.trouver('Ballon'));\n  CAMPS.forEach(function(c){\n    c.postes.forEach(function(xy, i){\n      api.reseau.repliquer(api.trouver(c.nom + ' ' + (i + 1)));\n    });\n  });\n}\n\nfunction majScore(api){\n  const ui = uiMatch(api);\n  if(ui) ui.valeurs.score = api.etat.butsDomicile + ' — ' + api.etat.butsExterieur;\n}\n\n// data-bind=\"message\" + CSS \".message:empty{display:none}\" : un texte vide\n// masque le message, pas besoin d'un .visible() séparé.\nfunction afficherMessage(api, texte){\n  const ui = uiMatch(api);\n  if(ui) ui.valeurs.message = texte || '';\n}\n\nfunction placerTout(api){\n  const p = api.props();\n  api.placer(api.trouver('Ballon'), {x: 0, y: 0.35, z: 0});\n  p.vx = 0; p.vz = 0; p.vy = 0; p.tir = 0;\n  CAMPS.forEach(function(c){\n    c.postes.forEach(function(xy, i){\n      const j = api.trouver(c.nom + ' ' + (i + 1));\n      if(j) api.placer(j, {x: xy[0], y: 0.6, z: xy[1]});\n    });\n  });\n}\n\nfunction versBallon(joueur, ballon, vitesse, dt){\n  const dx = ballon.position.x - joueur.position.x;\n  const dz = ballon.position.z - joueur.position.z;\n  const d = Math.hypot(dx, dz) || 1;\n  joueur.position.x += (dx / d) * vitesse * dt;\n  joueur.position.z += (dz / d) * vitesse * dt;\n}\n\nfunction versPoste(joueur, xy, ballon, vitesse, dt){\n  const cibleX = xy[0] + Math.max(-9, Math.min(9, (ballon.position.x - xy[0]) * 0.45));\n  const cibleZ = xy[1] + Math.max(-6, Math.min(6, (ballon.position.z - xy[1]) * 0.35));\n  const dx = cibleX - joueur.position.x, dz = cibleZ - joueur.position.z;\n  const d = Math.hypot(dx, dz);\n  if(d < 0.3) return;\n  joueur.position.x += (dx / d) * vitesse * dt;\n  joueur.position.z += (dz / d) * vitesse * dt;\n}\n\nfunction mettreAJour(api){\n  const p = api.props();\n  const dt = Math.min(api.dt, 0.05);\n\n  // ---------- écrans ----------\n  if(api.etat.ecran === 'accueil'){\n    if(api.actionAppuyee('sauter')) ecran(api, 'selection');\n    return;\n  }\n  if(api.etat.ecran === 'selection'){\n    const n = equipes(api).length || 1;\n    if(api.actionAppuyee('droite')){ api.etat.choix = (api.etat.choix + 1) % n; majChoix(api); }\n    if(api.actionAppuyee('gauche')){ api.etat.choix = (api.etat.choix + n - 1) % n; majChoix(api); }\n    if(api.actionAppuyee('sauter')){\n      api.etat.butsDomicile = 0; api.etat.butsExterieur = 0;\n      habiller(api); majScore(api); placerTout(api);\n      ecran(api, 'match');\n    }\n    return;\n  }\n\n  const ballon = api.trouver('Ballon');\n  if(!ballon) return;\n\n  if(p.attente > 0){\n    p.attente -= dt;\n    if(p.attente <= 0){ placerTout(api); afficherMessage(api, ''); }\n    return;\n  }\n\n  // ---------- joueurs contrôlés ----------\n  // À DEUX : le joueur local tient Domicile, le premier joueur distant tient\n  // Exterieur. Hors ligne, api.reseau.distants() est vide et rien ne change —\n  // c'est le test de bonne conception : le jeu solo n'a pas été retouché.\n  const plusProche = function(tag, gardien){\n    let meilleur = null, d0 = 1e9;\n    api.parTag(tag).forEach(function(j){\n      if(j.name === gardien) return;\n      const d = Math.hypot(j.position.x - ballon.position.x, j.position.z - ballon.position.z);\n      if(d < d0){ d0 = d; meilleur = j; }\n    });\n    return meilleur;\n  };\n  const distant = api.reseau.distants()[0] || null;\n  const controle = plusProche('domicile', 'Domicile 1');\n  const controleB = distant ? plusProche('exterieur', 'Exterieur 1') : null;\n\n  const ax = api.axe('horizontal'), az = -api.axe('vertical');\n  // Entrées du second joueur, lues exactement comme les locales.\n  const bx = distant ? api.reseau.axe(distant, 'horizontal') : 0;\n  const bz = distant ? -api.reseau.axe(distant, 'vertical') : 0;\n\n  if(controleB){\n    controleB.position.x += bx * 11 * dt;\n    controleB.position.z += bz * 11 * dt;\n    const dB2 = Math.hypot(controleB.position.x - ballon.position.x,\n                           controleB.position.z - ballon.position.z);\n    if(ballon.position.y < 0.9 && dB2 < 1.5){\n      if(api.reseau.action(distant, 'sauter')){\n        let dx = bx, dz = bz;\n        if(!dx && !dz){ dx = -1; dz = 0; }   // par défaut vers SON but adverse\n        const n = Math.hypot(dx, dz) || 1;\n        p.vx = (dx / n) * 32; p.vz = (dz / n) * 32; p.vy = 7; p.tir = 1.1;\n      } else if(dB2 < 1.05){\n        p.vx += bx * 26 * dt; p.vz += bz * 26 * dt;\n      }\n    }\n  }\n\n  if(controle){\n    controle.position.x += ax * 11 * dt;\n    controle.position.z += az * 11 * dt;\n    const uiC = uiMatch(api);\n    if(uiC) uiC.valeurs.controle = controle.name\n      + (controleB ? ' · ' + controleB.name + ' (distant)' : '');\n\n    const dB = Math.hypot(controle.position.x - ballon.position.x,\n                          controle.position.z - ballon.position.z);\n    // Un ballon EN L'AIR n'est pas jouable : c'est ce qui donne son rythme au\n    // jeu d'origine. On attend qu'il retombe, il ne se colle pas au pied.\n    const jouable = ballon.position.y < 0.9;\n    if(jouable && dB < 1.5){\n      if(api.actionAppuyee('sauter')){\n        let dx = ax, dz = az;\n        if(!dx && !dz){ dx = 1; dz = 0; }\n        const n = Math.hypot(dx, dz) || 1;\n        p.vx = (dx / n) * 32; p.vz = (dz / n) * 32;\n        p.vy = 7;         // le tir décolle\n        p.tir = 1.1;      // fenêtre d'effet\n      } else if(dB < 1.05){\n        p.vx += ax * 26 * dt; p.vz += az * 26 * dt;   // conduite de balle\n      }\n    }\n  }\n\n  // ---------- EFFET APRÈS LE TIR ----------\n  // La signature de Sensible Soccer : la direction maintenue APRÈS la frappe\n  // continue d'infléchir la trajectoire, avec une autorité qui décroît. Sans\n  // ça on a un jeu de foot ; avec, on a CE jeu de foot.\n  if(p.tir > 0){\n    p.tir -= dt;\n    const autorite = 30 * (p.tir / 1.1);\n    p.vx += ax * autorite * dt;\n    p.vz += az * autorite * dt;\n  }\n\n  // ---------- les autres joueurs ----------\n  CAMPS.forEach(function(c){\n    c.postes.forEach(function(xy, i){\n      const j = api.trouver(c.nom + ' ' + (i + 1));\n      if(!j || j === controle || j === controleB) return;   // pilotés par des humains\n      if(i === 0){\n        j.position.z += Math.max(-5, Math.min(5, ballon.position.z - j.position.z)) * 3.2 * dt;\n        return;\n      }\n      const d = Math.hypot(j.position.x - ballon.position.x, j.position.z - ballon.position.z);\n      if(d < 9){\n        versBallon(j, ballon, 8.5, dt);\n        if(d < 1.2 && ballon.position.y < 0.9){\n          p.vx = c.sens * 26;\n          p.vz = (Math.abs(ballon.position.z) > 12 ? -Math.sign(ballon.position.z) : 0) * 12;\n          p.vy = 5; p.tir = 0;    // un dégagement de l'IA ne se pilote pas\n        }\n      } else {\n        versPoste(j, xy, ballon, 6.5, dt);\n      }\n    });\n  });\n\n  // ---------- ballon ----------\n  ballon.position.x += p.vx * dt;\n  ballon.position.z += p.vz * dt;\n  p.vy -= 26 * dt;\n  ballon.position.y += p.vy * dt;\n  if(ballon.position.y < 0.35){\n    ballon.position.y = 0.35;\n    p.vy = (Math.abs(p.vy) > 2.5) ? Math.abs(p.vy) * 0.42 : 0;   // rebond amorti\n  }\n  // Le frottement ne s'applique qu'au sol : en l'air le ballon garde sa vitesse.\n  const frein = Math.pow(ballon.position.y > 0.5 ? 0.85 : 0.16, dt);\n  p.vx *= frein; p.vz *= frein;\n  if(Math.abs(p.vx) < 0.05) p.vx = 0;\n  if(Math.abs(p.vz) < 0.05) p.vz = 0;\n\n  if(ballon.position.z > 19.4){ ballon.position.z = 19.4; p.vz = -Math.abs(p.vz) * 0.7; p.tir = 0; }\n  if(ballon.position.z < -19.4){ ballon.position.z = -19.4; p.vz = Math.abs(p.vz) * 0.7; p.tir = 0; }\n\n  // ---------- cages ----------\n  // Un but compte si le ballon franchit la ligne ENTRE les poteaux et SOUS la\n  // barre. Un ballon trop haut passe au-dessus : la barre n'est pas décorative.\n  const entre = Math.abs(ballon.position.z) < 5.4;\n  const sous = ballon.position.y < 2.0;\n  if(ballon.position.x > 29.8){\n    if(entre && sous){ marquer(api, 'domicile'); return; }\n    if(entre){ p.attente = 0.7; afficherMessage(api, 'Au-dessus !'); return; }\n    ballon.position.x = 29.8; p.vx = -Math.abs(p.vx) * 0.6; p.tir = 0;\n  }\n  if(ballon.position.x < -29.8){\n    if(entre && sous){ marquer(api, 'exterieur'); return; }\n    if(entre){ p.attente = 0.7; afficherMessage(api, 'Au-dessus !'); return; }\n    ballon.position.x = -29.8; p.vx = Math.abs(p.vx) * 0.6; p.tir = 0;\n  }\n}\n\nfunction marquer(api, camp){\n  const p = api.props();\n  const nom = (camp === 'domicile' ? monEquipe(api) : equipeAdverse(api));\n  if(camp === 'domicile') api.etat.butsDomicile++; else api.etat.butsExterieur++;\n  majScore(api);\n  afficherMessage(api, 'BUT ! ' + (nom ? nom.nom : ''));\n  api.evenement('but', {camp: camp});\n  p.attente = 1.8;\n}\n",
+                "actif": true
+              }
+            ],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null
+          },
+          {
+            "id": 232,
+            "type": "groupe",
+            "nom": "UI Accueil",
+            "pos": [
+              0,
+              0,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": [],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "uiDoc": {
+              "html": "<div class=\"ecran\"><div class=\"titre\">COUP FRANC</div><div class=\"sous-titre\">Espace pour commencer</div></div>",
+              "css": ".ecran{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#080b10d9;color:#fff;font-family:sans-serif;text-align:center}.ecran .titre{font-size:58px;font-weight:bold}.ecran .sous-titre,.ecran .aide{font-size:20px;color:#9fb3c8}.ecran .choix{font-size:44px;font-weight:bold}.hud{position:absolute;inset:0;font-family:sans-serif;color:#e8eef5;pointer-events:none}.hud .score{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:38px;font-weight:bold;color:#fff;background:#0d0f12b3;border-radius:10px;padding:4px 18px}.hud .domicile{position:absolute;top:26px;left:calc(50% - 300px);width:150px;font-size:19px;font-weight:bold;text-align:right}.hud .exterieur{position:absolute;top:26px;left:calc(50% + 150px);width:150px;font-size:19px;font-weight:bold}.hud .controle{position:absolute;bottom:20px;left:20px;font-size:15px;background:#0d0f12b3;border-radius:8px;padding:4px 10px}.hud .message{position:absolute;top:calc(50% - 50px);left:50%;transform:translateX(-50%);font-size:30px;font-weight:bold;color:#ffd54f}.hud .message:empty{display:none}",
+              "valeurs": {}
+            }
+          },
+          {
+            "id": 233,
+            "type": "groupe",
+            "nom": "UI Selection",
+            "pos": [
+              0,
+              0,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": [],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "uiDoc": {
+              "html": "<div class=\"ecran\"><div class=\"titre\">VOTRE ÉQUIPE</div><div class=\"choix\"></div><div class=\"aide\">Gauche / Droite pour changer · Espace pour valider</div></div>",
+              "css": ".ecran{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#080b10d9;color:#fff;font-family:sans-serif;text-align:center}.ecran .titre{font-size:58px;font-weight:bold}.ecran .sous-titre,.ecran .aide{font-size:20px;color:#9fb3c8}.ecran .choix{font-size:44px;font-weight:bold}.hud{position:absolute;inset:0;font-family:sans-serif;color:#e8eef5;pointer-events:none}.hud .score{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:38px;font-weight:bold;color:#fff;background:#0d0f12b3;border-radius:10px;padding:4px 18px}.hud .domicile{position:absolute;top:26px;left:calc(50% - 300px);width:150px;font-size:19px;font-weight:bold;text-align:right}.hud .exterieur{position:absolute;top:26px;left:calc(50% + 150px);width:150px;font-size:19px;font-weight:bold}.hud .controle{position:absolute;bottom:20px;left:20px;font-size:15px;background:#0d0f12b3;border-radius:8px;padding:4px 10px}.hud .message{position:absolute;top:calc(50% - 50px);left:50%;transform:translateX(-50%);font-size:30px;font-weight:bold;color:#ffd54f}.hud .message:empty{display:none}",
+              "valeurs": {}
+            }
+          },
+          {
+            "id": 234,
+            "type": "groupe",
+            "nom": "UI Match",
+            "pos": [
+              0,
+              0,
+              0
+            ],
+            "quat": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "ech": [
+              1,
+              1,
+              1
+            ],
+            "visible": true,
+            "ombreProjetee": false,
+            "ombreRecue": false,
+            "parent": null,
+            "phys": null,
+            "jeu": {
+              "tag": "",
+              "calque": "Défaut",
+              "props": {}
+            },
+            "collider": null,
+            "scripts": [],
+            "prefabId": null,
+            "materiauId": null,
+            "audio": null,
+            "part": null,
+            "terr": null,
+            "sousScene": null,
+            "sonde": null,
+            "anim": null,
+            "evenements": null,
+            "uiDoc": {
+              "html": "<div class=\"hud\"><div class=\"score\" data-bind=\"score\">0 — 0</div><div class=\"domicile\" data-bind=\"domicile\"></div><div class=\"exterieur\" data-bind=\"exterieur\"></div><div class=\"controle\" data-bind=\"controle\">-</div><div class=\"message\" data-bind=\"message\"></div></div>",
+              "css": ".ecran{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#080b10d9;color:#fff;font-family:sans-serif;text-align:center}.ecran .titre{font-size:58px;font-weight:bold}.ecran .sous-titre,.ecran .aide{font-size:20px;color:#9fb3c8}.ecran .choix{font-size:44px;font-weight:bold}.hud{position:absolute;inset:0;font-family:sans-serif;color:#e8eef5;pointer-events:none}.hud .score{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:38px;font-weight:bold;color:#fff;background:#0d0f12b3;border-radius:10px;padding:4px 18px}.hud .domicile{position:absolute;top:26px;left:calc(50% - 300px);width:150px;font-size:19px;font-weight:bold;text-align:right}.hud .exterieur{position:absolute;top:26px;left:calc(50% + 150px);width:150px;font-size:19px;font-weight:bold}.hud .controle{position:absolute;bottom:20px;left:20px;font-size:15px;background:#0d0f12b3;border-radius:8px;padding:4px 10px}.hud .message{position:absolute;top:calc(50% - 50px);left:50%;transform:translateX(-50%);font-size:30px;font-weight:bold;color:#ffd54f}.hud .message:empty{display:none}",
+              "valeurs": {}
+            }
+          }
+        ],
+        "pistes": [],
+        "duree": 5,
+        "boucle": true,
+        "env": {
+          "ciel": "degrade",
+          "cielCouleur": "#14161a",
+          "cielHaut": "#6fb7f0",
+          "cielBas": "#cfe9ff",
+          "cielAsset": null,
+          "brouillard": false,
+          "brouillardCouleur": "#14161a",
+          "brouillardProche": 40,
+          "brouillardLoin": 90,
+          "ambiante": 0.85,
+          "ambianteCouleur": "#bfd4ff",
+          "soleil": 1,
+          "post": {
+            "actif": false,
+            "toneMapping": "aces",
+            "exposition": 1,
+            "bloom": true,
+            "bloomSeuil": 0.8,
+            "bloomIntensite": 0.7,
+            "bloomRayon": 1,
+            "contraste": 1,
+            "saturation": 1,
+            "temperature": 0,
+            "vignette": 0.25,
+            "grain": 0,
+            "fxaa": false
+          }
+        }
+      }
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "genre": "donnees",
+      "nom": "Equipes",
+      "dossier": "",
+      "texte": "[\n  {\n    \"nom\": \"Bleus\",\n    \"couleur\": \"#2f6fd0\"\n  },\n  {\n    \"nom\": \"Rouges\",\n    \"couleur\": \"#d0402f\"\n  },\n  {\n    \"nom\": \"Verts\",\n    \"couleur\": \"#2f9e44\"\n  },\n  {\n    \"nom\": \"Or\",\n    \"couleur\": \"#e0a800\"\n  },\n  {\n    \"nom\": \"Violets\",\n    \"couleur\": \"#7048c0\"\n  },\n  {\n    \"nom\": \"Noirs\",\n    \"couleur\": \"#2b2f36\"\n  }\n]"
+    }
+  ]
+}
