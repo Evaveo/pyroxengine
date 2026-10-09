@@ -82,7 +82,7 @@ export const MODULES_OPTIONAL = [
   // anim-sprite.js porte aussi `sameGeometrySprite`, appelé par `updateImageSprite` pour TOUT
   // sprite (api.spriteImage d'un script) : le lier au seul animSprite cassait les jeux publiés.
   {file: 'js/anim-sprite.js', dans: 'anim-sprite.js', pourquoi: 'animation et images de sprites',
-   besoin: function(d){ return objectsOfProject(d).some(function(o){ return o.sprite2d || o.animSprite; }); }},
+   besoin: function(d){ return objectsOfProject(d).some(function(o){ return hasSprite(o); }); }},
   {file: 'js/camera-framing.js', dans: 'camera-framing.js', pourquoi: 'caméra 2D',
    besoin: function(d){ return objectsOfProject(d).some(function(o){
      return (o.components || []).some(function(c){
@@ -94,7 +94,7 @@ export const MODULES_OPTIONAL = [
   // le lier au seul `sprite2d` publierait une map de tuiles sans son matériau.
   {file: 'js/sprite-2d.js', dans: 'sprite-2d.js', pourquoi: 'sprites, tuiles et ordre de tri',
    besoin: function(d){ return objectsOfProject(d).some(function(o){
-     return o.sprite2d || o.animSprite
+     return hasSprite(o)
        || (o.components || []).some(function(c){ return c.type === 'Tilemap'; });
    }); }},
 
@@ -224,6 +224,15 @@ export function aOfAnimations(data){
 }
 
 /** Tous les objets sérialisés du projet, toutes scènes confondues. */
+// Un sprite s'enregistre en champ (`sprite2d`, `animSprite`) OU en composant (`SpriteRenderer`,
+// `SpriteAnimator`) selon l'âge du projet : ne tester que les champs retirait anim-sprite.js d'un
+// jeu fait de composants, et chaque `api.spriteImage` tombait (v1.2.3).
+export function hasSprite(o){
+  return !!(o.sprite2d || o.animSprite || (o.components || []).some(function(c){
+    return c.type === 'SpriteRenderer' || c.type === 'SpriteAnimator';
+  }));
+}
+
 export function objectsOfProject(data){
   const tous = [];
   ((data && data.scenes) || []).forEach(function(s){

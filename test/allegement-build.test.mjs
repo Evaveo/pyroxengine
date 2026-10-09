@@ -45,6 +45,8 @@ const CAS = [
   {quoi: 'collider 2D',           object: {type: 'group', collider2d: {l: 1, h: 1}}, exige: ['js/physics-2d.js', 'js/world-2d.js']},
   {quoi: 'contrôleur 2D',         object: {type: 'group', controller2d: {speed: 6}}, exige: ['js/physics-2d.js', 'js/world-2d.js']},
   {quoi: 'sprite',                object: {type: 'group', sprite2d: {spriteId: 'a1'}}, exige: ['js/sprite-2d.js', 'js/anim-sprite.js']},
+  {quoi: 'composant SpriteRenderer', object: {type: 'group', components: [{type: 'SpriteRenderer', data: {}}]}, exige: ['js/sprite-2d.js', 'js/anim-sprite.js']},
+  {quoi: 'composant SpriteAnimator', object: {type: 'group', components: [{type: 'SpriteAnimator', data: {}}]}, exige: ['js/sprite-2d.js', 'js/anim-sprite.js']},
   {quoi: 'animateur de sprite',   object: {type: 'group', animSprite: {}},        exige: ['js/anim-sprite.js', 'js/sprite-2d.js']},
   {quoi: 'caméra 2D',             object: {type: 'camera', components: [{type: 'Camera', data: {projection: 'orthographic', mode: 'width'}}]}, exige: ['js/camera-framing.js']},
   // Une TILEMAP exige le solveur 2D : elle produit des obstacles même si aucun objet ne porte de
