@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pixelRatioCap, createRenderScaler, renderSetupFor } from '../js/render-scale.js';
-import { joystickDirections, normalizeTouchControls } from '../js/touch-input.js';
+import { joystickDirections, normalizeTouchControls, autoTouchConfig } from '../js/touch-input.js';
 import { creerContexte } from './engine-env.mjs';
 
 test('LE PLAFOND de pixels dépend de l écran, et le projet peut l imposer', () => {
@@ -75,4 +75,20 @@ test('SEULES LES CLÉS CHANGÉES sont reposées', () => {
   assert.deepEqual([...env._changedKeys(state, {a: 1, b: 'y'})], []);
   assert.deepEqual([...env._changedKeys(state, {a: 1, b: 'y', l: [1]})], ['l']);
   assert.deepEqual([...env._changedKeys(state, {a: 1, b: 'y', l: [1]})], [], 'un tableau identique ne change pas');
+});
+
+test('SANS COMPOSANT, les contrôles tactiles sont DÉDUITS de la table d entrées', () => {
+  const cfg = autoTouchConfig({
+    actions: {saut: [' ', 'pad:0'], retour: ['Escape', 'pad:1'], haut: ['ArrowUp', 'z'], bas: ['ArrowDown'],
+              gauche: ['ArrowLeft'], droite: ['ArrowRight'], menu: ['Tab', 'pad:9']},
+    axes: {}
+  });
+  assert.equal(cfg.joystick.enabled, true);
+  assert.deepEqual({...cfg.joystick.actions}, {up: 'haut', down: 'bas', left: 'gauche', right: 'droite'});
+  assert.equal(cfg.joystick.fourWay, true, 'sans axe, le stick presse une direction à la fois');
+  assert.deepEqual(cfg.buttons.map((b) => b.label + ':' + b.action), ['A:saut', 'B:retour', 'Menu:menu']);
+  assert.equal(autoTouchConfig({actions: {}, axes: {}}), null, 'rien à jouer : pas de surcouche');
+  const axes = autoTouchConfig({actions: {}, axes: {horizontal: ['a', 'd']}});
+  assert.equal(axes.joystick.axisX, 'horizontal');
+  assert.equal(axes.joystick.fourWay, false);
 });

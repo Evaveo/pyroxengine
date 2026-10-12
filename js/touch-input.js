@@ -155,11 +155,19 @@ function unmount(){
  * configuration a changé. `ctx` : {keys (Set des touches enfoncées), inputs ({actions, axes})}.
  */
 export function syncTouchControls(host, nodes, ctx){
-  let cfg = null;
+  let cfg = null, declared = false;
   for(let i = 0; i < (nodes || []).length && !cfg; i++){
     const n = nodes[i];
     const c = (n && typeof n.getComponent === 'function') ? n.getComponent('TouchControls') : null;
+    if(c) declared = true;
     if(c && c.active !== false && n.visible !== false) cfg = normalizeTouchControls(c.data);
+  }
+  // SANS COMPOSANT, LE MOTEUR EN DÉDUIT UN de la table d'entrées : tout jeu devient jouable au
+  // doigt sans rien poser. Un composant présent (même désactivé) l'emporte toujours, et
+  // `settings.autoTouchControls: false` (ctx.auto) coupe la déduction pour tout le projet.
+  if(!declared && ctx && ctx.auto !== false){
+    const inputs = (typeof ctx.inputs === 'function') ? ctx.inputs() : ctx.inputs;
+    cfg = autoTouchConfigCached(inputs);
   }
   if(!host || !cfg || (!cfg.showOnDesktop && !isTouchDevice())){
     if(MOUNT.root) unmount();
@@ -174,6 +182,52 @@ export function syncTouchControls(host, nodes, ctx){
 }
 
 export function clearTouchControls(){ unmount(); }
+
+/**
+ * La configuration tactile DÉDUITE de la table d'entrées du projet ({actions, axes}) :
+ *   - joystick si le projet a des axes `horizontal`/`vertical` ou des actions liées aux flèches —
+ *     il écrit les axes ET presse les actions de direction (un jeu à grille lit `actionPressed`) ;
+ *   - boutons dans l'ordre de la manette : l'action liée à pad:0 (A), pad:1 (B), pad:2 (X),
+ *     pad:3 (Y), puis pad:9 (Menu), à défaut Espace / Échap / Entrée. Quatre boutons au plus.
+ * null quand rien n'est jouable au doigt (projet sans aucune entrée).
+ */
+export function autoTouchConfig(inputs){
+  const actions = (inputs && inputs.actions) || {}, axes = (inputs && inputs.axes) || {};
+  const names = Object.keys(actions);
+  const bound = function(key){
+    return names.find(function(n){ return (actions[n] || []).indexOf(key) >= 0; }) || '';
+  };
+  const dirs = {up: bound('ArrowUp'), down: bound('ArrowDown'), left: bound('ArrowLeft'), right: bound('ArrowRight')};
+  const hasAxes = !!(axes.horizontal || axes.vertical);
+  const hasDirs = !!(dirs.up || dirs.down || dirs.left || dirs.right);
+  // Une action qui sert déjà de direction n'est pas un bouton (« advance » porte pad:12 ET ArrowUp).
+  const used = new Set([dirs.up, dirs.down, dirs.left, dirs.right]);
+  const buttons = [];
+  [['A', 'pad:0', ' '], ['B', 'pad:1', 'Escape'], ['X', 'pad:2', 'Enter'], ['Y', 'pad:3', ''], ['Menu', 'pad:9', '']]
+    .forEach(function(b){
+      if(buttons.length >= 4) return;
+      let a = bound(b[1]);
+      if(!a || used.has(a)) a = b[2] ? bound(b[2]) : '';
+      if(!a || used.has(a)) return;
+      used.add(a);
+      buttons.push({id: 'auto' + (buttons.length + 1), label: b[0], action: a, side: 'right'});
+    });
+  if(!hasAxes && !hasDirs && !buttons.length) return null;
+  return normalizeTouchControls({
+    opacity: 0.8, buttonSize: 72,
+    joystick: {enabled: hasAxes || hasDirs, side: 'left', size: 140, deadZone: 0.2,
+      axisX: axes.horizontal ? 'horizontal' : '', axisY: axes.vertical ? 'vertical' : '',
+      actions: dirs, fourWay: !hasAxes},
+    buttons: buttons
+  });
+}
+
+// Déduite une fois par table d'entrées : syncTouchControls tourne à chaque image.
+const AUTO_CACHE = {inputs: null, cfg: null};
+function autoTouchConfigCached(inputs){
+  if(AUTO_CACHE.inputs !== inputs){ AUTO_CACHE.inputs = inputs; AUTO_CACHE.cfg = autoTouchConfig(inputs); }
+  return AUTO_CACHE.cfg;
+}
 
 function el(tag, cls, style){
   const e = document.createElement(tag);

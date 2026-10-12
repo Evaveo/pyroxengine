@@ -4805,7 +4805,7 @@ function redrawUIGame(){
   const container = $('rj-ui');
   if(!container) return;
   uiDocumentsRedraw(container, game.objects, eventUIDocumentRuntime, resolveDocumentUIRuntime);
-  syncTouchControls(container, game.objects, {keys: keys, inputs: INPUTS});
+  syncTouchControls(container, game.objects, {keys: keys, inputs: INPUTS, auto: DS.autoTouchControls !== false});
 }
 
 // ---------- démarrage ----------
