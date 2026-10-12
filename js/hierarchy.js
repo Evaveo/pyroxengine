@@ -4,12 +4,13 @@ import { applyTexture, assetInDrag, assets, attachDocumentUIAsset, attachScriptA
 import { attachAudioAsset } from './audio.js';
 import { ed, isPlayableAudio } from './component-data.js';
 import { iconOf } from './hierarchy-icon.js';
+import { hierarchyClickGesture, rangeSelection, resolveRangeAnchor } from './hierarchy-range.js';
 import { pushHistory } from './history.js';
 import { buildInspector, syncInspector } from './inspector.js';
 import { attachMaterialAsset } from './materials.js';
 import { escapeHtml, isSceneObject, itemsCreationContext, markAllLayersDirty, objectOfSceneById, objects, openMenuContext } from './objects.js';
 import { refitShadows, scene } from './scene.js';
-import { select, selection, selectionMulti, toggleMulti } from './selection.js';
+import { addMultiInBatch, allSelection, select, selection, selectionMulti, toggleMulti } from './selection.js';
 import { field } from './shader-graph-editor.js';
 import { Icons } from './ui/icon.js';
 
@@ -137,9 +138,68 @@ hierBody.addEventListener('click', function(e){
     updateHierarchy();
     return;
   }
-  if(e.ctrlKey || e.metaKey) toggleMulti(obj);
+  // Les gestes d'Unity (js/hierarchy-range.js) : clic, Ctrl+clic, Maj+clic, Maj+Ctrl+clic.
+  const gesture = hierarchyClickGesture(e);
+  if(gesture === 'range' || gesture === 'addRange'){
+    selectHierarchyRange(obj, gesture === 'addRange');
+    return;
+  }
+  // Clic et Ctrl+clic posent l'ANCRE de la prochaine plage ; Maj+clic la laisse en place.
+  hierRangeAnchorId = obj.id;
+  if(gesture === 'toggle'){
+    toggleMulti(obj);
+    // L'inspecteur suit la multi-sélection (Transform, identité) : sans reconstruction, il
+    // continuait d'afficher le seul objet principal.
+    buildInspector();
+  }
   else select(obj);
 });
+
+// L'ancre de la sélection par plage : la dernière ligne cliquée sans Maj (son id d'Object3D).
+export let hierRangeAnchorId = null;
+
+/** Les ids des lignes AFFICHÉES, dans l'ordre de l'écran : dépliées et passant le filtre. */
+export function displayedHierarchyIds(){
+  return Array.prototype.map.call(hierBody.querySelectorAll('.node[data-id]'), function(n){
+    return parseInt(n.dataset.id, 10);
+  });
+}
+
+/** Le parent d'un objet de scène, s'il en est un lui-même (la scène n'est pas une ligne). */
+export function hierarchyParentId(id){
+  const o = objectOfSceneById(id);
+  const p = o && o.parent;
+  return (p && isSceneObject(p)) ? p.id : null;
+}
+
+/**
+ * Maj+clic : sélectionne la plage entre l'ancre et `target`, dans l'ordre affiché. `additive`
+ * (Maj+Ctrl) l'ajoute à la sélection au lieu de la remplacer. Le calcul est pur
+ * (`rangeSelection`) ; ici, on l'applique par les fonctions de sélection habituelles, celles que
+ * le gizmo multiple, la suppression, la duplication et la cuisson sélective lisent déjà.
+ */
+export function selectHierarchyRange(target, additive){
+  const order = displayedHierarchyIds();
+  const anchor = resolveRangeAnchor(hierRangeAnchorId,
+    allSelection().map(function(o){ return o.id; }), selection ? selection.id : null, order);
+  if(anchor === null){
+    // Rien d'où partir : le geste se réduit à un clic (ou à un Ctrl+clic), qui pose l'ancre.
+    hierRangeAnchorId = target.id;
+    if(additive){ toggleMulti(target); buildInspector(); }
+    else select(target);
+    return;
+  }
+  const r = rangeSelection(order, anchor, target.id, hierarchyParentId);
+  const nodes = r.ids.map(objectOfSceneById).filter(Boolean);
+  const primary = objectOfSceneById(r.primary);
+  if(additive) addMultiInBatch(nodes);
+  else {
+    select(primary);
+    addMultiInBatch(nodes.filter(function(o){ return o !== primary; }));
+  }
+  hierRangeAnchorId = anchor;
+  buildInspector();
+}
 
 // double-clic sur le nom : renommage en place
 hierBody.addEventListener('dblclick', function(e){

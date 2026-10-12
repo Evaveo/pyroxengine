@@ -23,6 +23,21 @@ import { Prefs } from './ui/prefs.js';
   sync();
 })();
 
+// ---------- Icônes et gizmos d'édition ----------
+// Le bouton « Gizmos » de la vue Scène d'Unity : même règle que la grille, la préférence
+// `gizmos.icons` est la seule vérité (js/gizmo-icons.js la relit à chaque image).
+(function(){
+  const btn = document.getElementById('filter-gizmos');
+  if(!btn) return;
+  const shown = () => Prefs.get('gizmos.icons') !== false;
+  function sync(){ btn.classList.toggle('active', shown()); }
+  btn.addEventListener('click', function(){
+    Prefs.set('gizmos.icons', !shown());
+    sync();
+  });
+  sync();
+})();
+
 // ---------- Aimant du gizmo ----------
 document.getElementById('filter-magnet').addEventListener('click', function(){
   const active = !this.classList.contains('active');

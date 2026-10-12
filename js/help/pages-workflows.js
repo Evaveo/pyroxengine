@@ -398,7 +398,9 @@ export const PAGES_WORKFLOWS = [
    {f:'js/component-data.js', c:'radius: 18'},
    {f:'js/component-data.js', c:'resolution: 128'},
    {f:'js/probes.js', c:'Math.max(16, Math.min(512, s.resolution | 0 || 128))'},
-   {f:'js/probes.js', c:'if(d <= s.radius && d < bestD)'}
+   {f:'js/probes.js', c:'if(d <= s.radius && d < bestD)'},
+   {f:'js/probes.js', c:'return !!o.userData.probe && o.userData.probe.active !== false;'},
+   {f:'js/environment-map.js', c:'export function bindEnvironmentKey(m){'}
  ],
  html:function(){ return ''
   + essentialHelp('<p>Une <b>sonde de réflexion</b> — composant <code>Reflection</code> — photographie son entourage '
@@ -428,6 +430,8 @@ export const PAGES_WORKFLOWS = [
   + 'avoir déplacé les murs d\'une pièce, il faut <b>recuire</b> pour que le reflet en tienne '
   + 'compte — sinon la sonde continue de distribuer la photo de l\'ancienne pièce, sans que '
   + 'rien ne le signale.')
+  + tipHelp('Comme dans Unity, le composant <b>Reflection</b> peut aussi s\'ajouter à un objet existant '
+  + '(Inspecteur → Ajouter un composant) : la sonde cuit alors depuis la position de cet objet.')
   + trapHelp('Une sonde <b>jamais cuite</b> ne noircit pas les objets qu\'elle '
   + 'couvre : ils retombent sur le ciel, exactement comme s\'il n\'y avait pas de sonde. Une '
   + 'sonde oubliée est donc invisible, et pas seulement discrète.')
@@ -438,7 +442,13 @@ export const PAGES_WORKFLOWS = [
   + 'sonde ne s\'ajoute donc pas à rien : elle <b>remplace</b> le ciel, localement, par quelque '
   + 'chose de plus juste — le vrai décor autour.</p>'
   + '<p>Décocher « Reflets du ciel » retire ce repli. Là, et là seulement, un métal non couvert '
-  + 'par une sonde devient terne et « mort ».</p>')
+  + 'par une sonde devient terne et « mort ».</p>'
+  + '<p>Avec un ciel <b>HDRI</b> (voir ' + linkHelp('panel-environment', 'l\'environnement') + '), ce '
+  + 'reflet est cuit en demi-flottant : le soleil de l\'image garde toute sa force dans les métaux.</p>'
+  + '<p>Sous le capot : quand un objet passe du reflet du ciel à celui d\'une sonde, son matériau doit '
+  + 'être <b>recompilé</b> — le moteur de rendu ne relit pas la texture d\'environnement à chaque image. '
+  + '<code>bindEnvironmentKey</code> (<code>js/environment-map.js</code>) y veille ; sans lui, la sonde '
+  + 'était cuite mais l\'objet gardait le reflet du ciel.</p>')
   + '<h3>Voir aussi</h3><ul>'
   + '<li>' + linkHelp('component-Reflection', 'La fiche Sonde de réflexion') + '</li>'
   + '<li>' + linkHelp('lighting', 'Lumières et ombres') + '</li>'
@@ -459,7 +469,10 @@ export const PAGES_WORKFLOWS = [
    {f:'js/lightmap-bake.js', c:'const cote = Math.sqrt(areaWorld(m))'},
    {f:'js/lightmap-bake.js', c:'p[0].colorWrite = false'},
    {f:'js/lightmap-rgbm.js', c:'const RGBM_RANGE = 8'},
-   {f:'js/materials.js', c:'function checkUvLightmap'}
+   {f:'js/materials.js', c:'function checkUvLightmap'},
+   {f:'js/ui.js', c:"{label:'🧹 Effacer la cuisson des lightmaps…', mutates:true,"},
+   {f:'js/lightmap-bake.js', c:'if(!t || !t.cuite) return;'},
+   {f:'js/lightmap-atlas.js', c:'export function clearTransformedAtlas(geo){'}
  ],
  html:function(){ return ''
   + essentialHelp('<p>Une <b>lightmap</b> est une texture qui contient de l\'éclairage déjà calculé : ombres '
@@ -479,6 +492,14 @@ export const PAGES_WORKFLOWS = [
       'Lancez la cuisson. La vue <b>se fige sur sa dernière image</b> et l\'avancement passe par la barre d\'état ; l\'onglet reste réactif.',
       'Lisez la console : un objet qui ne convient pas y est nommé, avec la raison.'
     ])
+
+  + '<h3>Effacer une cuisson</h3>'
+  + '<p><b>Objet → 🧹 Effacer la cuisson des lightmaps…</b> — le « Clear Baked Data » d\'Unity. Il retire '
+  + 'de la scène courante tout ce que la cuisson a écrit : la lightmap des matériaux, l\'<code>uv1</code> '
+  + 'd\'atlas des maillages (ils retrouvent leurs UV d\'origine), et la texture cuite, qui quitte le projet '
+  + 'si plus aucun matériau ne la porte. Une lightmap <b>importée</b> (cuite dans Blender, par exemple) '
+  + 'n\'est jamais touchée. <b>Ctrl+Z</b> rétablit la cuisson — sauf, en projet-dossier, le fichier PNG '
+  + 'retiré du disque. Le copilote dispose de la même commande, <code>clear_lightmaps</code>.</p>'
 
   + '<h3>Le second jeu d\'UV</h3>'
   + '<p>Une lightmap a besoin d\'un <b>dépliage</b> où chaque triangle a sa place, <b>sans aucun '
@@ -1753,7 +1774,7 @@ PAGE_RICH_TEXT,
   + '<p>Un build tout embarqué porte <b>2,48 Mo</b> de code avant compression et '
   + '<b>' + TAGS_BUILD_FULL + ' balises de script</b>. <b>17 modules</b> en sont retirables, '
   + '<b>449 Ko</b> en tout : c\'est le <b>plafond</b>, et il ne dépend d\'aucune scène. Un platformer '
-  + '2D en atteint <b>341 Ko</b> et descend à <b>82 balises</b>.</p>'
+  + '2D en atteint <b>341 Ko</b> et descend à <b>83 balises</b>.</p>'
   + '<p class="help-trap"><b>Ce que vous gagnerez dépend de votre scène, pas du moteur.</b> Le '
   + 'chiffre que vous lirez à l\'export sera le vôtre : un jeu 3D avec des animations garde quatre '
   + 'modules qu\'un jeu 2D retire, et l\'inverse. C\'est pourquoi le message d\'export les '

@@ -17,7 +17,7 @@ import { setStatus } from './hierarchy.js';
 import { histo, pushHistory, restore, undo } from './history.js';
 import { clipBoard, copySelection, deleteSelection, duplicateSelection, pasteClipBoard } from './inspector.js';
 import { modalLayers } from './layers.js';
-import { lightmapBakeState, modalBakeLightmap } from './lightmap-bake.js';
+import { lightmapBakeState, modalBakeLightmap, modalClearLightmaps } from './lightmap-bake.js';
 import { TYPES_CREATABLE, createObject, escapeHtml, objects } from './objects.js';
 import { modalAlignDistribute, modalDuplicateSeries, setAtGround } from './placement.js';
 import { modalPlugins, openPluginCatalog } from './plugins.js';
@@ -448,6 +448,11 @@ export const MENU_OBJECT_EXTRA_AFTER = [
   // d'ombre sur les autres, et une lightmap sans les ombres des voisins est pire qu'aucune.
   {label:'💡 Cuire les lightmaps…', active:function(){ return !lightmapBakeState.active; },
     action:modalBakeLightmap},
+  // Le « Clear Baked Data » d'Unity : retire ce que la cuisson a écrit dans la scène courante
+  // (lightmap des matériaux, UV d'atlas, texture cuite). Un pas d'historique : Ctrl+Z la rend.
+  {label:'🧹 Effacer la cuisson des lightmaps…', mutates:true,
+    active:function(){ return !lightmapBakeState.active; },
+    action:function(){ modalClearLightmaps(pushHistory); }},
   {sep:true},
   {label:'⇩ Poser au sol', active:function(){ return !!selection; },
     action:function(){ setAtGround(false); }},

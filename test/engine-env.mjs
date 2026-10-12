@@ -560,6 +560,14 @@ export function creerContexte(fileNames){
     // Aides d'édition (js/editor-overlay.js) : sans effet sur ce que les tests mesurent, repiqué
     // pour qu'un fichier qui l'appelle n'oblige pas chaque test à charger ce module.
     liftOverlay(o){ return o; },
+    // Même fichier, même raison — mais celui-ci n'est PAS sans effet : un repère d'édition éteint
+    // n'a plus aucun calque ni aucune ombre, et des tests le mesurent (calques, cuisson, sondes).
+    // Le bouchon fait donc la même chose que l'original sur le nœud ; un test qui charge le vrai
+    // js/editor-overlay.js le remplace (fonction de haut niveau → propriété du global).
+    hideEditorMarker(o){
+      if(o){ o.layers.disableAll(); o.castShadow = false; o.receiveShadow = false; }
+      return o;
+    },
     isSceneObject(o){ return !!o && sandboxObjets().indexOf(o) !== -1; },
     addSceneObject(o){
       const list = sandboxObjets();
@@ -708,7 +716,14 @@ export function creerContexte(fileNames){
    'js/load-retry.js',
    // js/texture-preview.js — les selecteurs de texture de l'inspecteur, sortis d'import-settings.js
    // (v0.196.0) : feuille, sans autre import qu'escape-html.js.
-   'js/texture-preview.js']
+   'js/texture-preview.js',
+   // js/asset-search.js et js/hierarchy-range.js — la recherche du panneau Projet et la sélection
+   // par plage de la hiérarchie : purs, sans import, appelés sans garde par assets.js et
+   // hierarchy.js (updateProject passe par searchAssets à chaque rafraîchissement).
+   'js/asset-search.js', 'js/hierarchy-range.js',
+   // js/environment-map.js — ciel, reflets et HDRI, PARTAGÉ et sans import : probes.js,
+   // environment.js et lightmap-bake.js en tirent la clé de pipeline et le fond de ciel.
+   'js/environment-map.js']
     .filter((relatif) => fileNames.indexOf(relatif) === -1)
     .forEach((relatif) => {
       vm.runInContext(deEsm(readFileSync(path.join(racineMoteur, relatif), 'utf8')),

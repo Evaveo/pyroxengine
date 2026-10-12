@@ -16,6 +16,7 @@
 
 import { assets } from '../assets.js';
 import { applyEnvironment } from '../environment.js';
+import { SKY_EXPOSURE_MAX, isHdrTexture, skyExposureOf, skyRotationOf } from '../environment-map.js';
 import { project } from '../project.js';
 import { applyFilters, filters } from '../scene.js';
 import { sceneUsedAsSubScene } from '../subscenes.js';
@@ -41,7 +42,7 @@ export const PANEL_ENVIRONMENT = {
         text: 'Cette scène est utilisée comme sous-scène ailleurs : ces réglages ne la suivront '
             + 'pas. L’environnement est toujours celui de la scène hôte.' },
       { ids: ['f-env-sky'], label: 'Type', type: 'choice',
-        options: [['color', 'Couleur unie'], ['gradient', 'Dégradé'], ['image', 'Panorama (image)']],
+        options: [['color', 'Couleur unie'], ['gradient', 'Dégradé'], ['image', 'Panorama (image ou HDRI)']],
         get: function(e){ return e.sky; },
         set: function(e, v){ e.sky = v; envApply(); } },
       { ids: ['f-env-skyc'], label: 'Couleur', type: 'color',
@@ -68,7 +69,25 @@ export const PANEL_ENVIRONMENT = {
         when: function(e){
           return e.sky === 'image' && !assets.some(function(a){ return a.kind === 'texture'; });
         },
-        text: 'Importez d\'abord une image (panorama équirectangulaire) dans le panneau Projet.' },
+        text: 'Importez d\'abord une image (panorama équirectangulaire, PNG/JPG ou HDRI .hdr/.exr) dans le panneau Projet.' },
+      // Le « Rotation » et l'« Exposure » du Skybox/Panoramic d'Unity. Ils s'appliquent au fond ET
+      // au reflet du ciel (applySkyFraming, js/environment-map.js) : tourner le ciel tourne aussi
+      // ce que les métaux reflètent, et l'exposition d'une HDRI règle la lumière qu'elle apporte.
+      { ids: ['f-env-sky-rotation'], label: 'Rotation (°)', type: 'number', step: 1, min: -360, max: 360,
+        visible: function(e){ return e.sky === 'image'; },
+        get: function(e){ return skyRotationOf(e); },
+        set: function(e, v){ e.skyRotation = isFinite(v) ? v : 0; envApply(); } },
+      { ids: ['f-env-sky-exposure'], label: 'Exposition', type: 'number', step: 0.05, min: 0, max: SKY_EXPOSURE_MAX,
+        visible: function(e){ return e.sky === 'image'; },
+        get: function(e){ return skyExposureOf(e); },
+        set: function(e, v){ e.skyExposure = Math.max(0, Math.min(SKY_EXPOSURE_MAX, v)); envApply(); } },
+      { type: 'note',
+        when: function(e){
+          if(e.sky !== 'image' || !e.skyAsset) return false;
+          const a = assets.find(function(x){ return x.id === e.skyAsset; });
+          return !!a && !isHdrTexture(a.texture);
+        },
+        text: 'Une image 8 bits plafonne la lumière du ciel à 1 : pour un éclairage et des reflets réalistes (soleil, ciel vif), préférez une HDRI .hdr ou .exr.' },
       { ids: ['f-env-skyref'], label: 'Reflets du ciel', type: 'checkbox',
         help: 'Le ciel sert d\'environnement aux objets qu\'aucune sonde de réflexion ne couvre',
         // `!== false` et non `!!` : les reflets sont actifs TANT QU'ON N'A PAS DÉCOCHÉ. Un projet

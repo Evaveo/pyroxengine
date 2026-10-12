@@ -4,7 +4,7 @@
 // sur des références circulaires. userData ne garde que des drapeaux sérialisables.
 import { cloneModel } from './anim-models.js';
 import { ed } from './component-data.js';
-import { liftOverlay } from './editor-overlay.js';
+import { hideEditorMarker, liftOverlay } from './editor-overlay.js';
 import { syncComponents } from './component-migration.js';
 import { NodeShells, Registry } from './component-registry.js';
 import { setStatus, updateHierarchy } from './hierarchy.js';
@@ -444,12 +444,15 @@ export function createHelperFor(o){
   }
   else if(cam && ed(o).cam) h = new THREE.CameraHelper(ed(o).cam);
   if(h){
-    h.traverse(function(x){ x.raycast = function(){}; });
-    h.raycast = function(){};
+    // Un seul parcours : le helper entier devient inerte au raycast et passe sur le calque des
+    // aides (la racine comprise, que `traverse` visite en premier).
+    h.traverse(function(x){ x.raycast = function(){}; x.layers.set(LAYER_HELPERS); });
     liftOverlay(h);   // repère de lumière/caméra : devant les tuiles et sprites 2D
+    // CACHÉ tant que l'objet n'est pas sélectionné, comme dans Unity : cônes, portées et
+    // frustums de toutes les lampes et caméras affichés en permanence rendaient la vue
+    // illisible. C'est js/gizmo-icons.js qui le montre à la sélection, et lui seul.
+    h.visible = false;
     scene.add(h);
-    h.layers.set(LAYER_HELPERS);
-    h.traverse(function(x){ x.layers.set(LAYER_HELPERS); });
     helpers.push(h);
     ed(o).helper = h;
   }
@@ -571,9 +574,10 @@ export function makeLight(type){
   mesh.userData.type = type;
   mesh.userData.emissiveBase = color;
   mesh.userData.emissiveSel = 0xff8830;
-  // icône d'édition uniquement (cf. makeCamera ci-dessous) : jamais visible par une caméra de jeu
-  mesh.layers.set(LAYER_HELPERS);
-  liftOverlay(mesh);   // icône d'édition : devant les tuiles et sprites 2D
+  // Le repère (sphère, cône, octaèdre) n'est plus dessiné : l'icône de js/gizmo-icons.js le
+  // remplace. Il projetait l'ombre que l'on voyait au centre du cône d'un spot — voir
+  // hideEditorMarker (js/editor-overlay.js) et docs/KNOWN_ISSUES.md.
+  hideEditorMarker(mesh);
   lum.castShadow = true;
   if(lum.shadow && lum.shadow.mapSize) lum.shadow.mapSize.set(1024,1024);
   mesh.add(lum);
@@ -608,15 +612,13 @@ export function makeCamera(){
     new THREE.MeshStandardMaterial({color:0x22262c, roughness:0.4}));
   objectif.rotation.x = Math.PI/2;
   objectif.position.z = 0.55;
+  objectif.userData.editorMarkerPart = true;
   mesh.add(objectif);
-  // le body/objectif de la caméra est une aide d'édition (icône), pas un objet de la
-  // scène de jeu : sur LAYER_HELPERS, il reste invisible à la caméra elle-même (elle est
-  // centrée dessus, il remplirait tout son champ) et à toute autre caméra de jeu — seule
-  // camEditor (enableAll) le voit. Explicite (pas de .traverse) pour ne jamais toucher le
-  // THREE.Camera ajouté ci-dessous, dont les calques ont un sens différent (camMask).
-  mesh.layers.set(LAYER_HELPERS);
-  objectif.layers.set(LAYER_HELPERS);
-  liftOverlay(mesh);   // corps + objectif : devant les tuiles et sprites 2D
+  // Le boîtier et l'objectif sont une aide d'édition, plus dessinée : l'icône de caméra
+  // (js/gizmo-icons.js) les remplace, et le frustum s'affiche à la sélection. Éteints AVANT
+  // l'ajout de la THREE.Camera ci-dessous, dont les calques ont un autre sens (camMask) et que
+  // hideEditorMarker ne toucherait de toute façon pas (elle n'est pas une pièce du repère).
+  hideEditorMarker(mesh);
 
   const cam = new THREE.PerspectiveCamera(50, 16/9, 0.1, 100);
   cam.rotation.y = Math.PI;

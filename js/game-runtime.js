@@ -9,6 +9,7 @@ import { busOfSource, createAudioBuses, createSourceSound, makeAudioBusApi } fro
 import { sfxBuffer } from './chip-synth.js';
 import { loopBuffer } from './music-loop.js';
 import { backgroundForCamera, isSkyBackground } from './sky-camera.js';
+import { acceptsEnvironment, applySkyFraming, bindEnvironmentKey, isHdrTexture, loadTextureFile, skyBackgroundFor } from './environment-map.js';
 import { setFalloffAudio } from './audio-falloff.js';
 import { PART_DEFAULT, ed, isActiveInHierarchy, isPlayableAudio } from './component-data.js';
 import { warnOnceMissing } from './dev-guards.js';
@@ -944,12 +945,12 @@ let rtEnvCurrent = null;             // env de la scène chargée, relu à la cu
 let rtDomeBake = null;            // texture de fond jetable, libérée à la cuisson suivante
 const RT_SKY_RESOLUTION = 64;       // identique à SKY_RESOLUTION (js/probes.js)
 
-function rtTargetCube(res){
+function rtTargetCube(res, type){
   // three/webgpu ne définit PAS WebGLCubeRenderTarget (classe propre au backend WebGL) :
   // il fournit CubeRenderTarget. Passer au WebGPURenderer une cible venue de l'autre
   // bundle revient à mélanger les classes, ce qu'il ne reconnaît pas.
   const optCube = {
-    format: THREE.RGBAFormat, generateMipmaps: true,
+    format: THREE.RGBAFormat, type: type || THREE.UnsignedByteType, generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter};
   // LE RENDERER DÉCIDE, pas la présence de la classe. Quand les deux three sont chargés (pont
   // ESM + three.min.js, « Multiple instances of Three.js »), THREE.CubeRenderTarget existe AUSSI
@@ -1019,9 +1020,12 @@ function rtBakeSky(env){
     const sc = new THREE.Scene();
     const fond = rtBuildSkyBackground(env);
     sc.background = fond;
+    applySkyFraming(sc, env);   // le reflet tourne et s'expose avec le ciel (js/environment-map.js)
     rtDomeBake = (fond && fond.isTexture) ? fond : null;
+    const type = isHdrTexture(fond) ? THREE.HalfFloatType : THREE.UnsignedByteType;   // HDRI : demi-flottant
+    if(rtSkyProbe && rtSkyProbe.rt.texture.type !== type){ rtSkyProbe.rt.dispose(); rtSkyProbe = null; }
     if(!rtSkyProbe){
-      const rt = rtTargetCube(RT_SKY_RESOLUTION);
+      const rt = rtTargetCube(RT_SKY_RESOLUTION, type);
       rtSkyProbe = {rt: rt, cam: new THREE.CubeCamera(0.1, 400, rt)};
     }
     rtSkyProbe.cam.position.set(0, 0, 0);
@@ -1118,7 +1122,8 @@ function rtUpdateShadows(camera){
 }
 
 function rtSetEnvironmentOn(m, tex, intensity, node){
-  if(!('envMap' in m)) return;
+  if(!acceptsEnvironment(m)) return;   // Standard/Physical seulement : un Basic serait assombri par le ciel
+  bindEnvironmentKey(m);               // sinon chaque objet garde le reflet du premier compilé
   const nodeActuel = m.envNode || null;
   if(m.envMap === tex && nodeActuel === node
      && (tex === null || m.envMapIntensity === intensity)) return;
@@ -2384,7 +2389,7 @@ function configureTextureRuntime(tex, params){
                  miroir:THREE.MirroredRepeatWrapping};
   tex.wrapS = tex.wrapT = wraps[p.repetition] || THREE.RepeatWrapping;
   tex.repeat.set(p.tuilage[0], p.tuilage[1]);
-  if(tex.image && tex.image.width) tex.image = shrinkImageRuntime(tex.image, p.sizeMax | 0);
+  if(tex.image && tex.image.width && !tex.isDataTexture) tex.image = shrinkImageRuntime(tex.image, p.sizeMax | 0);
   const mip = p.mipmaps !== false;
   tex.generateMipmaps = mip;
   if(p.filtrage === 'near'){
@@ -2401,7 +2406,7 @@ function configureTextureRuntime(tex, params){
   // COULEUR donne sRGB ; les textures de DONNÉES (normale, rugosité, métal, occlusion)
   // restent linéaires — leurs octets sont des nombres, pas des couleurs.
   const outputSrgb = (renderer.outputColorSpace === THREE.SRGBColorSpace);
-  tex.colorSpace = (p.spaceColor === 'srgb') ? THREE.SRGBColorSpace
+  tex.colorSpace = isHdrTexture(tex) ? THREE.LinearSRGBColorSpace : (p.spaceColor === 'srgb') ? THREE.SRGBColorSpace
     : (p.spaceColor === 'lineaire') ? THREE.LinearSRGBColorSpace
     : ((outputSrgb && p.type === 'color') ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace);
   // Miroir de anisotropyMax() (js/import-settings.js) : WebGPURenderer n'a pas de
@@ -2484,9 +2489,7 @@ async function loadAssets(){
         try {
           const blob = await b64InBlob(da.files[0]);
           url = URL.createObjectURL(blob);
-          tex = await new Promise(function(res, rej){
-            new THREE.TextureLoader().load(url, res, undefined, rej);
-          });
+          tex = await loadTextureFile(blob, da.files[0].name, url);   // HDRI (.hdr/.exr) comprise
         } catch(errTex){
           // L'ASSET RESTE dans la table, avec un damier : sans lui, `api.create`, les sprites et
           // les tilemaps qui le citent tombaient sur null, et la tilemap restait `_dirty` pour
@@ -3234,35 +3237,10 @@ function buildList(list){
 }
 
 // ---------- environnement ----------
-// Miroir de buildSkyBackground (js/environment.js) : le fond sert à l'affichage ET à la
-// cuisson du reflet de ciel, et les deux doivent montrer le même ciel. Ce n'est plus un dôme
-// sphérique — `scene.background` est rendu à l'infini derrière tout, donc le ciel ne
-// disparaît plus quand la caméra s'éloigne de l'origine.
+// Le fond sert à l'affichage ET à la cuisson du reflet de ciel : écrit une fois pour les deux
+// moteurs (skyBackgroundFor, js/environment-map.js).
 function rtBuildSkyBackground(env){
-  if(env.sky === 'gradient'){
-    const cv = document.createElement('canvas');
-    cv.width = 16; cv.height = 256;
-    const cx = cv.getContext('2d');
-    const g = cx.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, env.skyTop || '#6ea8dc');
-    g.addColorStop(1, env.skyBottom || '#dfe9f2');
-    cx.fillStyle = g; cx.fillRect(0, 0, 16, 256);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    if(THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-    tex.needsUpdate = true;
-    return tex;
-  }
-  if(env.sky === 'image' && env.skyAsset && assetsById[env.skyAsset]){
-    // CLONE, comme l'éditeur : la cuisson du ciel libère la texture de fond jetable, et
-    // libérer la texture d'asset partagée éteindrait le ciel de toute la scène.
-    const tex = assetsById[env.skyAsset].texture.clone();
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    if(THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-    tex.needsUpdate = true;
-    return tex;
-  }
-  return new THREE.Color(env.skyColor || '#9fc4e8');
+  return skyBackgroundFor(env, function(id){ return assetsById[id] ? assetsById[id].texture : null; });
 }
 
 function applyEnvironment(env){
@@ -3272,6 +3250,7 @@ function applyEnvironment(env){
   const fond = rtBuildSkyBackground(env);
   game.skyBackground = fond;
   game.scene.background = fond;
+  applySkyFraming(game.scene, env);
   game.skyTexture = (fond && fond.isTexture) ? fond : null;
   game.scene.fog = (env.brouillard !== false)
     ? new THREE.Fog(new THREE.Color(env.brouillardColor || '#cdd9e4'),

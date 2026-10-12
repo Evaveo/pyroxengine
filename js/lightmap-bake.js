@@ -21,15 +21,17 @@
 // lightmap ne contient pas d'albédo, donc aucune surface ne peut en éclairer une autre.
 
 // Résolution de l'atlas complet, pas d'un objet : tous les objets s'y partagent la place.
-import { assets, awaitAssetTextureReady, createAssetTexture, disposeTexturesReplaced, replaceContentAssetTexture, updateProject } from './assets.js';
+import { assets, awaitAssetTextureReady, createAssetTexture, disposeTexturesReplaced, removeAssetAndFile, replaceContentAssetTexture, updateProject } from './assets.js';
 import { setStatus } from './hierarchy.js';
 import { bakeLightRole, lightModeOf } from './component-data.js';
-import { setTransformedAtlas } from './lightmap-atlas.js';
-import { applyMaterialEverywhere, ensurePropsMaterial } from './materials.js';
+import { clearTransformedAtlas, setTransformedAtlas } from './lightmap-atlas.js';
+import { MATERIAL_DEFAULT, applyMaterialEverywhere, ensurePropsMaterial } from './materials.js';
+import { escapeHtml } from './escape-html.js';
 import { listMats, objects } from './objects.js';
 import { pass } from './postfx.js';
 import { geometryForWrite } from './primitive-geometry.js';
-import { acceptsEnvironment, createTargetCube } from './probes.js';
+import { acceptsEnvironment } from './environment-map.js';
+import { createTargetCube } from './probes.js';
 import { project } from './project.js';
 import { LAYER_HELPERS, grid, renderer, scene } from './scene.js';
 import { allSelection, selection } from './selection.js';
@@ -1110,4 +1112,116 @@ export function assignLightmapToMaterials(meshes, asset){
       + 'projet pour qu\'elles la reçoivent.', 9000);
   }
   return {materials:vus.size, orphelins:orphelins};
+}
+
+// ---------- 7. Effacer la cuisson ----------
+//
+// Le « Clear Baked Data » d'Unity. Cuire écrit à trois endroits, et il faut défaire les trois :
+//   — les MATÉRIAUX reçoivent `lightmapAsset` (et `lightmapUv` = 1) : assignLightmapToMaterials ;
+//   — les GÉOMÉTRIES reçoivent un `uv1` d'atlas et sa transformée (js/lightmap-atlas.js) ;
+//   — le PROJET reçoit une texture marquée `cuite` (exportLightmapInAsset).
+// Seul ce que la cuisson a produit part : un matériau qui porte une lightmap IMPORTÉE (texture
+// non `cuite`, sortie de Blender par exemple) n'est pas touché. Et la texture cuite ne quitte le
+// projet que si plus aucun matériau ne la porte — une autre scène peut la partager, puisque la
+// lightmap est une propriété de matériau et qu'un matériau sert partout.
+
+/** Ce qu'« Effacer la cuisson » retirerait de la scène courante, sans rien toucher. */
+export function bakedDataOfScene(){
+  const meshes = meshesBakeable();
+  const atlased = meshes.filter(function(m){ return !!m.geometry.userData.lightmapAtlas; });
+  const materials = [], textures = [];
+  const vus = new Set();
+  meshes.forEach(function(mesh){
+    assetsMaterialsOf(mesh).ids.forEach(function(id){
+      if(vus.has(id)) return;
+      vus.add(id);
+      const ma = assets.find(function(x){ return x.id === id && x.kind === 'material'; });
+      const lm = ma && ma.props && ma.props.lightmapAsset;
+      if(!lm) return;
+      const t = assets.find(function(x){ return x.id === lm && x.kind === 'texture'; });
+      if(!t || !t.cuite) return;          // lightmap importée : la cuisson ne l'a pas faite
+      materials.push(ma);
+      if(textures.indexOf(t) === -1) textures.push(t);
+    });
+  });
+  return {meshes: atlased, materials: materials, textures: textures};
+}
+
+/**
+ * Retire la cuisson de la scène courante. `opts.record` est appelé UNE fois, juste avant la
+ * première modification, et seulement s'il y a quelque chose à retirer : c'est là que l'appelant
+ * pose son pas d'historique (ce fichier n'importe pas history.js). Rend le bilan :
+ * {meshes, materials, textures (noms retirés du projet), kept (textures gardées, encore utilisées)}.
+ */
+export function clearLightmaps(opts){
+  opts = opts || {};
+  if(lightmapBakeState.active) throw new Error('une cuisson est en cours');
+  const found = bakedDataOfScene();
+  const report = {meshes: found.meshes.length, materials: found.materials.length, textures: [], kept: 0};
+  if(!found.meshes.length && !found.materials.length) return report;
+  if(typeof opts.record === 'function') opts.record();
+  // 1. Les UV : la géométrie retrouve son jeu d'origine. Le nœud oublie l'atlas relu du fichier.
+  found.meshes.forEach(function(m){ clearTransformedAtlas(m.geometry); });
+  objects.forEach(function(o){ delete o.userData.lightmapAtlas; });
+  // 2. Les matériaux, RECONSTRUITS sans lightmap (applyMaterialEverywhere) : jamais un `null`
+  // écrit sur un matériau vivant, que WebGPU déréférencerait à l'image suivante.
+  found.materials.forEach(function(ma){
+    const p = ensurePropsMaterial(ma);
+    p.lightmapAsset = MATERIAL_DEFAULT.lightmapAsset;
+    p.lightmapUv = MATERIAL_DEFAULT.lightmapUv;
+    applyMaterialEverywhere(ma);
+  });
+  // 3. La texture cuite, APRÈS les matériaux : plus rien ne la lit quand elle part.
+  const stillUsed = new Set();
+  assets.forEach(function(x){
+    if(x.kind === 'material' && x.props && x.props.lightmapAsset) stillUsed.add(x.props.lightmapAsset);
+  });
+  found.textures.forEach(function(t){
+    if(stillUsed.has(t.id)){ report.kept++; return; }
+    forgetCacheRgbm(t);   // le décodage RGBM gardé en cache ne doit pas survivre à l'asset
+    removeAssetAndFile(t);
+    report.textures.push(t.name);
+  });
+  updateProject();
+  return report;
+}
+
+/** La phrase de bilan d'un effacement, pour la barre d'état et le copilote. */
+export function describeClearLightmaps(b){
+  if(!b.meshes && !b.materials) return 'aucune lightmap cuite dans cette scène : rien à effacer';
+  return 'cuisson effacée : ' + b.materials + ' matériau(x), ' + b.meshes + ' maillage(s) rendus à '
+    + 'leurs UV d\'origine' + (b.textures.length ? ', lightmap supprimée du projet (' + b.textures.join(', ') + ')' : '')
+    + (b.kept ? ', ' + b.kept + ' lightmap(s) gardée(s) car encore utilisée(s) par une autre scène' : '');
+}
+
+/**
+ * La fenêtre de confirmation du menu. Annulable par Ctrl+Z (`record` pose le pas d'historique) ;
+ * la fenêtre le dit, et dit aussi la seule chose que Ctrl+Z ne rend pas : en projet-dossier, le
+ * PNG retiré du disque.
+ */
+export function modalClearLightmaps(record){
+  if(lightmapBakeState.active){ setStatus('Une cuisson est en cours', 2500); return; }
+  const found = bakedDataOfScene();
+  if(!found.meshes.length && !found.materials.length){
+    setStatus('Aucune lightmap cuite dans cette scène : rien à effacer', 3500);
+    return;
+  }
+  openModal('Effacer la cuisson des lightmaps',
+    '<p style="margin-bottom:10px;line-height:1.5">Retire l\'éclairage cuit de la scène courante : '
+    + '<b>' + found.materials.length + ' matériau(x)</b> perdent leur lightmap, <b>'
+    + found.meshes.length + ' maillage(s)</b> retrouvent leurs UV d\'origine'
+    + (found.textures.length ? ', et la texture cuite (<b>' + found.textures.map(function(t){
+        return escapeHtml(t.name); }).join(', ') + '</b>) quitte le projet si plus rien ne l\'utilise' : '')
+    + '. Une lightmap importée n\'est pas touchée.</p>'
+    + '<p style="line-height:1.5;color:var(--txt-dim)">Ctrl+Z rétablit la cuisson'
+    + (project.handleFolder ? ', sauf le fichier PNG, qui est retiré du dossier du projet' : '') + '.</p>'
+    + '<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'
+    + '<button class="btn-modal" id="lm-clear-cancel">Annuler</button> '
+    + '<button class="btn-modal accent" id="lm-clear-ok">🧹 Effacer</button></div>');
+  document.getElementById('lm-clear-cancel').addEventListener('click', closeModal);
+  document.getElementById('lm-clear-ok').addEventListener('click', function(){
+    closeModal();
+    const b = clearLightmaps({record: record});
+    setStatus(describeClearLightmaps(b).replace(/^./, function(c){ return c.toUpperCase(); }), 6000);
+  });
 }

@@ -478,12 +478,17 @@ test('un .bin n est pas un asset : c est le compagnon d un .gltf, charge avec lu
   assert.equal(kindOfFileAsset('scene.gltf'), 'model');
 });
 
-test('un format que le navigateur ne decode pas (TIFF, TGA, EXR) n est pas pris pour une texture', () => {
+test('un format que le navigateur ne decode pas (TIFF, TGA) n est pas pris pour une texture', () => {
   // Il n'echouerait pas : <img> rendrait une texture NOIRE, ce qui est pire qu'un refus.
   assert.equal(kindOfFileAsset('ciel.tif'), null);
   assert.equal(kindOfFileAsset('ciel.tga'), null);
-  assert.equal(kindOfFileAsset('ciel.exr'), null);
   assert.equal(kindOfFileAsset('ciel.avif'), 'texture');
+});
+
+test('une HDRI (.hdr, .exr) EST une texture : three la lit, pas le navigateur', () => {
+  // Ciel HDRI : HDRLoader / EXRLoader (vendor/three-addons.min.js, js/environment-map.js).
+  assert.equal(kindOfFileAsset('ciel.hdr'), 'texture');
+  assert.equal(kindOfFileAsset('ciel.EXR'), 'texture');
 });
 
 test('un .gltf decouvert emporte ses freres de dossier (.bin, textures) dans son paquet', async () => {

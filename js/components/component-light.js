@@ -84,6 +84,11 @@ export class Light extends Component {
         lum.target = target;
       }
     }
+    // three construit SpotLight et DirectionalLight à `Object3D.DEFAULT_UP`, soit (0, 1, 0) : la
+    // lampe éclairait depuis 1 m AU-DESSUS de son objet — un spot posé contre un plafond rayonnait
+    // à travers lui, et une scène importée d'Unity avait tous ses spots 1 m trop haut. La lampe
+    // est remise sur son nœud ; sa direction (vers la cible, en (0, −4, 0)) est inchangée.
+    if (lum.isSpotLight || lum.isDirectionalLight) lum.position.set(0, 0, 0);
     this.applyMarker();
     this.objectThree = lum;
     this.applyVisibility();

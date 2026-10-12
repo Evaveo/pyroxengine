@@ -15,7 +15,8 @@ Le bundle classique n'apportait en réalité que **trois addons** absents du paq
 `if(THREE.WebGLCubeRenderTarget)` (`js/probes.js`, `js/game-runtime.js`), jamais pris puisque
 tous les renderers sont des `WebGPURenderer`.
 
-Ce fichier contient ces trois addons, **recompilés contre le `THREE` du pont** : l'import
+Ce fichier contient ces trois addons — plus les deux lecteurs d'images HDR ajoutés pour le
+ciel HDRI (voir plus bas) —, **recompilés contre le `THREE` du pont** : l'import
 `'three'` y est remplacé par `globalThis.THREE`. Il est chargé **juste après** le pont, en
 `<script defer>` (un module et un script différé s'exécutent dans l'ordre du document).
 
@@ -24,9 +25,28 @@ Source : paquet npm **`three@0.185.1`**, la version exacte de `vendor-esm/`.
 | | Taille brute |
 |---|---|
 | `vendor/three.min.js` (n'est plus chargé par aucune page) | 851 Ko |
-| `vendor/three-addons.min.js` | 122 Ko |
+| `vendor/three-addons.min.js` (avec HDRLoader et EXRLoader) | 152 Ko |
 
-Chaque jeu publié allège donc son code de ~730 Ko avant compression.
+Chaque jeu publié allège donc son code de ~700 Ko avant compression.
+
+## Les lecteurs HDR (ciel HDRI, ajoutés après la v1.8.2)
+
+`HDRLoader` (Radiance `.hdr`, RGBE — le nouveau nom de `RGBELoader` en r185) et `EXRLoader`
+(OpenEXR `.exr`) servent au ciel HDRI : un panorama équirectangulaire HDR posé comme ciel de la
+scène et comme éclairage d'environnement (`js/environment-map.js`, `textureFromHdr`). Le
+navigateur ne décode aucun des deux formats dans une balise `<img>`, d'où les lecteurs de three.
+
+- **+30 Ko bruts**, dont l'essentiel est le décompresseur zlib d'`EXRLoader`
+  (`examples/jsm/libs/fflate.module.js`, embarqué par esbuild). Il est distinct de
+  `vendor/fflate.js` (le zip du build), que la page charge en global : le partager aurait demandé
+  de réécrire l'import d'`EXRLoader`, ce que la recette s'interdit.
+- Aucune dépendance réseau : les deux lecteurs travaillent sur un `ArrayBuffer` déjà en mémoire
+  (`createDataTexture`), jamais par `FileLoader`.
+- Toujours lus en **demi-flottant** (`setDataType(THREE.HalfFloatType)`) : filtrable sur tous les
+  GPU, contrairement au flottant 32 bits.
+
+Vérifié le 2026-10-12 : la recette ci-dessous, rejouée SANS les deux lignes HDR, redonne le fichier
+précédent octet pour octet (hors ligne d'en-tête) — l'ajout ne change rien aux trois addons d'avant.
 
 `vendor/three.min.js` **reste dans le dépôt** : le harnais de tests (`test/engine-env.mjs`)
 l'exécute dans `node:vm` comme THREE factice. Aucune page ne doit le charger — le test
@@ -47,10 +67,14 @@ npm install three@0.185.1 esbuild@0.25
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 const T = globalThis.THREE;
 T.GLTFLoader = GLTFLoader;
 T.FBXLoader = FBXLoader;
 T.TransformControls = TransformControls;
+T.HDRLoader = HDRLoader;
+T.EXRLoader = EXRLoader;
 ```
 
 `build.mjs` :
@@ -66,7 +90,9 @@ await esbuild.build({ entryPoints: ['entry.js'], bundle: true, format: 'iife', m
   target: 'es2020', outfile: 'three-addons.min.js', plugins: [globalThree], legalComments: 'none' });
 ```
 
-`node build.mjs`, puis copier `three-addons.min.js` dans `moteur/vendor/`.
+`node build.mjs`, puis copier `three-addons.min.js` dans `moteur/vendor/` en le faisant précéder de
+sa ligne d'en-tête (un commentaire `/* three@0.185.1 examples/jsm : … */` qui liste les addons
+contenus) : esbuild, avec `legalComments: 'none'`, n'en écrit aucune.
 
 **À la prochaine montée de version de three** : refaire ce fichier avec la même version que
 `vendor-esm/`. Un addon compilé contre une autre révision que le pont hériterait de classes qui

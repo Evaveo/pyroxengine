@@ -100,6 +100,17 @@ test('une lampe cuite est éteinte en temps réel, y compris après relecture et
   });
 });
 
+test('un spot et une directionnelle éclairent depuis leur nœud, pas 1 m au-dessus', () => {
+  const ctx = contexte();
+  vm.runInContext(`
+    this.pos = ['spot', 'directional', 'point'].map((t) =>
+      noeudLumiere({subType: t, intensity: 1}).getComponent('Light').objectThree.position.toArray());
+  `, ctx);
+  // three les construit à Object3D.DEFAULT_UP, (0, 1, 0) : la lampe d'un spot posé au plafond
+  // rayonnait depuis l'étage du dessus.
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.pos)), [[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
+});
+
 test('la cuisson allume chaque lampe selon la phase, puis rend son état exact', () => {
   const ctx = contexte();
   vm.runInContext(`

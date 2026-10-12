@@ -62,6 +62,26 @@ export function setTransformedAtlas(geo, name, scale, offset){
   return true;
 }
 
+// L'inverse de `setTransformedAtlas` : rend à la géométrie le jeu d'UV qu'elle avait avant la
+// cuisson (« Effacer la cuisson », js/lightmap-bake.js). Si la cuisson était partie d'un `uv1`
+// d'origine, il est REPOSÉ tel qu'il a été gelé ; si elle était partie de `uv` (pas de second jeu),
+// l'`uv1` qu'elle avait fabriqué est RETIRÉ — la géométrie redevient ce qu'elle était. Rend vrai
+// quand il y avait un atlas à retirer.
+export function clearTransformedAtlas(geo){
+  const t = geo && geo.userData.lightmapAtlas;
+  if(!t) return false;
+  const g = geo.userData.lightmapUvSource;
+  if(t.game === 'uv1' && g && g.game === 'uv1'){
+    geo.setAttribute('uv1', new THREE.BufferAttribute(new Float32Array(g.values), 2));
+    geo.attributes.uv1.needsUpdate = true;
+  } else if(t.game !== 'uv1' && geo.attributes.uv1){
+    geo.deleteAttribute('uv1');
+  }
+  delete geo.userData.lightmapAtlas;
+  delete geo.userData.lightmapUvSource;
+  return true;
+}
+
 // Rejoue l'atlas après un rechargement de projet. Appelé par les DEUX moteurs :
 // `rebuildTree()` (js/serialization.js) et `buildList()` (js/game-runtime.js), dans les deux
 // cas AVANT d'appliquer le matériau — c'est lui qui branchera la lightmap sur `uv1`, et `uv1`

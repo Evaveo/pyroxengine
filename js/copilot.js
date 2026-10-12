@@ -30,7 +30,7 @@ import { mountMcpSettings } from './mcp-link.js';
 import { refreshSpritesOfLAsset } from './import-settings.js';
 import { buildInspector, deleteRoot, duplicateRoot, syncInspector } from './inspector.js';
 import { applyVisibilityLayers } from './layers.js';
-import { bakeLightmap, lightmapBakeState, settingsLightmap } from './lightmap-bake.js';
+import { bakeLightmap, clearLightmaps, describeClearLightmaps, lightmapBakeState, settingsLightmap } from './lightmap-bake.js';
 import { describeMaterialForAI, propMaterialByKey, validatePropMaterial } from './material-props.js';
 import { applyMaterialEverywhere, attachMaterialAsset, createAssetMaterial, roughnessFromSmoothing } from './materials.js';
 import { TYPE_NODE_DEFAULT, createFromCreatable, createObject, createSceneNode, escapeHtml, markLayersDirty, objects, register } from './objects.js';
@@ -1111,8 +1111,14 @@ export const COMMANDS = [
       + 'ambiant est une lumière HÉMISPHÉRIQUE : `ambient` (intensité), `ambientColor` (couleur venue du '
       + 'ciel) et `ambientGroundColor` (couleur renvoyée par le sol). Sauvegardé avec la scène.',
     schema: {type: 'object', properties: {
-      sky: {type: 'string', enum: ['color','gradient']},
+      sky: {type: 'string', enum: ['color','gradient','image'],
+        description: 'image = panorama équirectangulaire (PNG/JPG, ou HDRI .hdr/.exr) nommé par skyAsset'},
       skyColor: {type: 'string'}, skyTop: {type: 'string'}, skyBottom: {type: 'string'},
+      skyAsset: {type: 'string', description: 'nom ou id de l\'asset texture du panorama (sky « image »)'},
+      skyRotation: {type: 'number', description: 'rotation du panorama autour de la verticale, en degrés (défaut 0)'},
+      skyExposure: {type: 'number', description: 'exposition du panorama, 0 à 8 (défaut 1) — éclaire aussi les reflets du ciel'},
+      skyReflections: {type: 'boolean', description: 'le ciel sert de reflet aux objets qu\'aucune sonde ne couvre (défaut vrai)'},
+      skyReflectionsIntensity: {type: 'number', description: 'intensité de ce reflet, 0 à 3 (défaut 1)'},
       fog: {type: 'boolean'}, fogColor: {type: 'string'},
       fogNear: {type: 'number'}, fogFar: {type: 'number'},
       ambient: {type: 'number'}, ambientColor: {type: 'string', description: 'hémisphère : couleur du ciel'},
@@ -1124,6 +1130,12 @@ export const COMMANDS = [
       // Les clés de l'outil sont anglaises, celles du format (env) en partie françaises : on
       // traduit. Écrire `env.fog` / `env.ambient` tel quel ne réglait RIEN (ces clés-là ne sont
       // lues par personne) et l'outil répondait « mis à jour ».
+      if(a.skyAsset !== undefined){
+        const t = assets.find(function(x){ return x.kind === 'texture' && (x.id === a.skyAsset || x.name === a.skyAsset); });
+        if(!t) throw new Error('texture « ' + a.skyAsset + ' » introuvable (voir list_assets ; importez le panorama avec import_image)');
+        a = Object.assign({}, a, {skyAsset: t.id});
+        if(a.sky === undefined) a.sky = 'image';
+      }
       Object.keys(a).forEach(function(k){ env[ENV_TOOL_KEYS[k] || k] = a[k]; });
       applyEnvironment();
       if(!selection) buildInspector();
@@ -1298,6 +1310,21 @@ export const COMMANDS = [
         + 'objets visés portent bien un dépliage de lightmap');
       return 'lightmap « ' + asset.name + ' » cuite : ' + settings.resolution + '×' + settings.resolution
         + ', ' + settings.bounces + ' rebond(s), ' + settings.images + ' images';
+    }
+  },
+  {
+    // Le pendant de bake_lightmaps, et le « Clear Baked Data » d'Unity : sans lui, une cuisson ne
+    // se retirait qu'en défaisant à la main lightmapAsset sur chaque matériau — et l'uv1 d'atlas
+    // comme la texture cuite restaient derrière (js/lightmap-bake.js, clearLightmaps).
+    name: 'clear_lightmaps',
+    description: 'Efface la cuisson de lightmaps de la scène courante : les matériaux perdent la '
+      + 'lightmap CUITE (lightmapAsset), les maillages retrouvent leurs UV d\'origine, et la texture '
+      + 'produite par la cuisson quitte le projet si plus aucun matériau ne la porte. Une lightmap '
+      + 'IMPORTÉE (non cuite par le moteur) n\'est jamais touchée. Annulable (go_back / Ctrl+Z).',
+    schema: {type: 'object', properties: {}, additionalProperties: false},
+    exec: function(){
+      if(lightmapBakeState.active) throw new Error('une cuisson est en cours');
+      return describeClearLightmaps(clearLightmaps({record: pushHistory}));
     }
   },
   {

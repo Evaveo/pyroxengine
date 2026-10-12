@@ -22,10 +22,11 @@ import { analyzeScene } from './analysis.js';
 import { captureSeqNow, capturedSince, formatConsole } from './copilot-inspect.js';
 import { assets } from './assets.js';
 import { CopilotTools } from './copilot.js';
+import { EditorIcons } from './gizmo-icons.js';
 import { stateCurrent } from './history.js';
 import { objects } from './objects.js';
 import { project } from './project.js';
-import { grid, renderer, scene, viewEl } from './scene.js';
+import { grid, renderer, scene, tcVisual, viewEl } from './scene.js';
 import { buildDataProject } from './serialization.js';
 import { camCurrent } from './viewport.js';
 
@@ -67,7 +68,12 @@ export async function captureViewEditor(widthMax){
   if(!renderer.__ready) throw new Error('le rendu n\'est pas encore initialisé — réessayez dans un instant');
   // On REND avant de capturer : sans ça on lit ce que le canvas portait à la dernière image de la
   // loop, qui peut précéder les commandes qu'on vient d'exécuter.
-  renderer.render(scene, camCurrent());
+  //
+  // SANS LES AIDES D'ÉDITION : icônes de lampes et de caméras, cônes, frustums, sphères
+  // d'influence, boîtes de collider et le gizmo de transformation. La capture sert à juger la
+  // SCÈNE (cadrage, proportions, placement) ; un pictogramme posé sur un objet se lirait comme un
+  // objet. La grille reste : c'est l'échelle qui permet de lire les distances.
+  EditorIcons.withHidden(function(){ renderer.render(scene, camCurrent()); }, [tcVisual]);
   const raw = renderer.domElement.toDataURL('image/png');
   if(captureEmpty(raw)){
     throw new Error('la capture est vide (' + raw.length + ' octets) : le rendu n\'a rien produit. '

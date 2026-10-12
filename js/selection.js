@@ -145,6 +145,35 @@ export function setHighlight(obj, active){
   }
 }
 
+/**
+ * Exécute `work` avec la sélection DÉ-SURLIGNÉE, puis remet le surlignage.
+ *
+ * Le surlignage de la sélection est écrit dans l'émissif des matériaux (`setHighlight`) : c'est
+ * un état de RENDU, que toute caméra verrait. La vue Jeu (js/game-view.js) montre ce que verrait
+ * le joueur, et un objet sélectionné n'y luit pas. On rend donc les émissifs d'origine le temps
+ * de son rendu — en relisant ce que `setHighlight` a mis de côté, sans reparcourir un modèle.
+ */
+export function withHighlightSuspended(work){
+  const restore = [];
+  allSelection().forEach(function(o){
+    const saved = ed(o)._emisSauve;
+    if(saved){
+      saved.forEach(function(p){
+        if(!p[0] || !p[0].emissive) return;
+        restore.push([p[0], p[0].emissive.getHex()]);
+        p[0].emissive.setHex(p[1]);
+      });
+    } else if(o.material && o.material.emissive){
+      restore.push([o.material, o.material.emissive.getHex()]);
+      o.material.emissive.setHex(o.userData.emissiveBase || 0);
+    }
+  });
+  try { return work(); }
+  // À REBOURS : deux objets sélectionnés qui partagent un matériau l'ont noté deux fois, et
+  // seul l'ordre inverse rend la valeur d'avant le premier.
+  finally { for(let i = restore.length - 1; i >= 0; i--) restore[i][0].emissive.setHex(restore[i][1]); }
+}
+
 export function select(obj, keepMulti){
   // Même garde que selectAsset, mais seulement quand on va VERS un objet : un `select(null)` de
   // teardown (vidage de scène, restauration d'historique) ne doit jamais ouvrir de modale.

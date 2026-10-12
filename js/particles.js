@@ -6,9 +6,10 @@
 // l'éditeur (aperçu), et à l'identique dans les builds Web (game-runtime.js).
 import { PART_DEFAULT, ensurePart } from './component-data.js';
 import { NodeShells, Registry } from './component-registry.js';
+import { hideEditorMarker } from './editor-overlay.js';
 import { applyNodeMixin } from './node.js';
 import { isSceneObject } from './objects.js';
-import { LAYER_HELPERS, scene } from './scene.js';
+import { scene } from './scene.js';
 import { engineScripts } from './scripts.js';
 
 export const engineParticles = {systemes: [], texture: null, inGamePrev: false};
@@ -22,8 +23,8 @@ export function makeParticles(){
   mesh.userData.emissiveBase = 0xff9944;
   mesh.userData.emissiveSel = 0xff8830;
   mesh.userData.part = JSON.parse(JSON.stringify(PART_DEFAULT));
-  // icône d'édition uniquement : jamais visible par une caméra de jeu
-  mesh.layers.set(LAYER_HELPERS);
+  // Repère d'édition ÉTEINT : son icône (js/gizmo-icons.js) le remplace — ni dessiné ni ombré.
+  hideEditorMarker(mesh);
   applyNodeMixin(mesh);
   mesh.addComponent('Particles', mesh.userData.part);
   return mesh;

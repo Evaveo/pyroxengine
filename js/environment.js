@@ -2,6 +2,7 @@
 // Équivalent du WorldEnvironment de Godot, par scène. Édité dans l'inspecteur
 // quand AUCUN objet n'est sélectionné. Sérialisé avec la scène et exporté.
 import { backgroundForCamera } from './sky-camera.js';
+import { applySkyFraming, skyBackgroundFor } from './environment-map.js';
 import { assets } from './assets.js';
 import { applyProbes } from './probes.js';
 import { hemi, scene, sun } from './scene.js';
@@ -14,7 +15,12 @@ export const ENV_DEFAULT = {
   skyColor:'#9fc4e8',
   skyTop:'#6ea8dc',
   skyBottom:'#dfe9f2',
-  skyAsset:null,            // id d'un asset texture du panneau Projet
+  skyAsset:null,            // id d'un asset texture du panneau Projet (PNG/JPG, ou HDRI .hdr/.exr)
+  // Rotation (degrés, autour de la verticale) et exposition du panorama — le « Rotation » et
+  // l'« Exposure » du Skybox/Panoramic d'Unity (js/environment-map.js, applySkyFraming). Champs
+  // ajoutés avec le ciel HDRI : une scène plus ancienne les reçoit de ce défaut, sans migration.
+  skyRotation:0,
+  skyExposure:1,
   brouillard:true,
   brouillardColor:'#cdd9e4',
   brouillardNear:40,
@@ -36,7 +42,8 @@ export const ENV_DEFAULT = {
 // sérialisées : ne pas les renommer sans migration). Une clé absente d'ici est la même des deux côtés.
 export const ENV_TOOL_KEYS = {
   fog: 'brouillard', fogColor: 'brouillardColor', fogNear: 'brouillardNear', fogFar: 'brouillardLoin',
-  ambient: 'ambiante', ambientColor: 'ambianteColor'
+  ambient: 'ambiante', ambientColor: 'ambianteColor',
+  skyReflections: 'skyReflets', skyReflectionsIntensity: 'skyRefletsIntensity'
 };
 export let env = JSON.parse(JSON.stringify(ENV_DEFAULT));
 export let skyTexture = null;      // texture de fond fabriquée ici (dégradé ou panorama cloné)
@@ -54,35 +61,37 @@ export let skyTexture = null;      // texture de fond fabriquée ici (dégradé 
 // reflet de ciel. Deux fabrications séparées auraient divergé en silence : le reflet aurait
 // montré un autre ciel que la vue, et personne ne compare un reflet à un fond à l'œil nu.
 export function buildSkyBackground(e){
-  if(e.sky === 'gradient'){
-    const cv = document.createElement('canvas');
-    cv.width = 16; cv.height = 256;
-    const cx = cv.getContext('2d');
-    const g = cx.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, e.skyTop);
-    g.addColorStop(1, e.skyBottom);
-    cx.fillStyle = g;
-    cx.fillRect(0, 0, 16, 256);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    if(THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-    tex.needsUpdate = true;
-    return tex;
-  }
-  if(e.sky === 'image' && e.skyAsset){
-    const a = assets.find(function(x){ return x.id === e.skyAsset && x.kind === 'texture'; });
-    if(a){
-      // CLONE : la cuisson du reflet libère la texture qu'elle a posée en fond, et libérer
-      // la texture d'asset partagée éteindrait le ciel de toute la scène.
-      const tex = a.texture.clone();
-      tex.mapping = THREE.EquirectangularReflectionMapping;
-      if(THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-      // Image pas encore décodée : la marquer ferait planter WebGPU (voir markTextureDirty).
-      if(tex.image && tex.image.complete !== false) tex.needsUpdate = true;
-      return tex;
-    }
-  }
-  return new THREE.Color(e.skyColor);
+  return skyBackgroundFor(e, skyTextureOfAsset);
+}
+
+/** La texture d'un asset texture du projet, ou null. */
+export function skyTextureOfAsset(id){
+  const a = assets.find(function(x){ return x.id === id && x.kind === 'texture'; });
+  return a ? a.texture : null;
+}
+
+/**
+ * Ce qui change le CONTENU du ciel sans changer ses réglages : la texture de l'asset (une HDRI
+ * lue en remplace une provisoire, un réimport en pose une neuve) et l'arrivée de son image. Entre
+ * dans la signature du reflet de ciel (keySky, js/probes.js) : sans lui, un panorama chargé après
+ * la première cuisson laissait le reflet sur l'image vide.
+ */
+export function skySourceStamp(e){
+  if(!e || e.sky !== 'image' || !e.skyAsset) return '';
+  const a = assets.find(function(x){ return x.id === e.skyAsset && x.kind === 'texture'; });
+  if(!a || !a.texture) return '';
+  return a.texture.uuid + (a.imageSource ? ':1' : ':0');
+}
+
+/**
+ * Une texture vient de finir de charger : si c'est le ciel de la scène, le refaire (fond ET
+ * reflet). Appelé par assets.js au décodage d'une image ou à la lecture d'une HDRI. Rend vrai
+ * quand le ciel a été refait.
+ */
+export function refreshSkyOfAsset(a){
+  if(!a || env.sky !== 'image' || env.skyAsset !== a.id) return false;
+  applyEnvironment();
+  return true;
 }
 
 /** Le fond tel que l'a fabriqué applyEnvironment, avant adaptation à la caméra. */
@@ -102,6 +111,7 @@ export function applyEnvironment(fresh){
   skyBackground = fond;
   globalThis.skyBackground = fond;
   scene.background = fond;
+  applySkyFraming(scene, env);
   if(fond && fond.isTexture) skyTexture = fond;
 
   scene.fog = env.brouillard
@@ -125,5 +135,6 @@ export function applyEnvironment(fresh){
 // fichier absent, et la page ne démarrerait pas. Ils gardent donc leur garde
 // `typeof` côté appelant, et se déclarent ici.
 globalThis.applyEnvironment = applyEnvironment;
+globalThis.refreshSkyOfAsset = refreshSkyOfAsset;
 globalThis.env = env;
 globalThis.skyTexture = skyTexture;

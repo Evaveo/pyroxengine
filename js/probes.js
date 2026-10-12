@@ -9,8 +9,9 @@
 // builds) : seuls les réglages de la sonde le sont.
 import { PROBE_DEFAULT, ed, ensureProbe } from './component-data.js';
 import { NodeShells, Registry } from './component-registry.js';
-import { liftOverlay } from './editor-overlay.js';
-import { buildSkyBackground, env } from './environment.js';
+import { hideEditorMarker, liftOverlay } from './editor-overlay.js';
+import { acceptsEnvironment, applySkyFraming, bindEnvironmentKey, isHdrTexture, skyExposureOf, skyRotationOf } from './environment-map.js';
+import { buildSkyBackground, env, skySourceStamp } from './environment.js';
 import { setStatus } from './hierarchy.js';
 import { buildInspector } from './inspector.js';
 import { applyNodeMixin } from './node.js';
@@ -18,8 +19,14 @@ import { isSceneObject, listMats } from './objects.js';
 import { LAYER_HELPERS, renderer, scene } from './scene.js';
 import { selection } from './selection.js';
 
+// Une sonde se reconnaît à son SAC (`userData.probe`, posé par le composant Reflection et retiré
+// avec lui), pas au tag `userData.type === 'probe'`. Le tag n'est posé que sur un nœud nu
+// (`markType` ne retague qu'un « group ») : un composant Reflection ajouté à un objet existant —
+// le geste d'Unity, une Reflection Probe sur un GameObject quelconque — rendait la sonde
+// invisible à la cuisson, alors que le menu « Cuire toutes les sondes », qui interroge le
+// Registre, restait actif. La cuisson annonçait « Aucune sonde » et ne cuisait rien.
 export function probeActive(o){
-  return o.userData.type === 'probe' && o.userData.probe && o.userData.probe.active !== false;
+  return !!o.userData.probe && o.userData.probe.active !== false;
 }
 
 // Les Noeuds porteurs d'un composant Reflection active et vivant. Remplace les
@@ -54,8 +61,10 @@ export function makeProbe(){
   mesh.userData.probe = JSON.parse(JSON.stringify(PROBE_DEFAULT));
   mesh.userData.emissiveBase = 0x000000;
   mesh.userData.emissiveSel = 0x14324a;
-  // icône d'édition uniquement : jamais visible par une caméra de jeu
-  mesh.layers.set(LAYER_HELPERS);
+  // Repère d'édition ÉTEINT : la sphère chromée projetait l'ombre d'un objet que le jeu n'a pas
+  // (la caméra d'édition voit LAYER_HELPERS, et la carte d'ombre adopte son masque). Son icône
+  // et, à la sélection, sa sphère d'influence la remplacent (js/gizmo-icons.js).
+  hideEditorMarker(mesh);
   applyNodeMixin(mesh);
   mesh.addComponent('Reflection', mesh.userData.probe);
   return mesh;
@@ -79,8 +88,8 @@ export let pendingSky = 0;          // tentatives restantes quand le backend n'e
 // Tout ce qui change l'apparence du ciel. applyEnvironment() est rappelé au moindre
 // réglage de brouillard ou d'ambiance : sans cette signature on recuirait à chaque frappe.
 export function keySky(e){
-  return [e.sky, e.skyColor, e.skyTop, e.skyBottom, e.skyAsset,
-          e.skyReflets !== false, SKY_RESOLUTION].join('|');
+  return [e.sky, e.skyColor, e.skyTop, e.skyBottom, e.skyAsset, skySourceStamp(e),
+          skyRotationOf(e), skyExposureOf(e), e.skyReflets !== false, SKY_RESOLUTION].join('|');
 }
 
 // La texture de fond n'est PAS libérée dans la foulée du rendu : sous WebGPU le rendu n'est
@@ -106,11 +115,18 @@ export function bakeSky(key){
     const sc = new THREE.Scene();
     const fond = buildSkyBackground(env);
     sc.background = fond;
+    // Rotation et exposition AUSSI sur la scène de cuisson : le reflet tourne avec le ciel.
+    applySkyFraming(sc, env);
     if(fond && fond.isTexture) domeBake = fond;
 
+    // Une HDRI se cuit en DEMI-FLOTTANT : en 8 bits, son soleil serait écrêté à 1 et le reflet
+    // comme l'éclairage d'ambiance qu'elle apporte perdraient toute leur dynamique.
+    const type = isHdrTexture(fond) ? THREE.HalfFloatType : THREE.UnsignedByteType;
     let c = engineProbes.sky;
+    // La cible seule, pas disposeSky() : elle libérerait aussi le fond qu'on vient de poser.
+    if(c && c.rt && c.rt.texture.type !== type){ c.rt.dispose(); engineProbes.sky = null; c = null; }
     if(!c || !c.rt){
-      const rt = createTargetCube(SKY_RESOLUTION);
+      const rt = createTargetCube(SKY_RESOLUTION, type);
       c = {rt: rt, cam: new THREE.CubeCamera(0.1, 400, rt), key: null};
       engineProbes.sky = c;
     }
@@ -167,11 +183,13 @@ export function envMapOfSky(){
 // le reste, écrire `new THREE.WebGLCubeRenderTarget(...)` donnait au WebGPURenderer une
 // cible venue de l'AUTRE bundle, qu'il ne reconnaît pas — le même mélange de classes qui
 // avait rendu les lumières inertes (voir render-webgpu-bridge.mjs).
-export function createTargetCube(res){
+export function createTargetCube(res, type){
   const opt = {
     // RGBA : obligatoire pour relire les pixels (mesure d'ambiance) côté WebGL,
     // et déjà le défaut côté WebGPU.
     format: THREE.RGBAFormat,
+    // 8 bits par défaut : la mesure d'ambiance relit des octets. Le ciel HDRI passe le sien.
+    type: type || THREE.UnsignedByteType,
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,
     magFilter: THREE.LinearFilter
@@ -421,33 +439,22 @@ export function nodeEnvProbe(probe, c){
   return c.nodeBox;
 }
 
-// Seule porte d'écriture de l'environnement sur un matériau. `node` est le nœud de
-// projection boîte, ou null pour le chemin normal de three.
-//
-// Le needsUpdate n'est pas décoratif : envNode fait bien partie de la clé de hidden d'un
-// objet de rendu, mais three ne la RECALCULE que si la version du matériau a bougé. Sans
-// lui, poser un envNode après la première image ne changerait rien — sans erreur.
-// Quels matériaux acceptent un environnement. On les NOMME, plutôt que de tester la
-// présence d'un champ : `'envMap' in m` est vrai pour TOUS les matériaux de three, y
-// compris MeshBasicMaterial — mesuré, le champ existe bel et bien.
-//
-// Et sur un Basic, `combine` vaut MultiplyOperation par défaut : la couleur de l'objet
-// est MULTIPLIÉE par le ciel. Avec le ciel sombre de la scène par défaut (#14161a, à peu
-// près 8 % de gris), tout matériau « non éclairé » virait donc au noir — à la simple
-// RÉOUVERTURE d'un projet old, sans que personne n'ait rien touché. Un reflet n'a de
-// sens que sur un matériau qui fait de l'éclairage physique.
-export function acceptsEnvironment(m){
-  return !!m && (m.isMeshStandardMaterial === true || m.isMeshPhysicalMaterial === true);
-}
+// `acceptsEnvironment` (quels matériaux reçoivent un reflet) vit dans js/environment-map.js :
+// le jeu publié en a besoin aussi, et y testait autre chose.
 
 // Seule porte d'écriture de l'environnement sur un matériau. `node` est le nœud de
 // projection boîte, ou null pour le chemin normal de three.
 //
-// Le needsUpdate n'est pas décoratif : envNode fait bien partie de la clé de hidden d'un
-// objet de rendu, mais three ne la RECALCULE que si la version du matériau a bougé. Sans
-// lui, poser un envNode après la première image ne changerait rien — sans erreur.
+// Le needsUpdate n'est pas décoratif : three ne recalcule la clé de pipeline d'un objet de
+// rendu que si la version du matériau a bougé. Mais il ne SUFFIT pas : cette clé ne voyait pas
+// QUELLE texture d'environnement est posée, seulement son genre — d'où `bindEnvironmentKey`,
+// qui l'y fait entrer (js/environment-map.js, et docs/KNOWN_ISSUES.md).
 export function setEnvironmentOn(m, tex, intensity, node){
   if(!acceptsEnvironment(m)) return;
+  // AVANT la garde d'égalité : c'est elle qui fait recompiler le matériau quand on passe du cube
+  // du ciel à celui d'une sonde (voir bindEnvironmentKey). Sans elle, la sonde était cuite et
+  // jamais vue.
+  bindEnvironmentKey(m);
   // Comparer `envMapIntensity` est sûr ICI, et seulement ici : cette propriété vaut
   // `undefined` sur les matériaux qui ne la portent pas — un MeshBasicMaterial par
   // exemple — et la comparaison échouerait alors TOUJOURS, reposant `needsUpdate` à

@@ -18,7 +18,9 @@ export const PAGES_INTERFACE = [
    {f:'js/hierarchy.js', c:"export const hierFilter = document.getElementById('hier-filter');"},
    {f:'js/hierarchy.js', c:"hierBody.addEventListener('dblclick', function(e){"},
    {f:'js/hierarchy.js', c:"const title = target ? ('Ajouter un enfant de ' + target.name) : 'Ajouter';"},
-   {f:'js/hierarchy.js', c:"if(asset.kind === 'script') attachScriptAsset(asset, target);"}
+   {f:'js/hierarchy.js', c:"if(asset.kind === 'script') attachScriptAsset(asset, target);"},
+   {f:'js/hierarchy-range.js', c:"if(shift) return ctrl ? 'addRange' : 'range';"},
+   {f:'js/hierarchy-range.js', c:'export function pruneNestedIds(ids, parentOf){'}
  ],
  html:function(){ return ''
   + essentialHelp('<p>En haut, les <b>scènes</b> du projet (<b>＋</b> en ajoute une). En dessous, '
@@ -29,12 +31,29 @@ export const PAGES_INTERFACE = [
   + arrayHelp(['Geste', 'Effet'], [
       ['Clic', 'Sélectionne l\'objet (l\'inspecteur le montre).'],
       ['<kbd>Ctrl</kbd> + clic', 'Ajoute ou retire l\'objet de la sélection multiple.'],
+      ['<kbd>Maj</kbd> + clic', 'Sélectionne la <b>plage</b> de lignes entre la dernière ligne '
+        + 'cliquée et celle-ci, dans l\'ordre affiché (comme dans Unity). La ligne cliquée devient '
+        + 'l\'objet principal.'],
+      ['<kbd>Maj</kbd> + <kbd>Ctrl</kbd> + clic', 'Ajoute cette plage à la sélection au lieu de la remplacer.'],
       ['Double-clic sur le nom', 'Renomme sur place. <kbd>Entrée</kbd> valide, <kbd>Échap</kbd> annule.'],
       ['Glisser un objet sur un autre', 'Le range comme enfant de la cible.'],
       ['Glisser un objet dans le vide', 'Le remet à la racine de la scène.'],
       ['Clic droit', 'Menu de création ; sur un nœud, l\'objet créé devient son enfant.'],
       ['Champ « Filtrer par nom »', 'N\'affiche que les objets dont le nom correspond.']
     ])
+
+  + '<h3>Sélectionner plusieurs objets</h3>'
+  + '<p>La plage du <kbd>Maj</kbd> + clic suit les lignes <b>affichées</b> : un groupe replié '
+  + 'compte pour une ligne, et le filtre par nom retire les lignes qu\'il cache. Le point de '
+  + 'départ est la dernière ligne cliquée sans <kbd>Maj</kbd> ; plusieurs <kbd>Maj</kbd> + clics '
+  + 'à la suite étendent ou réduisent la même plage. La sélection multiple sert ensuite partout : '
+  + 'le gizmo déplace tout le groupe, <kbd>Suppr</kbd> et <kbd>Ctrl</kbd> + <kbd>D</kbd> agissent '
+  + 'sur tous, l\'inspecteur édite leur Transform ensemble, et la cuisson des lightmaps peut se '
+  + 'limiter à la sélection. <kbd>Échap</kbd> vide la sélection multiple.</p>'
+  + trapHelp('<b>Un parent et ses enfants ne se sélectionnent pas ensemble.</b> Une plage qui '
+    + 'traverse un groupe déplié garde le groupe et laisse ses enfants : ils le suivent déjà pour '
+    + 'le déplacement, la suppression et la duplication — les compter deux fois les déplacerait '
+    + 'deux fois.')
 
   + '<h3>Déposer un asset sur un objet</h3>'
   + '<p>Un asset glissé depuis le ' + linkHelp('panel-project', 'panneau Projet') + ' sur un nœud '
@@ -67,7 +86,13 @@ export const PAGES_INTERFACE = [
    {f:'js/viewport.js', c:"if(e.key === '1') setModeGizmo('translate');"},
    {f:'js/scene.js', c:"const gizmo = {space: 'local'};"},
    {f:'js/scene.js', c:"sel.title = inScale ? 'Le mode Échelle impose l\\'espace local'"},
-   {f:'editor.html', c:'title="Aimanter — déplacement par pas de 0,5 · rotation 15° · échelle 0,1"'}
+   {f:'editor.html', c:'title="Aimanter — déplacement par pas de 0,5 · rotation 15° · échelle 0,1"'},
+   {f:'editor.html', c:'<button id="filter-gizmos" class="ui-icon-btn"'},
+   {f:'js/gizmo-icons.js', c:'export const ICON_FADE_START = 0.7;'},
+   {f:'js/gizmo-icons.js', c:'export const ICON_COMPONENTS = [\'Light\', \'Camera\', \'Reflection\', \'PostVolume\', \'AudioSource\', \'Particles\'];'},
+   {f:'js/viewport.js', c:'let keyObj = EditorIcons.pick(raycaster);'},
+   {f:'js/ui/prefs.js', c:"category: 'Apparence', min: 12, max: 96, step: 2, default: 32 });"},
+   {f:'js/ui/prefs.js', c:"category: 'Apparence', min: 0, max: 2000, step: 5, default: 80,"}
  ],
  html:function(){ return ''
   + essentialHelp('<p>La vue montre la scène telle que vous l\'éditez. Clic droit + glisser pour '
@@ -112,8 +137,30 @@ export const PAGES_INTERFACE = [
 
   + '<h3>Comment la scène est dessinée</h3>'
   + '<p>La barre d\'outils porte aussi le <b>mode d\'affichage</b> et les bascules <b>Ombres</b>, '
-  + '<b>Textures</b>, <b>Shaders</b> et <b>Grille</b>. Ce sont des réglages de regard : ils ne '
-  + 'changent rien au projet ni au jeu publié.</p>'
+  + '<b>Textures</b>, <b>Shaders</b>, <b>Grille</b> et <b>Icônes et gizmos</b>. Ce sont des réglages de '
+  + 'regard : ils ne changent rien au projet ni au jeu publié.</p>'
+
+  + '<h3>Icônes et gizmos d\'édition</h3>'
+  + '<p>Comme dans la vue Scène d\'Unity, chaque lumière (ponctuelle, spot, directionnelle), caméra, '
+  + 'sonde de reflets, volume de post-traitement, source audio et émetteur de particules est '
+  + 'représenté par une <b>icône</b> : toujours tournée vers vous, de la même taille à l\'écran '
+  + 'quelle que soit la distance. L\'icône d\'une lumière prend sa couleur. <b>Un clic sur l\'icône '
+  + 'sélectionne l\'objet</b> — elle passe avant les objets qu\'elle recouvre — et le gizmo de '
+  + 'transformation agit ensuite normalement.</p>'
+  + arrayHelp(['Ce qui s\'affiche', 'Quand'], [
+      ['L\'icône', 'Toujours, sauf pour un objet masqué. Elle s\'estompe à partir de 70 % de la '
+        + 'distance de fondu et a disparu au-delà (80 m par défaut) ; celle de l\'objet sélectionné '
+        + 'reste visible et grossit un peu. Un composant décoché garde son icône, atténuée.'],
+      ['Cône et portée d\'une lumière, frustum d\'une caméra, sphère d\'influence d\'une sonde, '
+        + 'portées d\'une source audio spatiale, boîte d\'un collider, d\'une sonde ou d\'un volume',
+        'Seulement quand l\'objet est <b>sélectionné</b>.']
+    ])
+  + tipHelp('Le bouton <b>Icônes et gizmos d\'édition</b> (pictogramme de formes) de la barre d\'outils masque d\'un coup toutes les icônes et '
+    + 'tous les gizmos d\'édition (le gizmo de transformation reste). Leur taille et leur distance '
+    + 'de fondu se règlent dans <b>Préférences → Apparence</b> ; une distance de 0 supprime le fondu.')
+  + trapHelp('<b>Rien de tout cela n\'existe hors de la vue d\'édition</b> : ni dans le jeu publié, '
+    + 'ni dans la capture de vue du copilote, ni dans la cuisson des lightmaps ou des sondes de '
+    + 'reflets. Aucune icône ne projette ni ne reçoit d\'ombre.')
 
   + advancedHelp('Le référentiel « Vue » est simulé',
     '<p>Le TransformControls de three.js n\'a pas d\'espace « vue ». <code>js/scene.js</code> '
@@ -123,7 +170,66 @@ export const PAGES_INTERFACE = [
 
   + '<h3>Voir aussi</h3>'
   + '<ul><li>' + linkHelp('shortcuts', 'Tous les raccourcis') + '</li>'
+  + '<li>' + linkHelp('panel-game-view', 'La vue Jeu') + ', ce que verra le joueur</li>'
   + '<li>' + linkHelp('panel-environment', 'Le ciel et le brouillard') + '</li></ul>';
+}},
+
+{id:'panel-game-view', part:'interface', section:'Panneaux', title:'La vue Jeu',
+ level:'both',
+ summary:'La scène à travers la caméra principale, sans grille ni gizmo, mise à jour pendant qu\'on édite.',
+ anchors:[
+   {f:'js/ui/panels-shell.js', c:"id: 'game-view', title: 'Jeu', icon: '🎮',"},
+   {f:'js/game-view-core.js', c:"return list.find(function(n){ return judge(n); }) || list[0] || null;"},
+   {f:'js/game-view-core.js', c:"{id: '9:16',  label: '9:16 (téléphone)', ratio: 9 / 16}"},
+   {f:'js/game-view.js', c:'renderer.setCanvasTarget(gameView.target);'},
+   {f:'js/game-view.js', c:'withHighlightSuspended(function(){'}
+ ],
+ html:function(){ return ''
+  + essentialHelp('<p>L\'onglet <b>Jeu</b>, à côté de la vue, montre la scène <b>à travers la caméra '
+    + 'principale</b> — celle que filmera le jeu au lancement — comme le Game view d\'Unity hors '
+    + 'lecture. Rien de l\'édition n\'y paraît : ni grille, ni gizmo, ni icônes de lumières et de '
+    + 'caméras, ni colliders, ni surlignage de la sélection. Elle suit vos modifications en direct.</p>')
+
+  + '<h3>Ce qu\'elle montre</h3>'
+  + arrayHelp(['', 'D\'où ça vient'], [
+      ['La caméra', 'Celle cochée <b>Caméra principale</b> dans son composant Camera ; sinon la '
+        + 'première caméra active de la scène — la même règle que le jeu publié. Son nom est affiché '
+        + 'dans la barre de l\'onglet.'],
+      ['Champ de vision, projection', 'Ceux du composant Camera (perspective ou orthographique, '
+        + 'cadrage 2D et pixel-perfect compris).'],
+      ['Calques', 'Le masque de calques de la caméra : un calque décoché pour elle n\'apparaît pas.'],
+      ['Post-traitement', 'Les PostVolume de la scène, mélangés à la position de la caméra.'],
+      ['Caméras en incrustation', 'Mini-carte, rétroviseur : les caméras qui portent un rectangle '
+        + 'd\'affichage sont dessinées par-dessus, comme en jeu.']
+    ])
+
+  + '<h3>Le rapport d\'image</h3>'
+  + '<p>Le menu de la barre choisit le format de l\'aperçu : <b>Libre</b> ' + defaultHelp('défaut')
+  + ' prend toute la place du panneau (le jeu dans une fenêtre qu\'on redimensionne) ; <b>16:9</b>, '
+  + '<b>16:10</b>, <b>4:3</b>, <b>21:9</b>, <b>1:1</b> et <b>9:16 (téléphone)</b> cadrent l\'image et '
+  + 'laissent des bandes noires autour. Le choix est une préférence de cette machine, pas du projet.</p>'
+
+  + tipHelp('Glissez l\'onglet <b>Jeu</b> dans une autre zone (ou détachez-le en fenêtre) pour voir '
+    + 'la vue Scène et la vue Jeu côte à côte : on déplace un objet dans l\'une, on voit le résultat '
+    + 'dans l\'autre.')
+  + trapHelp('<b>Les modes d\'affichage de la vue Scène s\'y appliquent aussi.</b> Fil de fer, Non '
+    + 'éclairé, sans textures, sans ombres : ces réglages remplacent les matériaux de la scène '
+    + 'elle-même, donc les deux vues les montrent. La barre de la vue Jeu le signale en orange. '
+    + 'L\'interface HTML du jeu (Document UI), elle, n\'est dessinée qu\'en ' + linkHelp('play-mode', '▶ Jouer') + '.')
+  + trapHelp('La vue Jeu demande <b>WebGPU</b>. Sur un navigateur où l\'éditeur tourne en WebGL2, '
+    + 'elle le dit et renvoie vers « Voir à travers cette caméra » (inspecteur de la caméra) ou ▶ Jouer.')
+
+  + advancedHelp('Comment elle est rendue',
+    '<p>Il n\'y a qu\'un renderer, partagé par tout l\'éditeur. La vue Jeu ne crée pas un second '
+    + 'renderer (toutes les ressources GPU seraient doublées) : elle dessine avec le même, dans son '
+    + 'propre canevas (<code>THREE.CanvasTarget</code>), puis lui rend celui de la vue Scène. Elle '
+    + 'n\'est rendue que lorsqu\'elle est <b>visible</b> : derrière l\'onglet Vue, elle ne coûte rien. '
+    + 'Visible, elle ajoute un rendu de la scène par image, ombres comprises.</p>')
+
+  + '<h3>Voir aussi</h3>'
+  + '<ul><li>' + linkHelp('panel-viewport', 'La vue 3D') + '</li>'
+  + '<li>' + linkHelp('component-Camera', 'Le composant Camera') + '</li>'
+  + '<li>' + linkHelp('play-mode', '▶ Jouer') + ', le jeu complet</li></ul>';
 }},
 
 {id:'panel-inspector', part:'interface', section:'Panneaux', title:'L\'inspecteur',
@@ -176,7 +282,11 @@ export const PAGES_INTERFACE = [
    {f:'js/assets.js', c:'(Alt+clic : tout le sous-arbre)'},
    {f:'js/assets.js', c:"e.dataTransfer.setData('text/asset', a.id);"},
    {f:'js/assets.js', c:'const DOUBLE_CLICK_MS = 400;'},
-   {f:'editor.html', c:'<button id="btn-import">＋ Importer (FBX, glTF, textures, sons)</button>'}
+   {f:'editor.html', c:'<button id="btn-import">＋ Importer (FBX, glTF, textures, sons)</button>'},
+   {f:'editor.html', c:'<input type="search" id="project-search"'},
+   {f:'js/asset-search.js', c:"const m = /^t:(.*)$/i.exec(tok);"},
+   {f:'js/asset-search.js', c:"aliases: ['Material', 'Materiau', 'Mat']},"},
+   {f:'js/assets.js', c:"if(origin){ openFolderFromSearch(origin.dataset.folder || ''); return; }"}
  ],
  html:function(){ return ''
   + essentialHelp('<p>À gauche, l\'<b>arbre des dossiers</b> ; à droite, les <b>tuiles</b> du '
@@ -194,6 +304,44 @@ export const PAGES_INTERFACE = [
   + tipHelp('Entrer dans un dossier par une tuile (double-clic) ou en créer un déplie ses ancêtres : '
     + 'la ligne active reste visible.')
   + trapHelp('L\'état replié vaut pour la session : il n\'est écrit ni dans le projet ni sur le disque.')
+
+  + '<h3>Rechercher et filtrer</h3>'
+  + '<p>Le champ <b>🔎 Rechercher</b> de la barre du panneau fonctionne comme celui du Project '
+  + 'Browser d\'Unity : dès qu\'il est rempli, le panneau montre les assets de <b>tous les '
+  + 'dossiers</b> dont le nom contient le texte (casse et accents ignorés ; plusieurs mots doivent '
+  + 'tous y figurer). Sous chaque tuile trouvée, son <b>dossier d\'origine</b> ; un clic dessus '
+  + 'ouvre ce dossier. Les tuiles trouvées se cliquent et se glissent vers la vue, la hiérarchie '
+  + 'ou l\'inspecteur comme les autres.</p>'
+  + arrayHelp(['Saisie', 'Effet'], [
+      ['<code>herbe</code>', 'Tous les assets dont le nom contient « herbe », et les dossiers de ce nom.'],
+      ['<code>t:Material</code>', 'Seulement les matériaux. Les noms français marchent aussi : '
+        + '<code>t:Matériau</code>, <code>t:Son</code>, <code>t:Modèle</code>…'],
+      ['<code>herbe t:Texture</code>', 'Les textures dont le nom contient « herbe ».'],
+      ['<code>t:Material t:Texture</code>', 'Plusieurs <code>t:</code> s\'additionnent : matériaux ET textures.'],
+      ['<kbd>Échap</kbd> dans le champ', 'Vide la recherche : le panneau revient au dossier courant.']
+    ])
+  + arrayHelp(['Genre', 't: accepté (entre autres)'], [
+      ['Modèle', '<code>t:Model</code>, <code>t:Mesh</code>, <code>t:Modele</code>'],
+      ['Matériau', '<code>t:Material</code>, <code>t:Materiau</code>'],
+      ['Texture', '<code>t:Texture</code>, <code>t:Texture2D</code>, <code>t:Image</code>'],
+      ['Sprite', '<code>t:Sprite</code>'],
+      ['Prefab', '<code>t:Prefab</code>, <code>t:GameObject</code>'],
+      ['Script', '<code>t:Script</code>, <code>t:MonoScript</code>'],
+      ['Son', '<code>t:AudioClip</code>, <code>t:Son</code>, <code>t:Sfx</code> — sons, bruitages et boucles musicales'],
+      ['Animation', '<code>t:AnimationClip</code>, <code>t:Animation</code>'],
+      ['Animator', '<code>t:AnimatorController</code>, <code>t:Animator</code>'],
+      ['Shader', '<code>t:Shader</code>, <code>t:ShaderGraph</code> — les graphes de shader'],
+      ['Données', '<code>t:Data</code>, <code>t:Table</code> — les tables de contenu'],
+      ['Interface', '<code>t:UI</code>, <code>t:StyleSheet</code> — documents UI et feuilles de style'],
+      ['Post-traitement', '<code>t:VolumeProfile</code>, <code>t:PostProfile</code>'],
+      ['Palette de tuiles', '<code>t:TilePalette</code>, <code>t:Palette</code>'],
+      ['Preset d\'import', '<code>t:Preset</code>']
+    ])
+  + tipHelp('Le bouton <b>🏷 Genre</b>, à côté du champ, écrit et retire ces <code>t:</code> à votre '
+    + 'place : il s\'allume quand un genre filtre la liste.')
+  + trapHelp('Un <code>t:</code> mal orthographié (<code>t:Materail</code>) ne montre <b>rien</b>, et '
+    + 'le bandeau des résultats dit lequel n\'a pas été compris. Les clips d\'animation contenus '
+    + 'dans un modèle importé n\'ont pas de tuile à eux : cherchez le modèle et dépliez-le.')
 
   + '<h3>Ranger les assets</h3>'
   + '<p>Rangez par <b>type</b> d\'abord (Textures, Modèles, Scripts, Sons…), puis par sous-thème, '
@@ -270,7 +418,13 @@ export const PAGES_INTERFACE = [
    {f:'js/environment.js', c:'brouillardNear:40,'},
    {f:'js/environment.js', c:'scene.background = fond;'},
    {f:'js/environment.js', c:"if(typeof applyProbes === 'function') applyProbes();"},
-   {f:'js/history.js', c:'env: JSON.parse(JSON.stringify(env)),'}
+   {f:'js/history.js', c:'env: JSON.parse(JSON.stringify(env)),'},
+   {f:'js/environment.js', c:'skyRotation:0,'},
+   {f:'js/environment.js', c:'skyExposure:1,'},
+   {f:'js/environment-map.js', c:'export const SKY_EXPOSURE_MAX = 8;'},
+   {f:'js/environment-map.js', c:'export function applySkyFraming(sc, e){'},
+   {f:'js/environment-map.js', c:'setDataType(THREE.HalfFloatType)'},
+   {f:'js/probes.js', c:'const type = isHdrTexture(fond) ? THREE.HalfFloatType : THREE.UnsignedByteType;'}
  ],
  html:function(){ return ''
   + essentialHelp('<p>Ouvrez-le par <b>Fenêtres → 🌤 Environnement</b>. Il règle le <b>ciel</b>, le '
@@ -279,8 +433,13 @@ export const PAGES_INTERFACE = [
 
   + '<h3>Ciel</h3>'
   + arrayHelp(['Réglage', 'Défaut', 'Rôle'], [
-      ['Type', defaultHelp('Dégradé'), 'Couleur unie, Dégradé (Haut / Bas) ou Panorama (image).'],
-      ['Image', '', 'Une texture du projet, panorama équirectangulaire. Importez-la d\'abord.'],
+      ['Type', defaultHelp('Dégradé'), 'Couleur unie, Dégradé (Haut / Bas) ou Panorama (image ou HDRI).'],
+      ['Image', '', 'Une texture du projet, panorama équirectangulaire : PNG/JPG, ou une <b>HDRI</b> '
+        + '<code>.hdr</code> / <code>.exr</code>. Importez-la d\'abord.'],
+      ['Rotation (°)', defaultHelp('0'), 'Tourne le panorama autour de la verticale — pour placer le soleil '
+        + 'd\'une HDRI là où vos ombres l\'attendent. Le reflet du ciel tourne avec lui.'],
+      ['Exposition', defaultHelp('1'), 'Multiplie la lumière du panorama, de 0 à 8. Agit sur le fond ET sur '
+        + 'les reflets du ciel.'],
       ['Reflets du ciel', defaultHelp('coché'), 'Le ciel sert de reflet aux objets qu\'aucune sonde '
         + 'de réflexion ne couvre.'],
       ['Intensité', defaultHelp('1'), 'Force de ce reflet, de 0 à 3.']
@@ -301,6 +460,20 @@ export const PAGES_INTERFACE = [
   + tipHelp('Un métal qui ne reflète rien ? Vérifiez que <b>Reflets du ciel</b> est coché, ou posez '
     + 'une ' + linkHelp('probes', 'sonde de réflexion') + '.')
 
+  + '<h3>Un ciel HDRI</h3>'
+  + '<p>C\'est l\'équivalent du <b>Skybox/Panoramic</b> d\'Unity. Une HDRI porte de la <b>lumière</b>, pas '
+  + 'seulement une image : son soleil vaut des centaines de fois le blanc d\'un PNG. Posée en ciel, elle '
+  + 'sert à la fois de <b>fond</b> et d\'<b>éclairage d\'environnement</b> — les objets qu\'aucune sonde ne '
+  + 'couvre la reflètent, dans toute sa dynamique.</p>'
+  + stepsHelp([
+      'Importez le fichier <code>.hdr</code> ou <code>.exr</code> (glisser-déposer dans le panneau Projet, '
+        + 'ou <b>Fichier → Importer des assets…</b>). Sa vignette est une version 8 bits, pour l\'œil.',
+      'Ici, <b>Type</b> → Panorama, puis choisissez-la dans <b>Image</b>.',
+      'Réglez <b>Rotation</b> et <b>Exposition</b>. Le jeu publié montre exactement le même ciel.'
+    ])
+  + trapHelp('Un panorama <b>PNG/JPG</b> marche aussi, mais sa lumière plafonne à 1 : reflets ternes, '
+    + 'pas de soleil. Le panneau le signale par une note.')
+
   + '<h3>Comment les modifications s\'appliquent</h3>'
   + stepsHelp([
       'Vous changez un champ : la valeur est écrite dans les réglages d\'environnement de la scène.',
@@ -313,7 +486,11 @@ export const PAGES_INTERFACE = [
   + advancedHelp('Sous le capot',
     '<p>Chaque champ appelle <code>applyEnvironment()</code> (<code>js/environment.js</code>). Le '
     + 'ciel n\'est pas un objet : c\'est <code>scene.background</code>, rendu à l\'infini derrière tout '
-    + '(une texture équirectangulaire pour le dégradé et le panorama). Le brouillard est un '
+    + '(une texture équirectangulaire pour le dégradé et le panorama). Rotation et exposition sont '
+    + '<code>scene.backgroundRotation</code> et <code>scene.backgroundIntensity</code>, posés aussi sur la '
+    + 'scène de cuisson du reflet (<code>applySkyFraming</code>, <code>js/environment-map.js</code>). Une '
+    + 'HDRI est lue par le <code>HDRLoader</code> / <code>EXRLoader</code> de three en demi-flottant, et le '
+    + 'reflet de ciel est alors cuit en demi-flottant lui aussi. Le brouillard est un '
     + '<code>THREE.Fog</code> ; « Ambiante » règle une lumière hémisphérique. Les valeurs par défaut '
     + 'sont <code>ENV_DEFAULT</code>. L\'environnement fait partie de l\'état capturé par '
     + 'l\'historique. Certaines clés du format sont en français (<code>brouillard</code>, '

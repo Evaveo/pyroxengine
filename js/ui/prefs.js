@@ -228,6 +228,19 @@ definePrefEntry({ key: 'grid.visible', label: 'Grille de sol', type: 'checkbox',
   category: 'Apparence', default: true,
   help: "La grille suit la caméra et change de pas avec l'éloignement : elle n'a pas de bord." });
 
+// Les ICÔNES D'ÉDITION (js/gizmo-icons.js) : même nature que la grille — ce que voit la personne
+// qui édite, jamais ce que contient le projet.
+definePrefEntry({ key: 'gizmos.icons', label: 'Icônes et gizmos d\'édition', type: 'checkbox',
+  category: 'Apparence', default: true,
+  help: 'Une icône par lumière, caméra, sonde, volume, source audio et émetteur ; leurs cônes, '
+      + 'portées et frustums ne s\'affichent qu\'à la sélection. Jamais visibles en jeu.' });
+definePrefEntry({ key: 'gizmos.iconSize', label: 'Taille des icônes (pixels)', type: 'number',
+  category: 'Apparence', min: 12, max: 96, step: 2, default: 32 });
+definePrefEntry({ key: 'gizmos.iconFade', label: 'Fondu des icônes (mètres)', type: 'number',
+  category: 'Apparence', min: 0, max: 2000, step: 5, default: 80,
+  help: 'Au-delà de cette distance, les icônes ont disparu (elles s\'estompent à partir de 70 %). '
+      + 'Zéro : jamais de fondu.' });
+
 // Navigation et manipulation.
 definePrefEntry({ key: 'nav.speed', label: 'Vitesse de navigation', type: 'number',
   category: 'Navigation', min: 0.1, max: 10, step: 0.1, default: 1 });
@@ -282,6 +295,15 @@ definePrefEntry({ key: 'sections.collapsed', label: 'Sections repliées', type: 
 // pour acquise est une palette hors écran dès qu'on change la taille de la fenêtre.
 definePrefEntry({ key: 'palette.position', label: 'Position de la palette d\'outils',
   type: 'hidden', category: 'Interface', default: null });
+// La largeur de l'arbre des dossiers du panneau Projet, en pixels (js/ui/folders-tree-resize.js).
+// Même nature : elle se constate au glisser, elle ne se règle pas dans une fenêtre.
+definePrefEntry({ key: 'project.treeWidth', label: 'Largeur de l\'arbre des dossiers',
+  type: 'hidden', category: 'Interface', default: 160 });
+// Le rapport d'image de la vue Jeu (js/game-view.js) : « Libre », « 16:9 »… Une préférence de
+// MACHINE : c'est l'écran de la personne qui décide de ce qu'elle veut prévisualiser, pas le
+// projet. Il se choisit dans la barre de la vue, pas dans la fenêtre Préférences.
+definePrefEntry({ key: 'gameView.aspect', label: 'Rapport d\'image de la vue Jeu',
+  type: 'hidden', category: 'Interface', default: 'free' });
 
 // La RACINE DISQUE de chaque projet, indexée par le dossier ouvert : `{clé: 'E:\Jeux\MonJeu'}`.
 // Le navigateur ne la connaît PAS — l'API File System Access ne donne jamais de chemin absolu,

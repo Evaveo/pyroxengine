@@ -10,7 +10,9 @@ import { SystemPhysics } from './components/component-physics.js';
 import { SystemScripts } from './components/component-script.js';
 import { updateEditorBatching } from './editor-batching.js';
 import { registerInputs } from './editor-input.js';
+import { extraViewsActive, renderExtraViews } from './extra-views.js';
 import { updateFloorGrid } from './grid-floor.js';
+import { EditorIcons, iconSettings } from './gizmo-icons.js';
 import { openContextHelp } from './help.js';
 import { setStatus, updateHierarchy } from './hierarchy.js';
 import { restore, undo } from './history.js';
@@ -20,7 +22,7 @@ import { helpers, itemsCreationContext, objects, openMenuContext, takeLayersDirt
 import { phys } from './physics.js';
 import { postActive, postRender } from './postfx.js';
 import { depthEnd, depthFrame, depthStart } from './profiler.js';
-import { ORBIT_PHI_MAX, ORBIT_PHI_MIN, activeCam, camEditor, grid, orbit, previewCam, renderer, scene, setGrid, setModeGizmo, tc, tcVisual, updateCamera, updateShadows, viewEl } from './scene.js';
+import { LAYER_HELPERS, ORBIT_PHI_MAX, ORBIT_PHI_MIN, activeCam, camEditor, grid, orbit, previewCam, renderer, scene, setGrid, setModeGizmo, tc, tcVisual, updateCamera, updateShadows, viewEl } from './scene.js';
 import { inputsCurrent, keysGame, stopScripts } from './scripts.js';
 import { clearTouchControls } from './touch-input.js';
 import { addMultiInBatch, allSelection, clearMulti, select, selection, selectionMulti, toggleMulti } from './selection.js';
@@ -37,11 +39,9 @@ export const mouse = new THREE.Vector2();
 
 // icônes d'édition (jamais rendues par une caméra de jeu, quel que soit leur parent) :
 // caméra, lumière, nœud vide, sonde de réflexion, émetteur de particules, wireframe de collider
+export const ICON_EDIT_TYPES = new Set(['camera', 'point', 'spot', 'directional', 'group', 'probe', 'particles']);
 export function isIconEdit(o){
-  return o.userData.type === 'camera' || o.userData.type === 'point' || o.userData.type === 'spot'
-    || o.userData.type === 'directional' || o.userData.type === 'group'
-    || o.userData.type === 'probe' || o.userData.type === 'particles'
-    || o.userData.isColliderViz === true;
+  return ICON_EDIT_TYPES.has(o.userData.type) || o.userData.isColliderViz === true;
 }
 
 /**
@@ -212,8 +212,11 @@ export function bindViewportInputs(){
     raycaster.setFromCamera(mouse, camCurrent());
     const hits = raycaster.intersectObjects(objects, true);
 
-    let keyObj = null;
-    if(hits.length){
+    // LES ICÔNES D'ÉDITION D'ABORD (js/gizmo-icons.js) : dessinées par-dessus tout, ce sont elles
+    // qu'on vise. Le repère 3D d'une lampe ou d'une caméra n'a plus aucun calque — le raycast
+    // ci-dessus passe à travers —, donc sans elles ces objets ne seraient plus cliquables.
+    let keyObj = EditorIcons.pick(raycaster);
+    if(!keyObj && hits.length){
       // Comme Unity : le premier clic sur un modèle prend sa RACINE ; recliquer, une fois
       // l'instance sélectionnée, descend sur la pièce touchée (maillage, os porteur…).
       keyObj = rootHandled(hits[0].object);
@@ -518,7 +521,12 @@ export function loop(){
   // validation WebGPU à chaque frame (« texture size ... is empty », swapchain de taille 0).
   // APRÈS la lecture du temps, comme la cuisson de lightmap juste dessous : sortir plus haut
   // laisserait le temps replié s'accumuler pour ressortir d'un bloc au retour de la vue.
-  if(w <= 0 || h <= 0) return;
+  //
+  // SAUF si une vue supplémentaire est regardée (la vue Jeu, js/game-view.js) : posée en onglet
+  // à côté de la vue Scène, elle la CACHE, et l'image doit quand même tourner — animations,
+  // Systèmes, puis son rendu à elle. Seul le rendu de la vue Scène est alors sauté.
+  const sceneShown = w > 0 && h > 0;
+  if(!sceneShown && !extraViewsActive()) return;
 
   // Pendant une cuisson de lightmap, la vue ne rend pas : la cuisson remplace les matériaux
   // par un matériau blanc et rastérise en espace UV, donc une image intercalée ici
@@ -601,7 +609,14 @@ export function loop(){
   System.isolate('Particules', function(){ SystemParticles.update(Math.min(dt, 0.05)); });
   depthEnd('particles');
 
-  helpers.forEach(function(hp){ if(hp.update) hp.update(); });
+  // Icônes d'édition et gizmos de SÉLECTION (js/gizmo-icons.js) : c'est là que se décide quels
+  // helpers de lampe ou de caméra se montrent — ceux de la sélection, et eux seuls. Seuls les
+  // helpers visibles sont ensuite recalculés : les autres ne coûtent plus rien.
+  System.isolate('Icônes d\'édition', function(){
+    EditorIcons.sync({scene: scene, camera: camCurrent(), viewHeight: h, layer: LAYER_HELPERS,
+      selected: allSelection(), settings: iconSettings(Prefs)});
+  });
+  helpers.forEach(function(hp){ if(hp.visible && hp.update) hp.update(); });
 
   // Niveau de détail puis resynchronisation des lots — dans CET ordre : le LOD décide
   // qui doit disparaître, la resynchronisation l'applique aux objets regroupés. L'inverse
@@ -652,12 +667,25 @@ export function loop(){
   setGrid(updateFloorGrid(scene, grid, camCurrent(), orbit.dist,
     Prefs.get('grid.visible') !== false));
 
+  depthStart('render');
+  // LA VUE JEU D'ABORD (js/game-view.js, par le registre js/extra-views.js) : même renderer,
+  // même scène, mais son propre canevas et sa caméra principale. Elle recadre les ombres sur SA
+  // caméra ; la vue Scène les recadre sur la sienne juste après — l'ordre est donc libre de
+  // tout effet de bord d'une vue sur l'autre.
+  renderExtraViews({dt: dt}, System.isolate);
+  if(sceneShown) renderSceneView(w, h);
+  depthEnd('render');
+
+  depthFrame(dt);
+}
+
+/** Le rendu de la vue Scène : caméra d'édition (ou caméra regardée), puis l'aperçu de caméra. */
+export function renderSceneView(w, h){
   // Les ombres suivent la CAMÉRA COURANTE, et se recadrent donc juste avant le rendu — pas
   // sur la caméra d'édition quand on regarde à travers une caméra de jeu. C'est ce qui fait
   // que la vue de scène et le mode Lecture montrent la même chose.
   updateShadows(camCurrent());
 
-  depthStart('render');
   renderer.setScissorTest(false);
   renderer.setViewport(0, 0, w, h);
   // Le ciel suit le TYPE de la caméra courante (voir backgroundForCamera, environment.js) :
@@ -668,7 +696,6 @@ export function loop(){
     scene.background = backgroundForCamera(globalThis.skyBackground, camCurrent());
   if(postActive()) postRender(scene, camCurrent(), w, h, clock.getElapsed());
   else renderer.render(scene, camCurrent());
-  depthEnd('render');
 
   if(previewCam){
     const pw = Math.round(Math.min(320, w * 0.3));
@@ -687,8 +714,6 @@ export function loop(){
     previewFrame.style.width = pw + 'px';
     previewFrame.style.height = ph + 'px';
   }
-
-  depthFrame(dt);
 }
 
 

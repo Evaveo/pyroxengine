@@ -8,11 +8,13 @@ import { presetSfx } from './chip-synth.js';
 import { presetLoop } from './music-loop.js';
 import { isPlayableAudio } from './component-data.js';
 import { logConsole } from './console.js';
+import { hdrPreviewPixels, isHdrFileName, textureFromHdr } from './environment-map.js';
 import { setStatus, updateHierarchy } from './hierarchy.js';
 import { pushHistory } from './history.js';
 import { lastAssetEditedBy, openEditorExternal, refreshExternal } from './external-editor.js';
 import { IMPORT_DEFAULT, MAP_BY_TYPE, applyImportModel, applyImportTexture, buildInspectorAsset, captureMatFile, configureTexture, disposeMaterialOfModels, ensureParamsImport, meshesModel, refreshInspectorAsset, refreshSpritesOfLAsset, subAssetsOfModel } from './import-settings.js';
 import { buildInspector } from './inspector.js';
+import { ASSET_SEARCH_KINDS, clearKindTokens, folderLabelOf, parseAssetQuery, searchAssets, searchFolders, toggleKindToken } from './asset-search.js';
 import { assignShaderOnMaterial, attachMaterialAsset, createAssetMaterial } from './materials.js';
 import { applyNodeMixin } from './node.js';
 import { cloneCleanly, createSceneNode, escapeHtml, exposeModelInstance, isSceneObject, listMats, objects, openMenuContext, palette, reenableSubTree } from './objects.js';
@@ -547,15 +549,21 @@ export function updateTreeFolders(){
   foldersTree.innerHTML = html;
 }
 
+export const ASSET_KIND_LABELS = {texture:'texture', model:'modèle', prefab:'prefab', script:'script',
+  material:'matériau', audio:'audio', data:'données',
+  documentUI:'document UI', sheetStyle:'feuille de style',
+  animator:'animator', animation:'animation', graphShader:'graphe de shader',
+  sprite:'sprite', postProfile:'profil de post-traitement',
+  preset:"preset d'import", sfx:'bruitage', musicLoop:'boucle musicale',
+  tilePalette:'palette de tuiles'};
+
 export function updateProject(){
   updateTreeFolders();
-  const names = {texture:'texture', model:'modèle', prefab:'prefab', script:'script',
-                material:'matériau', audio:'audio', data:'données',
-                documentUI:'document UI', sheetStyle:'feuille de style',
-                animator:'animator', animation:'animation', graphShader:'graphe de shader',
-                sprite:'sprite', postProfile:'profil de post-traitement',
-                preset:"preset d'import", sfx:'bruitage', musicLoop:'boucle musicale',
-                tilePalette:'palette de tuiles'};
+  // LA RECHERCHE PRIME SUR LE DOSSIER : un champ rempli montre les assets de TOUT le projet
+  // (js/asset-search.js) ; le vider rend le dossier courant, qui n'a pas bougé entre-temps.
+  const query = projectSearchText();
+  const found = searchAssets(assets, query);
+  if(found){ projectBody.innerHTML = searchResultsHtml(found, query); return; }
   let html = '';
 
   // sous-dossiers directs du dossier current
@@ -576,88 +584,7 @@ export function updateProject(){
     if((a.folder || '') !== folderCurrent) return;
     // Un clip de modèle se montre DÉPLIÉ sous son modèle, comme dans Unity — pas à plat.
     if(a.embedded) return;
-    const nameSafe = escapeHtml(a.name);
-    // Le genre est testé AVANT `engineAudio` : ce rafraîchissement tourne pour chaque asset, et
-    // aussi dans des contextes (tests, pages sans audio) où le module audio n'est pas chargé.
-    const inPlayback = ((a.kind === 'audio' || a.kind === 'sfx' || a.kind === 'musicLoop')
-      && engineAudio.preview && engineAudio.preview.assetId === a.id);
-    const vignette = (a.kind === 'script')
-      ? '<div class="vignette script" title="Double-clic : éditer · glisser sur un objet : attacher">📜</div>'
-      : (a.kind === 'data')
-      ? '<div class="vignette script" title="Table de contenu — double-clic : éditer · lue par api.data(name)">🗂</div>'
-      : (a.kind === 'audio')
-      ? '<div class="vignette script" title="Double-clic : écouter / arrêter · glisser sur un objet : attacher">'
-        + (inPlayback ? '⏹' : '🔊') + '</div>'
-      : (a.kind === 'sfx')
-      ? '<div class="vignette script" title="Bruitage calculé — double-clic : régler dans le Rack sonore · glisser sur un objet : attacher">'
-        + (inPlayback ? '⏹' : '🎛') + '</div>'
-      : (a.kind === 'musicLoop')
-      ? '<div class="vignette script" title="Boucle musicale — double-clic : composer dans le Rack sonore (BX-16) · glisser sur un objet : musique de fond">'
-        + (inPlayback ? '⏹' : '🎹') + '</div>'
-      : (a.kind === 'documentUI')
-      ? '<div class="vignette script" title="Glisser sur un objet : affecter comme Document UI">📄</div>'
-      : (a.kind === 'sheetStyle')
-      ? '<div class="vignette script" title="Glisser sur un objet : affecter comme feuille de style">🎨</div>'
-      : (a.kind === 'animator')
-      ? '<div class="vignette script" title="Machine à états d’animation — glisser sur un personnage pour la lui affecter">🔀</div>'
-      : (a.kind === 'animation')
-      ? '<div class="vignette script" title="Animation — clic : réglages dans l’inspecteur · glisser sur un état du graphe Animator pour la lui affecter">🎞</div>'
-      : (a.kind === 'graphShader')
-      ? '<div class="vignette script" title="Double-clic : éditer le graphe · glisser sur un matériau (🎨) : lui assigner ce shader">🧩</div>'
-      : (a.kind === 'tilePalette')
-      ? '<div class="vignette script" title="Palette de tuiles — double-clic : ouvrir la fenêtre Palette · glisser sur une Tilemap pour la lui affecter">▦</div>'
-      : (a.kind === 'sprite')
-      ? '<div class="vignette script" title="Sprite 2D — clic : réglages dans l’inspecteur · glisser dans la vue 2D pour le poser">🖼</div>'
-      : (a.kind === 'preset')
-      ? '<div class="vignette script" title="Preset d’import — un jeu de réglages nommé. Il s’applique depuis l’en-tête de l’inspecteur d’un asset du même genre.">🔖</div>'
-      : '<div class="vignette"' + (a.kind === 'material' ? ' title="Double-clic : éditer · glisser sur un objet : affecter"' : '')
-        // Sans aperçu, PAS de style : `url('undefined')` partait en requête réseau, et le
-        // 404 qui suit (GET .../undefined) polluait la console à chaque rendu du panneau.
-        + (a.preview ? ' style="background-image:url(\''+a.preview+'\')"' : '') + '></div>';
-    const inPaint = (typeof modePaint !== 'undefined' && modePaint.asset === a);
-    const helpClick = IMPORT_DEFAULT[a.kind]
-      ? ' — clic : paramètres d\'import dans l\'inspector'
-      : ' — clic : détails dans l\'inspector';
-    // Un modèle se DÉPLIE, comme un FBX dans la fenêtre Project d'Unity : maillages, matériaux
-    // du fichier, clips, squelette. On ne les règle pas — on les regarde (voir
-    // sectionSubAssetHtml, js/import-settings.js) — d'où la flèche plutôt qu'un dossier.
-    const parts = subAssetsOfModel(a);
-    html += '<div class="tile' + (inPaint ? ' paint' : '')
-      + ((assetSelected === a && !a._sub) ? ' selection' : '')
-      + '" draggable="true" data-aid="'+a.id
-      + '" data-kind="'+a.kind+'" title="'+nameSafe+escapeHtml(helpClick)+'">'
-      + vignette
-      // Un genre sans libellé affiche son nom de type, jamais « undefined » (la palette de tuiles
-      // l'a fait jusqu'à la v0.197.0 : son entrée manquait à la table).
-      + '<span class="kind">'+escapeHtml(names[a.kind] || a.kind || '?')+'</span>'
-      + '<button class="del" title="Supprimer l’asset (et son fichier, en mode dossier)" aria-label="Supprimer">×</button>'
-      + (parts.length
-        ? '<button class="expand" title="' + (a._expanded ? 'Replier' : 'Voir ce que ce fichier '
-            + 'contient : ' + parts.length + ' élément(s)') + '">'
-          + (a._expanded ? '▾' : '▸') + '</button>' : '')
-      + (a.kind === 'prefab'
-        ? '<button class="paint' + (inPaint ? ' active' : '')
-          + '" title="Peindre ce prefab au clic dans la vue (Échap pour quitter)">🖌</button>' : '')
-      + (a.kind === 'graphShader'
-        ? '<button class="edit-shader" data-edit-shader="' + a.id + '" title="Ouvrir l\'éditeur de graphe (fenêtre séparée)">✎ Éditer</button>' : '')
-      + '<span class="name">'+nameSafe+'</span></div>';
-    if(a._expanded){
-      const LABELS_SUB = {mesh:'maillage', material:'matériau', animation:'clip',
-                          skeleton:'squelette', avatar:'avatar'};
-      parts.forEach(function(part){
-        const namePart = escapeHtml(part.name);
-        const on = (assetSelected === a && a._sub && a._sub.kind === part.kind
-                    && a._sub.index === part.index);
-        // Un clip se GLISSE, comme dans Unity : sur un état de l'Animator, il lui est affecté.
-        html += '<div class="tile submesh' + (on ? ' selection' : '')
-          + (part.clipId ? '" draggable="true" data-clip="' + part.clipId : '')
-          + '" data-aid="' + a.id + '" data-sub="' + part.kind + ':' + part.index
-          + '" title="' + namePart + ' — clic : le voir en lecture seule (aucun réglage)">'
-          + '<div class="vignette">' + part.icon + '</div>'
-          + '<span class="kind">' + LABELS_SUB[part.kind] + '</span>'
-          + '<span class="name">' + namePart + '</span></div>';
-      });
-    }
+    html += assetTileHtml(a);
   });
 
   projectBody.innerHTML = html
@@ -667,6 +594,213 @@ export function updateProject(){
           + 'Glissez ensuite un modèle ou un prefab dans la vue pour l\'instancier, '
           + 'une texture sur un objet pour l\'habiller.') + '</div>';
 }
+
+/**
+ * La tuile d'UN asset (et, dépliées dessous, celles de ce que contient un modèle).
+ *
+ * Une seule fabrique pour le dossier courant ET pour les résultats de recherche : une tuile
+ * trouvée doit se cliquer, se glisser vers la vue, la hiérarchie ou l'inspecteur exactement
+ * comme les autres — ce qui n'est vrai que si c'est la même tuile. `origin` (le dossier de
+ * l'asset) n'est passé qu'en recherche, où il s'affiche sous le nom.
+ */
+export function assetTileHtml(a, origin){
+  const names = ASSET_KIND_LABELS;
+  let html = '';
+  const nameSafe = escapeHtml(a.name);
+  // Le genre est testé AVANT `engineAudio` : ce rafraîchissement tourne pour chaque asset, et
+  // aussi dans des contextes (tests, pages sans audio) où le module audio n'est pas chargé.
+  const inPlayback = ((a.kind === 'audio' || a.kind === 'sfx' || a.kind === 'musicLoop')
+    && engineAudio.preview && engineAudio.preview.assetId === a.id);
+  const vignette = (a.kind === 'script')
+    ? '<div class="vignette script" title="Double-clic : éditer · glisser sur un objet : attacher">📜</div>'
+    : (a.kind === 'data')
+    ? '<div class="vignette script" title="Table de contenu — double-clic : éditer · lue par api.data(name)">🗂</div>'
+    : (a.kind === 'audio')
+    ? '<div class="vignette script" title="Double-clic : écouter / arrêter · glisser sur un objet : attacher">'
+      + (inPlayback ? '⏹' : '🔊') + '</div>'
+    : (a.kind === 'sfx')
+    ? '<div class="vignette script" title="Bruitage calculé — double-clic : régler dans le Rack sonore · glisser sur un objet : attacher">'
+      + (inPlayback ? '⏹' : '🎛') + '</div>'
+    : (a.kind === 'musicLoop')
+    ? '<div class="vignette script" title="Boucle musicale — double-clic : composer dans le Rack sonore (BX-16) · glisser sur un objet : musique de fond">'
+      + (inPlayback ? '⏹' : '🎹') + '</div>'
+    : (a.kind === 'documentUI')
+    ? '<div class="vignette script" title="Glisser sur un objet : affecter comme Document UI">📄</div>'
+    : (a.kind === 'sheetStyle')
+    ? '<div class="vignette script" title="Glisser sur un objet : affecter comme feuille de style">🎨</div>'
+    : (a.kind === 'animator')
+    ? '<div class="vignette script" title="Machine à états d’animation — glisser sur un personnage pour la lui affecter">🔀</div>'
+    : (a.kind === 'animation')
+    ? '<div class="vignette script" title="Animation — clic : réglages dans l’inspecteur · glisser sur un état du graphe Animator pour la lui affecter">🎞</div>'
+    : (a.kind === 'graphShader')
+    ? '<div class="vignette script" title="Double-clic : éditer le graphe · glisser sur un matériau (🎨) : lui assigner ce shader">🧩</div>'
+    : (a.kind === 'tilePalette')
+    ? '<div class="vignette script" title="Palette de tuiles — double-clic : ouvrir la fenêtre Palette · glisser sur une Tilemap pour la lui affecter">▦</div>'
+    : (a.kind === 'sprite')
+    ? '<div class="vignette script" title="Sprite 2D — clic : réglages dans l’inspecteur · glisser dans la vue 2D pour le poser">🖼</div>'
+    : (a.kind === 'preset')
+    ? '<div class="vignette script" title="Preset d’import — un jeu de réglages nommé. Il s’applique depuis l’en-tête de l’inspecteur d’un asset du même genre.">🔖</div>'
+    : '<div class="vignette"' + (a.kind === 'material' ? ' title="Double-clic : éditer · glisser sur un objet : affecter"' : '')
+      // Sans aperçu, PAS de style : `url('undefined')` partait en requête réseau, et le
+      // 404 qui suit (GET .../undefined) polluait la console à chaque rendu du panneau.
+      + (a.preview ? ' style="background-image:url(\''+a.preview+'\')"' : '') + '></div>';
+  const inPaint = (typeof modePaint !== 'undefined' && modePaint.asset === a);
+  const helpClick = IMPORT_DEFAULT[a.kind]
+    ? ' — clic : paramètres d\'import dans l\'inspector'
+    : ' — clic : détails dans l\'inspector';
+  // Un modèle se DÉPLIE, comme un FBX dans la fenêtre Project d'Unity : maillages, matériaux
+  // du fichier, clips, squelette. On ne les règle pas — on les regarde (voir
+  // sectionSubAssetHtml, js/import-settings.js) — d'où la flèche plutôt qu'un dossier.
+  const parts = subAssetsOfModel(a);
+  html += '<div class="tile' + (inPaint ? ' paint' : '')
+    + ((assetSelected === a && !a._sub) ? ' selection' : '')
+    + '" draggable="true" data-aid="'+a.id
+    + '" data-kind="'+a.kind+'" title="'+nameSafe+escapeHtml(helpClick)+'">'
+    + vignette
+    // Un genre sans libellé affiche son nom de type, jamais « undefined » (la palette de tuiles
+    // l'a fait jusqu'à la v0.197.0 : son entrée manquait à la table).
+    + '<span class="kind">'+escapeHtml(names[a.kind] || a.kind || '?')+'</span>'
+    + '<button class="del" title="Supprimer l’asset (et son fichier, en mode dossier)" aria-label="Supprimer">×</button>'
+    + (parts.length
+      ? '<button class="expand" title="' + (a._expanded ? 'Replier' : 'Voir ce que ce fichier '
+          + 'contient : ' + parts.length + ' élément(s)') + '">'
+        + (a._expanded ? '▾' : '▸') + '</button>' : '')
+    + (a.kind === 'prefab'
+      ? '<button class="paint' + (inPaint ? ' active' : '')
+        + '" title="Peindre ce prefab au clic dans la vue (Échap pour quitter)">🖌</button>' : '')
+    + (a.kind === 'graphShader'
+      ? '<button class="edit-shader" data-edit-shader="' + a.id + '" title="Ouvrir l\'éditeur de graphe (fenêtre séparée)">✎ Éditer</button>' : '')
+    // EN RECHERCHE, le dossier d'origine : la tuile vient de n'importe où dans le projet, et
+    // deux « Herbe » de deux dossiers seraient sinon indiscernables. Un clic y emmène.
+    + (origin !== undefined
+      ? '<span class="origin" data-folder="' + escapeHtml(origin) + '" title="Dans « '
+        + escapeHtml(folderLabelOf(origin)) + ' » — clic : ouvrir ce dossier">📁 '
+        + escapeHtml(folderLabelOf(origin)) + '</span>' : '')
+    + '<span class="name">'+nameSafe+'</span></div>';
+  if(a._expanded){
+    const LABELS_SUB = {mesh:'maillage', material:'matériau', animation:'clip',
+                        skeleton:'squelette', avatar:'avatar'};
+    parts.forEach(function(part){
+      const namePart = escapeHtml(part.name);
+      const on = (assetSelected === a && a._sub && a._sub.kind === part.kind
+                  && a._sub.index === part.index);
+      // Un clip se GLISSE, comme dans Unity : sur un état de l'Animator, il lui est affecté.
+      html += '<div class="tile submesh' + (on ? ' selection' : '')
+        + (part.clipId ? '" draggable="true" data-clip="' + part.clipId : '')
+        + '" data-aid="' + a.id + '" data-sub="' + part.kind + ':' + part.index
+        + '" title="' + namePart + ' — clic : le voir en lecture seule (aucun réglage)">'
+        + '<div class="vignette">' + part.icon + '</div>'
+        + '<span class="kind">' + LABELS_SUB[part.kind] + '</span>'
+        + '<span class="name">' + namePart + '</span></div>';
+    });
+  }
+  return html;
+}
+
+// ---------- La recherche du panneau Projet ----------
+// Le champ et le menu des genres vivent dans la barre d'outils du panneau (editor.html,
+// `#tools-project`). La logique — syntaxe `t:`, filtrage, tri — est dans js/asset-search.js,
+// pure et testée ; ce fichier-ci ne fait que l'afficher.
+export const projectSearch = document.getElementById('project-search');
+export const projectSearchKind = document.getElementById('project-search-kind');
+
+/** Le texte de recherche courant ('' quand le champ n'existe pas : tests, pages réduites). */
+export function projectSearchText(){
+  return projectSearch ? String(projectSearch.value || '') : '';
+}
+
+/** Remplace le texte de recherche et redessine le panneau. `''` revient au dossier courant. */
+export function setProjectSearch(text){
+  if(!projectSearch) return;
+  projectSearch.value = text || '';
+  refreshProjectSearchKind();
+  updateProject();
+}
+
+/** Le bouton des genres s'allume quand un `t:` filtre la liste : sans ça, rien ne dit pourquoi
+ *  la moitié des assets manquent. */
+export function refreshProjectSearchKind(){
+  if(!projectSearchKind) return;
+  const q = parseAssetQuery(projectSearchText());
+  projectSearchKind.classList.toggle('active', q.kindIds.length > 0);
+}
+
+/** Les résultats : un bandeau (combien, où, comment sortir), les dossiers puis les tuiles. */
+export function searchResultsHtml(found, text){
+  const q = parseAssetQuery(text);
+  let html = '<div class="search-header">'
+    + (found.length ? found.length + ' asset' + (found.length > 1 ? 's' : '') + ' dans tout le projet'
+                    : 'Aucun asset ne correspond')
+    + (q.kindIds.length ? ' · genre : ' + escapeHtml(q.kindIds.map(function(id){
+        const k = ASSET_SEARCH_KINDS.find(function(x){ return x.id === id; });
+        return k ? k.label : id;
+      }).join(', ')) : '')
+    + '<button class="search-clear" title="Effacer la recherche et revenir au dossier courant (Échap)">'
+    + '✕ Effacer</button></div>';
+  if(q.unknownTypes.length){
+    // Une faute de frappe dans un `t:` vide la liste : on dit lequel n'a pas été compris, et ce
+    // qu'on sait lire — sinon une liste vide ressemble à un projet sans assets.
+    html += '<div class="none search-help">Genre inconnu : <b>'
+      + escapeHtml(q.unknownTypes.map(function(t){ return 't:' + t; }).join(', ')) + '</b>. Genres reconnus : '
+      + escapeHtml(ASSET_SEARCH_KINDS.map(function(k){ return 't:' + k.aliases[0]; }).join(', ')) + '.</div>';
+  }
+  searchFolders(listFolders(), text).forEach(function(filePath){
+    html += '<div class="tile folder" data-path="' + escapeHtml(filePath)
+      + '" title="Double-clic : ouvrir ce dossier (la recherche est effacée)">'
+      + '<div class="vignette">📁</div>'
+      + '<span class="kind">dossier</span>'
+      + '<span class="origin" data-folder="' + escapeHtml(filePath.split('/').slice(0, -1).join('/'))
+      + '">📁 ' + escapeHtml(folderLabelOf(filePath.split('/').slice(0, -1).join('/'))) + '</span>'
+      + '<span class="name">' + escapeHtml(filePath.split('/').pop()) + '</span></div>';
+  });
+  found.forEach(function(a){ html += assetTileHtml(a, a.folder || ''); });
+  return html;
+}
+
+/** Va dans un dossier en quittant la recherche (clic sur l'origine d'une tuile trouvée). */
+export function openFolderFromSearch(filePath){
+  folderCurrent = filePath || '';
+  revealFolderInTree(folderCurrent);
+  if(projectSearch) projectSearch.value = '';
+  refreshProjectSearchKind();
+  updateProject();
+}
+
+/** Le menu des genres : il écrit ou retire un `t:` dans le champ, rien d'autre. */
+export function openProjectSearchKindMenu(){
+  if(!projectSearch || !projectSearchKind) return;
+  const q = parseAssetQuery(projectSearchText());
+  const items = [{label: 'Filtrer par genre', header: true},
+    {label: (q.kindIds.length ? '　' : '✓ ') + 'Tous les genres', action: function(){
+      setProjectSearch(clearKindTokens(projectSearchText()));
+    }},
+    {sep: true}];
+  ASSET_SEARCH_KINDS.forEach(function(k){
+    items.push({label: (q.kindIds.indexOf(k.id) !== -1 ? '✓ ' : '　') + escapeHtml(k.label)
+        + ' <span class="menu-hint">t:' + escapeHtml(k.aliases[0]) + '</span>',
+      action: function(){ setProjectSearch(toggleKindToken(projectSearchText(), k.id)); }});
+  });
+  const r = projectSearchKind.getBoundingClientRect();
+  openMenuContext(r.left, r.bottom + 2, items, r);
+}
+
+if(projectSearch){
+  projectSearch.addEventListener('input', function(){
+    refreshProjectSearchKind();
+    updateProject();
+  });
+  projectSearch.addEventListener('keydown', function(e){
+    // Échap VIDE le champ, comme dans Unity, et ne remonte pas : le raccourci global Échap
+    // (fermer, vider la sélection multiple…) n'a rien à faire d'une frappe dans ce champ.
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      e.stopPropagation();
+      if(projectSearchText()) setProjectSearch('');
+      else projectSearch.blur();
+    }
+  });
+}
+if(projectSearchKind) projectSearchKind.addEventListener('click', openProjectSearchKindMenu);
 
 // navigation, création, renommage et suppression depuis l'arbre
 foldersTree.addEventListener('click', function(e){
@@ -681,8 +815,9 @@ foldersTree.addEventListener('click', function(e){
   if(e.target.classList.contains('d-plus')){ createFolderIn(filePath); return; }
   if(e.target.classList.contains('d-ren')){ if(filePath) renameFolder(filePath); return; }
   if(e.target.classList.contains('d-del')){ if(filePath) deleteFolder(filePath); return; }
-  folderCurrent = filePath;
-  updateProject();
+  // Cliquer un dossier de l'arbre QUITTE la recherche, comme dans Unity : sinon le panneau
+  // resterait sur les résultats et le dossier choisi ne s'afficherait pas.
+  openFolderFromSearch(filePath);
 });
 foldersTree.addEventListener('dragover', function(e){
   const l = e.target.closest ? e.target.closest('.folder-line') : null;
@@ -741,11 +876,9 @@ export function isDoubleClickOn(a, now){
 
 projectBody.addEventListener('dblclick', function(e){
   const tileFolder = e.target.closest ? e.target.closest('.tile.folder') : null;
-  if(tileFolder){
-    folderCurrent = tileFolder.dataset.path;
-    revealFolderInTree(folderCurrent);
-    updateProject();
-  }
+  // Entrer dans un dossier QUITTE la recherche : sinon le panneau resterait sur les résultats
+  // et le dossier ouvert ne se verrait pas.
+  if(tileFolder) openFolderFromSearch(tileFolder.dataset.path);
 });
 
 // Ce que fait un double-clic sur un asset : l'ouvrir dans son éditeur.
@@ -1375,12 +1508,22 @@ export function removeAssetInMemory(a){
  */
 export function removeAsset(a){
   if(!a) return [];
+  pushHistory();
+  return removeAssetAndFile(a);
+}
+
+/**
+ * `removeAsset` SANS le pas d'historique : pour un geste qui en a déjà posé un et retire un asset
+ * parmi d'autres changements (« Effacer la cuisson », js/lightmap-bake.js). Deux pas pour un seul
+ * geste feraient défaire la moitié de la suppression au premier Ctrl+Z.
+ */
+export function removeAssetAndFile(a){
+  if(!a) return [];
   const namesDisk = [];
   if(project.handleFolder){
     const d = diskAssetManifest().assets.find(function(x){ return x.id === a.id; });
     if(d) namesDisk.push.apply(namesDisk, d.files || (d.file ? [d.file] : []));
   }
-  pushHistory();
   const holders = removeAssetInMemory(a);
   if(namesDisk.length){
     // CE QUI A ÉTÉ TENTÉ EST DIT, dans la Console de l'éditeur. Un utilisateur a signalé « les
@@ -1410,6 +1553,12 @@ export function removeAsset(a){
 }
 
 projectBody.addEventListener('click', function(e){
+  // Les deux gestes propres à la RECHERCHE : l'origine d'une tuile trouvée emmène dans son
+  // dossier, « Effacer » rend le dossier courant. Avant tout le reste : l'origine est DANS la
+  // tuile, et la laisser filer sélectionnerait l'asset au lieu d'y aller.
+  const origin = e.target.closest ? e.target.closest('.origin') : null;
+  if(origin){ openFolderFromSearch(origin.dataset.folder || ''); return; }
+  if(e.target.closest && e.target.closest('.search-clear')){ setProjectSearch(''); return; }
   const tileFolder = e.target.closest ? e.target.closest('.tile.folder') : null;
   if(tileFolder){
     if(e.target.classList.contains('del')) deleteFolder(tileFolder.dataset.path);
@@ -1567,12 +1716,15 @@ export function createAssetTexture(file, opts){
              rgbm:!!(opts && opts.rgbm)};
   // L'image arrive de façon asynchrone : c'est seulement à ce moment que la réduction
   // « taille max » peut être calculée, et que la résolution est connue.
-  a.texture = new THREE.TextureLoader().load(url, function(t){
+  if(isHdrFileName(file.name)) loadHdrIntoAsset(a, file);
+  else a.texture = new THREE.TextureLoader().load(url, function(t){
     a.imageSource = t.image;
     a.dimensionsSource = [t.image.width, t.image.height];
     applyImportTexture(a);
     refreshInspectorAsset();
     refreshSpritesOfTexture(a);
+    // Le ciel de la scène attendait peut-être cette image (panorama relu à l'ouverture).
+    if(typeof refreshSkyOfAsset === 'function') refreshSkyOfAsset(a);
   });
   configureTexture(a.texture, ensureParamsImport(a), {});
   assets.push(a);
@@ -1585,6 +1737,44 @@ export function createAssetTexture(file, opts){
       .catch(function(e){ setStatus('Asset créé en mémoire mais pas écrit sur le disque : ' + e.message, 5000); });
   }
   return a;
+}
+
+/**
+ * Une HDRI (.hdr / .exr) : le navigateur ne la décode pas, three la lit (js/environment-map.js).
+ *
+ * L'asset reçoit TOUT DE SUITE une texture provisoire d'un pixel noir — tout ce qui le lit
+ * avant la fin de la lecture (le ciel, un matériau) trouve une texture valide, jamais `null`. À
+ * la lecture, la vraie texture la REMPLACE (nouvel objet, donc nouvelle signature du reflet de
+ * ciel), et la vignette devient une image 8 bits tirée de la HDRI : une balise <img> ne saurait
+ * pas afficher le fichier lui-même.
+ */
+export function loadHdrIntoAsset(a, file){
+  const placeholder = new THREE.DataTexture(new Uint16Array(4), 1, 1, THREE.RGBAFormat, THREE.HalfFloatType);
+  placeholder.mapping = THREE.EquirectangularReflectionMapping;
+  placeholder.needsUpdate = true;
+  a.texture = placeholder;
+  return file.arrayBuffer().then(function(buffer){
+    const tex = textureFromHdr(buffer, file.name);
+    a.texture = tex;
+    a.dimensionsSource = [tex.image.width, tex.image.height];
+    const px = hdrPreviewPixels(tex, 256);
+    if(px){
+      const cv = document.createElement('canvas');
+      cv.width = px.width; cv.height = px.height;
+      cv.getContext('2d').putImageData(new ImageData(px.data, px.width, px.height), 0, 0);
+      a.imageSource = cv;
+      if(a.preview && a.preview.indexOf('blob:') === 0) URL.revokeObjectURL(a.preview);
+      a.preview = cv.toDataURL('image/png');
+    }
+    applyImportTexture(a);
+    refreshInspectorAsset();
+    if(typeof refreshSkyOfAsset === 'function') refreshSkyOfAsset(a);
+    return a;
+  }).catch(function(e){
+    logConsole('error', 'HDRI « ' + a.name + ' » illisible : ' + (e && e.message ? e.message : e), null);
+    setStatus('HDRI « ' + a.name + ' » illisible — voir la Console', 5000);
+    return a;
+  });
 }
 
 // Remplace le CONTENU d'un asset texture en gardant son identité. Tout l'intérêt est là :
@@ -1832,9 +2022,10 @@ export function importFiles(files, opts){
   const list = Array.from(files);
   const models = list.filter(f => /\.(glb|gltf|fbx)$/i.test(f.name));
   // Uniquement les formats que le navigateur sait DÉCODER lui-même : la texture passe par
-  // une balise <img> (THREE.TextureLoader). Un format qu'il refuse (TIFF, TGA, EXR, HDR)
-  // ne donnerait pas une erreur mais une texture noire — pire qu'un refus franc.
-  const images = list.filter(f => /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i.test(f.name));
+  // une balise <img> (THREE.TextureLoader). Un format qu'il refuse (TIFF, TGA) ne donnerait
+  // pas une erreur mais une texture noire — pire qu'un refus franc. Seule exception : les HDRI
+  // (.hdr, .exr), que three lit lui-même (loadHdrIntoAsset).
+  const images = list.filter(f => /\.(png|jpe?g|webp|gif|bmp|avif|svg|hdr|exr)$/i.test(f.name));
   const audios = list.filter(f => /\.(mp3|wav|ogg|m4a)$/i.test(f.name));
 
   // importeurs apportés par les plugins (formats maison : .lvl, .csv, .tmx…)

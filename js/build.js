@@ -121,6 +121,7 @@ export const BUILD_MODULES = [
   {src: 'js/physics-2d.js'},
   {src: 'js/world-2d.js'},
   {src: 'js/sky-camera.js'},
+  {src: 'js/environment-map.js'},
   {src: 'js/tilemap.js'},
   {src: 'js/camera-framing.js'},
   {src: 'js/audio-falloff.js'},
@@ -369,6 +370,7 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     + emb('world-2d.js')
     + emb('camera-framing.js')
     + '<script type="module" src="sky-camera.js"><\/script>\n'
+    + '<script type="module" src="environment-map.js"><\/script>\n'
     + '<script type="module" src="audio-falloff.js"><\/script>\n'
     + '<script type="module" src="audio-bus.js"><\/script>\n'
     + '<script type="module" src="chip-synth.js"><\/script>\n'

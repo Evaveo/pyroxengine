@@ -211,23 +211,30 @@ export function postInit(){
   postprod.ready = true;
 }
 
-export function postSizes(w, h){
-  if(postprod.w === w && postprod.h === h && postprod.rtScene) return;
-  postprod.w = w;
-  postprod.h = h;
-  [postprod.rtScene, postprod.rtBright, postprod.rtA, postprod.rtB].forEach(function(rt){
+/** Un jeu de cibles de post-traitement NEUF, pour une vue qui rend à sa propre taille
+ *  (la vue Jeu). Alloué paresseusement par `postSizes`. */
+export function createPostTargets(){
+  return {w: 0, h: 0, rtScene: null, rtBright: null, rtA: null, rtB: null};
+}
+
+export function postSizes(w, h, targets){
+  const t = targets || postprod;
+  if(t.w === w && t.h === h && t.rtScene) return;
+  t.w = w;
+  t.h = h;
+  [t.rtScene, t.rtBright, t.rtA, t.rtB].forEach(function(rt){
     if(rt) rt.dispose();
   });
   const opt = {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
                format: THREE.RGBAFormat, stencilBuffer: false};
   const pr = renderer.getPixelRatio();
   const pw = Math.max(1, Math.floor(w * pr)), ph = Math.max(1, Math.floor(h * pr));
-  postprod.rtScene = new THREE.WebGLRenderTarget(pw, ph, opt);
-  postprod.rtScene.depthBuffer = true;
+  t.rtScene = new THREE.WebGLRenderTarget(pw, ph, opt);
+  t.rtScene.depthBuffer = true;
   const dw = Math.max(1, pw >> 1), dh = Math.max(1, ph >> 1);   // bloom en demi-résolution
-  postprod.rtBright = new THREE.WebGLRenderTarget(dw, dh, opt);
-  postprod.rtA = new THREE.WebGLRenderTarget(dw, dh, opt);
-  postprod.rtB = new THREE.WebGLRenderTarget(dw, dh, opt);
+  t.rtBright = new THREE.WebGLRenderTarget(dw, dh, opt);
+  t.rtA = new THREE.WebGLRenderTarget(dw, dh, opt);
+  t.rtB = new THREE.WebGLRenderTarget(dw, dh, opt);
 }
 
 // index du mode pour le shader de composition
@@ -308,7 +315,7 @@ export function postStateIsNoop(p){
 // override (ou dont l'asset avait disparu) laissait le pipeline appliquer les valeurs de
 // `env.post`, donc l'image gardait « toujours la meme gueule » quoi qu'on regle dans le
 // profil. Aucun volume ne contribue = aucun post-traitement, point.
-export function postRender(sc, cam, w, h, time){
+export function postRender(sc, cam, w, h, time, targets){
   const volumes = resolvePostVolumesForBlend();
   const camPos = cam.getWorldPosition(new THREE.Vector3());
   const merged = volumes.length ? blendPostVolumes(volumes, {x:camPos.x, y:camPos.y, z:camPos.z}) : null;
@@ -324,41 +331,45 @@ export function postRender(sc, cam, w, h, time){
     return;
   }
   postInit();
-  postSizes(w, h);
+  postSizes(w, h, targets);
+  // Les CIBLES de cette vue : celles de la vue Scène par défaut, celles de la vue Jeu quand
+  // c'est elle qui rend (js/game-view.js). Deux vues de tailles différentes sur les mêmes cibles
+  // les réalloueraient deux fois par image. Les matériaux de passe, eux, se partagent.
+  const t = targets || postprod;
 
   // la scène est rendue brute : exposition et tone mapping sont faits à la composition
-  renderer.setRenderTarget(postprod.rtScene);
+  renderer.setRenderTarget(t.rtScene);
   renderer.clear();
   renderer.render(sc, cam);
 
   // bloom
   let bloomTex = null;
   if(p.bloom && p.bloomIntensity > 0){
-    postprod.matBright.tSrcNode.value = postprod.rtScene.texture;
+    postprod.matBright.tSrcNode.value = t.rtScene.texture;
   // MEME sens pour TOUTES les lectures de cible (voir uvTargetRead) : scene, flou, bloom
     postprod.matBright.uFlipV.value = postFlipV() ? 1 : 0;
     postprod.matBright.uThreshold.value = p.bloomThreshold;
-    pass(postprod.matBright, postprod.rtBright);
-    const tw = postprod.rtBright.width, th = postprod.rtBright.height;
+    pass(postprod.matBright, t.rtBright);
+    const tw = t.rtBright.width, th = t.rtBright.height;
     const r = Math.max(0.2, p.bloomRadius);
     postprod.matBlur.uFlipV.value = postFlipV() ? 1 : 0;
-    let src = postprod.rtBright;
+    let src = t.rtBright;
     for(let i = 0; i < 2; i++){          // deux itérations = halo plus large
       postprod.matBlur.tSrcNode.value = src.texture;
       postprod.matBlur.uDir.value.set(r * (i + 1) / tw, 0);
-      pass(postprod.matBlur, postprod.rtA);
-      postprod.matBlur.tSrcNode.value = postprod.rtA.texture;
+      pass(postprod.matBlur, t.rtA);
+      postprod.matBlur.tSrcNode.value = t.rtA.texture;
       postprod.matBlur.uDir.value.set(0, r * (i + 1) / th);
-      pass(postprod.matBlur, postprod.rtB);
-      src = postprod.rtB;
+      pass(postprod.matBlur, t.rtB);
+      src = t.rtB;
     }
-    bloomTex = postprod.rtB.texture;
+    bloomTex = t.rtB.texture;
   }
 
   // composition
   const mc = postprod.matComposite;
-  mc.tSrcNode.value = postprod.rtScene.texture;
-  mc.tBloomNode.value = bloomTex || postprod.rtBright.texture;
+  mc.tSrcNode.value = t.rtScene.texture;
+  mc.tBloomNode.value = bloomTex || t.rtBright.texture;
   mc.uFlipV.value = postFlipV() ? 1 : 0;
   mc.uBloom.value = bloomTex ? p.bloomIntensity : 0;
   mc.uContraste.value = p.contraste;

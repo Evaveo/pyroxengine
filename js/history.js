@@ -283,7 +283,9 @@ export function restoreAssets(list){
   const presents = new Set(assets.map(function(a){ return a.id; }));
   list.forEach(function(a){
     if(presents.has(a.id)) return;
-    if(a.kind === 'texture' && a.file && typeof URL !== 'undefined' && URL.createObjectURL){
+    // Une vignette `data:` (celle d'une HDRI, js/assets.js) n'a pas été révoquée : on la garde.
+    if(a.kind === 'texture' && a.file && typeof URL !== 'undefined' && URL.createObjectURL
+       && !/^data:/.test(a.preview || '')){
       a.preview = URL.createObjectURL(a.file);
     }
   });

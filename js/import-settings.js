@@ -530,7 +530,7 @@ export function configureTexture(tex, p, opts){
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
   }
-  tex.colorSpace = spaceColorTexture(p);
+  tex.colorSpace = (tex.type === THREE.HalfFloatType || tex.type === THREE.FloatType) ? THREE.LinearSRGBColorSpace : spaceColorTexture(p);   // HDRI : déjà linéaire
   tex.anisotropy = Math.max(1, Math.min(anisotropyMax(), p.anisotropy || 1));
   if(opts.flipYAuto !== undefined){
     tex.flipY = (p.invertY === 'auto') ? !!opts.flipYAuto : (p.invertY === 'oui');
@@ -559,7 +559,7 @@ export function applyImportTexture(a){
   const p = ensureParamsImport(a);
   if(!p || !a.texture) return 0;
   // réduction éventuelle : le masque combiné est repacké depuis l'image, son hidden saute
-  const img = imageForTexture(a, p);
+  const img = a.texture.isDataTexture ? null : imageForTexture(a, p);   // une HDRI ne passe pas par un canvas
   if(img && a.texture.image !== img){
     a.texture.image = img;
     cacheCombined.delete(a.id);

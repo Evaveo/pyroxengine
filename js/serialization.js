@@ -642,8 +642,18 @@ export function diskAssetManifest(){
   }
   for(const a of assets){
     if((a.kind === 'texture' || a.kind === 'audio') && a.file){
-      dAssets.push({id:a.id, kind:a.kind, name:a.name, folder:a.folder || '',
-        paramsImport:a.paramsImport || null, files:[a.file.name]});
+      const d = {id:a.id, kind:a.kind, name:a.name, folder:a.folder || '',
+        paramsImport:a.paramsImport || null, files:[a.file.name]};
+      // `cuite` et `rgbm` PARTENT AUSSI dans project.json — le manifeste d'un projet-dossier les
+      // perdait, alors que l'archive (assetsSerialized, plus haut) et la relecture
+      // (rebuildAssetsFromDescriptors) les portaient déjà. Une lightmap cuite relue devenait une
+      // texture COULEUR ordinaire : son RGBM n'était plus décodé (éclairage faux, saturé), et
+      // « Effacer la cuisson » comme une nouvelle cuisson ne la reconnaissaient plus — la
+      // suivante en créait une seconde à côté. Écrits SEULEMENT quand ils sont vrais : le
+      // manifeste d'une texture ordinaire ne change pas d'un octet.
+      if(a.kind === 'texture' && a.cuite) d.cuite = true;
+      if(a.kind === 'texture' && a.rgbm) d.rgbm = true;
+      dAssets.push(d);
     } else if(a.kind === 'model'){
       const names = (a.paquet || []).map(function(f){ return f.name; });
       if(names.length) dAssets.push({id:a.id, kind:'model', name:a.name, folder:a.folder || '',
@@ -1667,7 +1677,9 @@ export function newScene(effacerAssets){
   // cause, plutôt que de la rechasser une par une.
   const fixturesPermanentes = new Set([hemi, sun, grid, tcVisual, proxyView].filter(Boolean));
   scene.children.slice().forEach(function(o){
-    if(fixturesPermanentes.has(o)) return;
+    // `editorFixture` : une fixture d'éditeur qui ne vit pas dans scene.js — la racine des
+    // icônes d'édition (js/gizmo-icons.js), qui se vide d'elle-même quand ses nœuds disparaissent.
+    if(fixturesPermanentes.has(o) || (o.userData && o.userData.editorFixture)) return;
     scene.remove(o);
     o.traverse(function(d){
       if(d.geometry) d.geometry.dispose();

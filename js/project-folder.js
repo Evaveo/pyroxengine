@@ -575,7 +575,7 @@ export async function rereadFileFromFolder(root, folderAsset, fileName){
 // comportement sur celui d'un moteur : le dossier fait foi, le manifeste ne fait que
 // porter les métadonnées (name, paramètres d'import, identifiants).
 export const EXT_KIND_ASSET = [
-  [/\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i, 'texture'],
+  [/\.(png|jpe?g|webp|gif|bmp|avif|svg|hdr|exr)$/i, 'texture'],   // .hdr/.exr : HDRI, lues par three
   [/\.(mp3|wav|ogg|m4a)$/i,                 'audio'],
   [/\.(glb|gltf|fbx)$/i,                    'model'],
   [/\.material\.json$/i,                    'material'],

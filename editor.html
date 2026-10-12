@@ -146,6 +146,7 @@
       <button id="filter-shaders" class="ui-icon-btn"
         title="Shaders — coupe les matériaux à graphe de shader : ceux qui en portent un reviennent à un PBR neutre"><i class="ph ph-tree-structure" aria-hidden="true"></i></button>
       <button id="filter-grid" class="ui-icon-btn" title="Grille de sol"><i class="ph ph-grid-nine" aria-hidden="true"></i></button>
+      <button id="filter-gizmos" class="ui-icon-btn" title="Icônes et gizmos d'édition (lumières, caméras, sondes…)"><i class="ph ph-shapes" aria-hidden="true"></i></button>
     </div>
   </div>
 
@@ -228,6 +229,20 @@
     <div id="rubber-band" style="display:none"></div>
   </div>
 
+  <!-- LA VUE JEU (js/game-view.js) : la scène à travers la caméra principale, sans aucun élément
+       d'édition — le Game view d'Unity hors lecture. Adoptée par le dock en onglet à côté de la
+       vue (js/ui/panels-shell.js). Son canevas est rendu par le MÊME renderer que la vue Scène
+       (THREE.CanvasTarget), seulement quand l'onglet est regardé. -->
+  <div id="game-view" style="display:none">
+    <div id="game-view-stage"><canvas id="game-view-canvas"></canvas></div>
+    <div id="game-view-message" class="none" hidden></div>
+  </div>
+  <span id="tools-game-view" style="display:none">
+    <span id="game-view-note" hidden></span>
+    <span id="game-view-camera" title="La caméra que filmera le jeu : celle cochée « Caméra principale », sinon la première de la scène" hidden></span>
+    <select id="game-view-aspect" title="Rapport d'image de l'aperçu (Libre : toute la place du panneau, comme le jeu dans une fenêtre)"></select>
+  </span>
+
   <div id="insp">
     <!-- Plus de barre de titre ici : le dock rend l onglet « Inspecteur » au-dessus de la
          zone. Deux titres pour le meme panneau, c est le doublon a retirer. -->
@@ -250,8 +265,18 @@
         <button id="btn-make" title="Fabriquer une image ou un bruitage sans aucun fichier source : planche de tuiles, personnage, damier, saut, impact… L'aperçu se voit et s'écoute AVANT la création.">🎲 Fabriquer</button>
         <button id="btn-new-folder" title="Nouveau dossier dans le dossier courant">📁 Dossier</button>
         <button id="btn-refresh-folder" title="Relire le dossier de projet sur le disque MAINTENANT : la synchronisation automatique le fait toute seule, ce bouton sert quand on ne veut pas l'attendre — ou quand elle s'est arrêtée (accès au dossier perdu), auquel cas il la redémarre.">🔄 Rafraîchir</button>
+        <!-- LA RECHERCHE, comme celle du Project Browser d'Unity : dès qu'elle est remplie, le
+             panneau montre les assets de TOUS les dossiers (logique pure dans
+             js/asset-search.js). `t:Material`, `t:Texture`… filtrent par genre ; le bouton
+             à côté écrit ces `t:` à votre place. Échap vide le champ. -->
+        <span id="project-search-box">
+          <input type="search" id="project-search" placeholder="🔎 Rechercher (t:Material…)"
+            spellcheck="false" autocomplete="off"
+            title="Cherche dans TOUT le projet, par nom. t:Material, t:Texture, t:Prefab… (ou t:Matériau, t:Son…) filtrent par genre, combinables avec du texte. Échap vide le champ.">
+          <button id="project-search-kind" title="Filtrer par genre d'asset (écrit un t: dans la recherche)">🏷 Genre</button>
+        </span>
         <input type="file" id="file-import" multiple
-          accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.gif,.bmp,.mp3,.wav,.ogg,.m4a" style="display:none">
+          accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.gif,.bmp,.hdr,.exr,.mp3,.wav,.ogg,.m4a" style="display:none">
       </span>
       <span id="tools-anim" style="display:none">
         <button id="an-start" title="Retour au début">⏮</button>
@@ -282,6 +307,8 @@
     </div>
     <div id="project-zone">
       <div id="folders-tree"></div>
+      <!-- Poignée de largeur de l'arbre (js/ui/folders-tree-resize.js) ; double-clic : défaut. -->
+      <div id="folders-tree-handle" class="dock-handle dock-handle-v" title="Glisser pour redimensionner (double-clic : largeur par défaut)"></div>
       <div id="project-body"><div class="none">Importez des modèles 3D et des textures, ou déposez des fichiers ici.
         Glissez ensuite un modèle ou un prefab dans la view pour l'instancier, une texture sur un objet pour l'habiller.</div></div>
     </div>
@@ -348,6 +375,7 @@
 <script type="module" src="js/ui/segmented.js"></script>
 <script type="module" src="js/ui/registry.js"></script>
 <script type="module" src="js/ui/prefs.js"></script>
+<script type="module" src="js/ui/folders-tree-resize.js"></script>
 <script type="module" src="js/ui/form-plan.js"></script>
 <script type="module" src="js/ui/fields.js"></script>
 <script type="module" src="js/ui/form.js"></script>
@@ -391,6 +419,7 @@
 <script type="module" src="js/rigid-body.js"></script>
 <script type="module" src="js/collider.js"></script>
 <script type="module" src="js/post-volume-viz.js"></script>
+<script type="module" src="js/gizmo-icons.js"></script>
 <script type="module" src="js/components/component-mesh.js"></script>
 <script type="module" src="js/components/component-model.js"></script>
 <script type="module" src="js/components/component-skinned-mesh.js"></script>
@@ -431,6 +460,7 @@
 <script type="module" src="js/physics-2d.js"></script>
 <script type="module" src="js/world-2d.js"></script>
 <script type="module" src="js/sky-camera.js"></script>
+<script type="module" src="js/environment-map.js"></script>
 <script type="module" src="js/camera-framing.js"></script>
 <script type="module" src="js/audio-falloff.js"></script>
 <script type="module" src="js/audio-bus.js"></script>
@@ -466,6 +496,8 @@
 <script src="vendor/three-meshopt.min.js" defer></script>
 <script src="vendor/three-ktx2.min.js" defer></script>
 <script type="module" src="js/asset-compression.js"></script>
+<!-- Pur, sans import : la recherche du panneau Projet (syntaxe t: d'Unity). -->
+<script type="module" src="js/asset-search.js"></script>
 <script type="module" src="js/assets.js"></script>
 <script type="module" src="js/environment.js"></script>
 <!-- AVANT selection.js et animation.js, qui lisent `osSelectionne`. C est un `let` : `typeof`
@@ -473,6 +505,8 @@
 <script type="module" src="js/skeleton.js"></script>
 <script type="module" src="js/selection.js"></script>
 <script type="module" src="js/hierarchy-icon.js"></script>
+<!-- Pur, sans import : Maj+clic dans la hiérarchie (sélection par plage). -->
+<script type="module" src="js/hierarchy-range.js"></script>
 <script type="module" src="js/hierarchy.js"></script>
 <script type="module" src="js/console.js"></script>
 <script type="module" src="js/shader-graph.js"></script>
@@ -504,6 +538,10 @@
 <script type="module" src="js/systems/sprite-system.js"></script>
 <script type="module" src="js/systems/fog-system.js"></script>
 <script type="module" src="js/systems/camera-system.js"></script>
+<!-- Purs, sans import : le registre des vues supplémentaires que la boucle rend, et les règles
+     de la vue Jeu (caméra principale, rapport d'image). -->
+<script type="module" src="js/extra-views.js"></script>
+<script type="module" src="js/game-view-core.js"></script>
 <script type="module" src="js/viewport.js"></script>
 <script type="module" src="js/placement.js"></script>
 <script type="module" src="js/profiler.js"></script>
@@ -595,5 +633,8 @@
 <script type="module" src="js/hub/template-platformer-2d.js"></script>
 <script type="module" src="js/hub/template-third-person.js"></script>
 <script type="module" src="js/hub/template-webxr-vr.js"></script>
+<!-- La vue Jeu : APRÈS tout ce qu'elle importe, avant startup.js qui l'amorce (bootGameView).
+     Aucun module du grand cycle ne l'importe — viewport.js la rend par js/extra-views.js. -->
+<script type="module" src="js/game-view.js"></script>
 <script type="module" src="js/startup.js"></script>
 </body>

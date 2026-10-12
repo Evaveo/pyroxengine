@@ -161,7 +161,7 @@ test('ombre d\'une directionnelle : réglages imposés, sinon automatiques', () 
 
 test('environnement : les clés de configure_environment atteignent le format, le sol de l\'hémisphère aussi', () => {
   const calls = [];
-  const $ = load(['js/environment.js'],
+  const $ = load(['js/environment-map.js', 'js/environment.js'],
     'var THREE = {Color: function(c){ this.c = c; }, Fog: function(){}};'
     + 'var hemi = {color: {set: function(v){ calls.push(["sky", v]); }}, groundColor: {set: function(v){ calls.push(["ground", v]); }}};'
     + 'var sun = {}; var scene = {}; var assets = []; var calls = [];');

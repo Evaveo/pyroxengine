@@ -101,6 +101,8 @@ function chargerHierarchie(objectsScene) {
     pushHistory: () => {},
     updateTimeline: () => {},
     syncInspector: () => {},
+    // Ctrl+clic reconstruit l'inspecteur (il suit la multi-sélection) : voir hierarchie-plage.
+    buildInspector: () => {},
     itemsCreationContext: () => [],
     openMenuContext: () => {},
     typePlugin: () => null
@@ -124,6 +126,8 @@ function chargerHierarchie(objectsScene) {
   vm.runInContext(deEsm(fs.readFileSync(path.join(dirname, '..', 'js', 'render-perf.js'), 'utf8')), ctx);
   vm.runInContext(deEsm(fs.readFileSync(path.join(dirname, '..', 'js', 'ui', 'icon.js'), 'utf8')), ctx);
   vm.runInContext(deEsm(fs.readFileSync(path.join(dirname, '..', 'js', 'hierarchy-icon.js'), 'utf8')), ctx);
+  // Les gestes (clic, Ctrl, Maj) se lisent par js/hierarchy-range.js : le vrai module, pur.
+  vm.runInContext(deEsm(fs.readFileSync(path.join(dirname, '..', 'js', 'hierarchy-range.js'), 'utf8')), ctx);
   vm.runInContext(deEsm(fs.readFileSync(path.join(dirname, '..', 'js', 'hierarchy.js'), 'utf8')), ctx);
   return { ctx, hierBody, appels };
 }

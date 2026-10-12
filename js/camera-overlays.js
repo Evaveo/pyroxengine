@@ -28,16 +28,22 @@ export function viewportPixels(vp, width, height){
  * Rend, par-dessus l'image déjà produite, chaque caméra active qui porte un `viewport`.
  * `nodes` : les porteurs d'un composant Camera (Registry.activeNodes('Camera')).
  * Rend le nombre de caméras incrustées.
+ *
+ * `opts` (facultatif) sert la vue Jeu de l'éditeur (js/game-view.js) : `camOf(node)` lit la
+ * caméra three là où l'éditeur la range (`ed(node).cam` ; le jeu publié la recopie dans
+ * `userData.cam`), et `width`/`height` donnent la taille de SON canevas — `renderer.domElement`
+ * est celui de la vue Scène.
  */
-export function renderCameraOverlays(renderer, scene, mainCam, nodes){
+export function renderCameraOverlays(renderer, scene, mainCam, nodes, opts){
   if(!renderer || !nodes || !nodes.length) return 0;
+  const o = opts || {};
   // Taille en pixels CSS, lue sur le canevas : c'est ce qu'attendent setViewport/setScissor.
   const el = renderer.domElement, pr = renderer.getPixelRatio ? renderer.getPixelRatio() : 1;
-  const W = el.width / pr, H = el.height / pr;
+  const W = o.width > 0 ? o.width : el.width / pr, H = o.height > 0 ? o.height : el.height / pr;
   let n = 0;
   nodes.forEach(function(node){
     const comp = node.getComponent && node.getComponent('Camera');
-    const cam = node.userData && node.userData.cam;
+    const cam = (typeof o.camOf === 'function') ? o.camOf(node) : (node.userData && node.userData.cam);
     if(!comp || !cam || cam === mainCam) return;
     const vp = normalizeViewport(comp.data && comp.data.viewport);
     if(!vp) return;

@@ -578,3 +578,63 @@ test('reconstruire un materiau ne lui fait pas perdre ses reflets', () => {
     'applyMaterialOn() RECONSTRUIT les matériaux : sans rappel des sondes ici, toute '
     + 'modification de matériau laisse la scène sans reflets');
 });
+
+// =========================================================================
+// « La cuisson des sondes ne fonctionne pas » (2026-10-12)
+// =========================================================================
+// La sonde cuisait, l'inspecteur disait « cuite », et les métaux continuaient de refléter le ciel.
+// La cause est la clé de pipeline de WebGPURenderer (voir js/environment-map.js et
+// test/ciel-hdri.test.mjs) : elle ne distinguait pas le cube d'une sonde de celui du ciel, donc
+// rien n'était recompilé. Ce qui se mesure sans GPU : la clé CHANGE au moment exact où three doit
+// recompiler.
+
+test('poser la sonde change la clé de pipeline du métal — sinon three garde le reflet du ciel', () => {
+  const env = chargerMoteurSondes();
+  env.applyEnvironment({sky: 'color', skyColor: '#3366ff'});
+  const near = ajouterMetal(env, 1, 0, 0);
+  const loin = ajouterMetal(env, 90, 0, 0);
+  env.applyProbes();
+  const avant = near.material.customProgramCacheKey();
+  assert.equal(avant, loin.material.customProgramCacheKey(), 'tous deux reflètent le ciel : même programme');
+  const probe = ajouterSonde(env, 0, 0, 0, {radius: 5});
+  env.bakeProbe(probe);
+  env.applyProbes();
+  assert.equal(near.material.envMap, env.engineProbes.cuites.get(probe).rt.texture);
+  assert.notEqual(near.material.customProgramCacheKey(), avant,
+    'même clé = three réutilise le programme compilé avec le PMREM du ciel : la sonde reste invisible');
+  assert.notEqual(near.material.customProgramCacheKey(), loin.material.customProgramCacheKey(),
+    'dans le rayon et hors rayon : deux programmes, deux reflets');
+});
+
+test('une Reflection posée sur un objet EXISTANT est une sonde (avant : jamais cuite)', () => {
+  const env = chargerMoteurSondes();
+  vm.runInContext('this.probeActive = probeActive;', env);
+  const cube = new env.THREE.Mesh(new env.THREE.BoxGeometry(1, 1, 1), new env.THREE.MeshStandardMaterial());
+  cube.userData.type = 'mesh';                  // markType ne retague qu'un nœud nu
+  cube.userData.probe = {radius: 10};
+  assert.equal(env.probeActive(cube), true, 'le sac du composant suffit, le tag n\'est pas requis');
+  cube.userData.probe.active = false;
+  assert.equal(env.probeActive(cube), false, 'composant désactivé : ignorée');
+  assert.equal(env.probeActive(new env.THREE.Object3D()), false);
+});
+
+test('ciel HDRI : reflet cuit en demi-flottant, tourné et exposé comme le fond', () => {
+  const env = chargerMoteurSondes();
+  const T = env.THREE;
+  const hdr = new T.DataTexture(new Uint16Array(8), 2, 1, T.RGBAFormat, T.HalfFloatType);
+  vm.runInContext('this.lesAssets = assets; this.laScene = scene;', env);
+  env.lesAssets.push({id: 'a1', kind: 'texture', name: 'ciel.hdr', texture: hdr});
+  env.applyEnvironment({sky: 'image', skyAsset: 'a1', skyRotation: 180, skyExposure: 3});
+  ajouterMetal(env);
+  env.applyProbes();
+  const c = env.__cuissons[0];
+  assert.ok(c, 'le ciel est cuit');
+  assert.equal(c.rt.texture.type, T.HalfFloatType, 'en 8 bits, le soleil d\'une HDRI serait écrêté à 1');
+  assert.ok(Math.abs(c.scene.backgroundRotation.y - Math.PI) < 1e-9, 'le reflet tourne avec le ciel');
+  assert.equal(c.scene.backgroundIntensity, 3, 'et s\'expose avec lui');
+  assert.equal(env.laScene.backgroundIntensity, 3, 'le fond de la vue aussi');
+  // Tourner le ciel recuit le reflet : la rotation est dans la signature.
+  env.lireEnv().skyRotation = 90;
+  env.applyEnvironment();
+  assert.equal(env.__cuissons.length, 2);
+});

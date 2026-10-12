@@ -39,8 +39,10 @@ function extraire(fichier, nom){
   // La fonction s'arrête à la première accolade fermante en début de ligne.
   const fin = src.indexOf('\n}', debut);
   const corps = src.slice(debut, fin + 2);
-  return new Function('acceptsEnvironment', corps + '; return ' + nom + ';')(
-    (m) => !!m && (m.isMeshStandardMaterial === true || m.isMeshPhysicalMaterial === true));
+  // bindEnvironmentKey (js/environment-map.js) ne touche que la clé de pipeline : neutre ici.
+  return new Function('acceptsEnvironment', 'bindEnvironmentKey', corps + '; return ' + nom + ';')(
+    (m) => !!m && (m.isMeshStandardMaterial === true || m.isMeshPhysicalMaterial === true),
+    () => false);
 }
 
 function materiau(avec){

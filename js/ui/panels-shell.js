@@ -40,6 +40,15 @@ export function registerPanelsShell(){
     closable: false
   });
 
+  // LA VUE JEU (js/game-view.js) : la scène à travers la caméra principale, sans rien de
+  // l'édition — le Game view d'Unity hors lecture. Un onglet À CÔTÉ de la vue, dans la même zone
+  // (un layout enregistré avant elle l'y reçoit tout seul, voir normalizeLayout). Elle ne rend
+  // que regardée : cachée derrière l'onglet Vue, elle ne coûte rien.
+  Panels.register({
+    id: 'game-view', title: 'Jeu', icon: '🎮',
+    adopt: 'game-view', toolbar: 'tools-game-view', defaultZone: 'center', minWidth: 200
+  });
+
   Panels.register({
     id: 'inspector', title: 'Inspecteur', icon: '🔧',
     adopt: 'insp', defaultZone: 'right', minWidth: 180

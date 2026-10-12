@@ -39,7 +39,12 @@ const REPLIS_ASSUMES = {
   // (garde ci-dessous) pour qu'ils héritent quand même des classes three/webgpu.
   MeshoptDecoder:        'décodeur vendorisé (vendor/three-meshopt.min.js), absent de three/webgpu',
   createDRACOLoader:      'fabrique posée par vendor/three-draco.min.js (amorçage sans réseau)',
-  createKTX2Loader:       'fabrique posée par vendor/three-ktx2.min.js (amorçage sans réseau)'
+  createKTX2Loader:       'fabrique posée par vendor/three-ktx2.min.js (amorçage sans réseau)',
+  // Lecteurs d'images HDR du ciel HDRI (js/environment-map.js) : addons de vendor/three-addons.min.js,
+  // RECOMPILÉS contre le THREE du pont (vendor/RECETTE-addons.md) — ils héritent donc des classes
+  // three/webgpu, et ne produisent qu'une DataTexture.
+  HDRLoader:             'addon de vendor/three-addons.min.js (ciel HDRI), recompilé contre le pont',
+  EXRLoader:             'idem HDRLoader'
 };
 
 // Membres de `renderer` que le code lit alors qu'ils n'appartiennent PAS à WebGPURenderer :
@@ -80,7 +85,9 @@ const exportsWebgpu = new Set(Object.keys(modWebgpu));
 // décodeurs de compression en font partie : les oublier ici ferait passer un
 // THREE.createDRACOLoader inexistant pour un nom connu, ou l'inverse.
 const BUNDLES_CLASSIQUES = ['vendor/three.min.js', 'vendor/three-draco.min.js',
-                            'vendor/three-meshopt.min.js', 'vendor/three-ktx2.min.js'];
+                            'vendor/three-meshopt.min.js', 'vendor/three-ktx2.min.js',
+                            // les addons (HDRLoader, EXRLoader…) s'accrochent aussi au THREE global
+                            'vendor/three-addons.min.js'];
 
 function exportsClassiques(){
   const faux = () => ({getContext: () => null, style: {}, addEventListener(){}, width: 1, height: 1});

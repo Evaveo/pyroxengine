@@ -7,6 +7,7 @@ import { bindAssetDropOnView, updateProject } from './assets.js';
 import { bindBarTilemap, bindBrush2d } from './brush-tilemap.js';
 import { ed } from './component-data.js';
 import { bindEditorInput } from './editor-input.js';
+import { bootGameView } from './game-view.js';
 import { applyEnvironment } from './environment.js';
 import { setStatus, updateHierarchy } from './hierarchy.js';
 import { histo } from './history.js';
@@ -91,6 +92,9 @@ loadPluginsAtStartup();
 // créables) : elles sont différées pour qu'un plugin chargé avant la barre de menus ne se
 // coupe pas en deux sur un ReferenceError.
 bootPluginsUi();
+// La vue Jeu s'inscrit auprès de la boucle AVANT le dock : le dock peut la montrer dès son
+// montage (layout enregistré sur l'onglet Jeu), et sa première image doit déjà la rendre.
+bootGameView();
 bootDock();
 // La palette APRES le dock : elle se pose sur `#view`, et `#view` n'est à sa place définitive
 // qu'une fois le dock monté — sinon la position relue serait bornée contre un viewport qui

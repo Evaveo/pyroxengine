@@ -50,7 +50,7 @@ export const PAGES_REFERENCE = [
 {id:'reference-file-formats', part:'reference', section:'Référence', title:'Formats de fichiers', level:'both',
  summary:'Les fichiers que l\'éditeur importe, ouvre et produit.',
  anchors:[
-   {f:'editor.html', c:'accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.gif,.bmp,.mp3,.wav,.ogg,.m4a"'},
+   {f:'editor.html', c:'accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.gif,.bmp,.hdr,.exr,.mp3,.wav,.ogg,.m4a"'},
    {f:'editor.html', c:'accept=".p3d,.s3d,.json,application/json,application/gzip"'},
    {f:'js/ui.js', c:'{label:\'Fichier de projet… (.p3d / .s3d)\''},
    {f:'js/ui.js', c:'{label:\'🎮 Build Web jouable (.zip)\''},
@@ -66,6 +66,7 @@ export const PAGES_REFERENCE = [
   + arrayHelp(['Genre', 'Extensions'], [
       ['Modèles 3D', '<code>.glb</code>, <code>.gltf</code> (+ <code>.bin</code>), <code>.fbx</code>'],
       ['Images', '<code>.png</code>, <code>.jpg</code>, <code>.jpeg</code>, <code>.webp</code>, <code>.gif</code>, <code>.bmp</code>'],
+      ['Images HDR (HDRI)', '<code>.hdr</code> (Radiance RGBE), <code>.exr</code> (OpenEXR) — panoramas de ciel et d\'éclairage, voir ' + linkHelp('panel-environment', 'le panneau Environnement')],
       ['Sons', '<code>.mp3</code>, <code>.wav</code>, <code>.ogg</code>, <code>.m4a</code>']
     ])
   + tipHelp('Un <code>.gltf</code> qui référence un <code>.bin</code> et des textures : '

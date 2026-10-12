@@ -24,6 +24,7 @@ export const HELP_TARGET_TAB = 'aide-editeur-3d';
 export const HELP_PAGE_OF_PANEL = {
   hierarchy: 'panel-hierarchy',
   viewport: 'panel-viewport',
+  'game-view': 'panel-game-view',
   inspector: 'panel-inspector',
   project: 'panel-project',
   console: 'panel-console',

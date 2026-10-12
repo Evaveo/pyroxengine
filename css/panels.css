@@ -106,6 +106,22 @@
   #preview-frame{position:absolute;right:12px;bottom:12px;border:1px solid var(--edge);
     border-radius:var(--r-1);display:none;pointer-events:none;}
   #preview-frame span{position:absolute;top:-20px;left:0;font-size:11px;color:var(--txt-dim);}
+  /* ---- vue Jeu (js/game-view.js) : le canevas centré, les bandes noires autour quand un
+     rapport d'image est imposé, comme le Game view d'Unity. ---- */
+  #game-view{flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;
+    display:flex;flex-direction:column;background:rgba(0,0,0,1);}
+  #game-view-stage{flex:1;min-width:0;min-height:0;display:flex;align-items:center;
+    justify-content:center;overflow:hidden;}
+  #game-view-canvas{display:block;flex:none;}
+  #game-view-message{position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;text-align:center;padding:var(--sp-5);font-size:12.5px;line-height:1.5;}
+  #game-view-message[hidden]{display:none;}
+  #tools-game-view{display:flex;align-items:center;gap:6px;margin-left:10px;font-size:11.5px;
+    text-transform:none;letter-spacing:normal;font-weight:400;color:var(--txt-dim);}
+  #tools-game-view [hidden]{display:none;}
+  #game-view-note{color:var(--warn);}
+  #game-view-aspect{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+    border-radius:var(--r-2);padding:2px 6px;font-size:11.5px;}
   #view-game-frame{position:absolute;left:12px;bottom:12px;border:1px solid var(--accent);
     border-radius:var(--r-1);display:none;pointer-events:none;}
   kbd{background:var(--panel2);border:1px solid var(--edge);border-radius:var(--r-1);
@@ -219,6 +235,32 @@
   #project-body{flex:1;overflow-x:hidden;overflow-y:auto;display:flex;flex-wrap:wrap;gap:10px;
     padding:10px 12px;align-items:flex-start;align-content:flex-start;}
   #project-body.hover{outline:2px dashed var(--accent);outline-offset:-6px;}
+
+  /* ---- recherche du panneau Projet (js/assets.js, js/asset-search.js) ---- */
+  #project-search-box{display:flex;align-items:center;gap:4px;margin-left:var(--sp-4);}
+  #project-search{width:190px;background:var(--panel2);border:1px solid var(--edge);
+    border-radius:var(--r-2);color:var(--txt);padding:3px var(--sp-4);font-size:12px;}
+  #project-search::placeholder{color:var(--txt-dim);}
+  #project-search:focus{border-color:var(--accent);outline:none;}
+  #project-search-kind{background:var(--panel2);border:1px solid var(--edge);color:var(--txt);
+    border-radius:var(--r-2);padding:3px 9px;cursor:pointer;font-size:12px;}
+  #project-search-kind:hover{background:var(--panel3);}
+  #project-search-kind.active{border-color:var(--accent);color:var(--accent);}
+  /* Le bandeau des résultats prend toute la largeur de la grille de tuiles. */
+  #project-body .search-header{flex:0 0 100%;display:flex;align-items:center;gap:var(--sp-4);
+    font-size:11.5px;color:var(--txt-dim);}
+  #project-body .search-header .search-clear{margin-left:auto;background:var(--panel2);
+    border:1px solid var(--edge);color:var(--txt);border-radius:var(--r-2);padding:2px 8px;
+    cursor:pointer;font-size:11px;}
+  #project-body .search-header .search-clear:hover{background:var(--panel3);}
+  #project-body .search-help{flex:0 0 100%;}
+  /* Le dossier d'origine d'une tuile trouvée : une ligne sous la vignette, coupée proprement,
+     le chemin complet dans l'infobulle. Cliquable : il emmène dans le dossier. */
+  .tile .origin{display:block;margin-top:3px;font-size:10px;color:var(--txt-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;cursor:pointer;
+    opacity:.8;}
+  .tile .origin:hover{color:var(--accent);opacity:1;}
+  .menu .menu-hint{margin-left:var(--sp-4);color:var(--txt-dim);font-size:10.5px;}
   .tile{flex:none;width:92px;cursor:grab;position:relative;user-select:none;}
   .vignette.script{display:flex;align-items:center;justify-content:center;font-size:34px;
     background-color:var(--surface-row);}
