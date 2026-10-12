@@ -393,7 +393,7 @@ export const PAGES_COMPONENTS_2D = [
       ['Document UI', 'documentUIId', '— aucun —', 'L\'asset qui porte le HTML.'],
       ['Feuille de style', 'sheetStyleIds', '— aucune —', 'L\'asset qui porte le CSS.'],
       ['✎ Éditer…', '', '', 'Ouvre l\'éditeur HTML/CSS sur les assets choisis.'],
-      ['Mise à l\'échelle › Mode', 'scaleMode', 'none', 'Comme le Canvas Scaler d\'Unity : « Tout faire tenir » réduit l\'interface entière pour qu\'elle tienne sur un téléphone.'],
+      ['Mise à l\'échelle › Mode', 'scaleMode', 'fit', 'Comme le Canvas Scaler d\'Unity, actif par défaut sur tous les projets : « Tout faire tenir » réduit l\'interface entière pour qu\'elle tienne sur un téléphone.'],
       ['Mise à l\'échelle › Référence', 'referenceWidth / referenceHeight', '1280 / 720', 'La taille d\'écran pour laquelle le HTML/CSS a été écrit.'],
       ['Mise à l\'échelle › Échelle max', 'maxScale', '1', 'Plafond d\'agrandissement sur un grand écran.']
     ])

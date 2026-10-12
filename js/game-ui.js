@@ -266,14 +266,15 @@ export function _applyChangedBind(idx, values, keys) {
 // Une interface écrite en pixels pour 1280×720 débordait d'un téléphone (844×390 en paysage) :
 // textes coupés, panneaux hors écran. Le UIDocument déclare sa résolution de référence et le
 // moteur met tout le document à l'échelle d'un bloc. `scaleMode` :
-//   'none'   — rien (défaut, comportement historique) ;
-//   'fit'    — tout tient à l'écran (min des deux rapports) — ce qu'il faut à un HUD ;
+//   'fit'    — tout tient à l'écran (min des deux rapports) — LE DÉFAUT, pour TOUS les projets :
+//              avec maxScale 1, rien ne bouge sur un écran ≥ 1280×720, seul un petit écran réduit ;
+//   'none'   — pixels fixes (interface déjà responsive, à choisir explicitement) ;
 //   'fill'   — remplit (max des deux rapports) ;
 //   'match'  — mélange logarithmique largeur/hauteur selon `match` (0 = largeur, 1 = hauteur).
 // `maxScale` (défaut 1) évite qu'un écran 4K agrandisse le pixel-art au-delà du dessin d'origine.
 export function uiScaleFactor(cfg, w, h) {
   const c = cfg || {};
-  const mode = c.scaleMode || 'none';
+  const mode = c.scaleMode || 'fit';
   if (mode === 'none' || !(w > 0) || !(h > 0)) return 1;
   const rw = Number(c.referenceWidth) > 0 ? Number(c.referenceWidth) : 1280;
   const rh = Number(c.referenceHeight) > 0 ? Number(c.referenceHeight) : 720;
@@ -310,7 +311,7 @@ function _sizeOf(container) {
 }
 
 function _applyUIScale(container, state, cfg) {
-  const mode = cfg && cfg.scaleMode;
+  const mode = (cfg && cfg.scaleMode) || 'fit';
   if (!mode || mode === 'none') {
     if (state.scaleKey) {
       const st = state.div.style;

@@ -57,7 +57,9 @@ test('LE JOYSTICK presse UNE direction en 4 voies, deux en 8 voies, rien au cent
 test('L INTERFACE se met à l échelle d une résolution de référence (Canvas Scaler)', () => {
   const env = creerContexte(['js/game-ui.js']);
   const f = env.uiScaleFactor;
-  assert.equal(f({}, 844, 390), 1, 'sans réglage : pixels fixes, comportement historique');
+  assert.ok(Math.abs(f({}, 844, 390) - 390 / 720) < 1e-9, 'sans réglage : actif pour TOUS les projets (fit 1280x720)');
+  assert.equal(f({}, 1920, 1080), 1, 'sur un écran de PC, le défaut ne change rien');
+  assert.equal(f({scaleMode: 'none'}, 844, 390), 1, 'none : pixels fixes, à choisir explicitement');
   const fit = f({scaleMode: 'fit', referenceWidth: 1280, referenceHeight: 720}, 844, 390);
   assert.ok(Math.abs(fit - 390 / 720) < 1e-9, 'tout doit tenir sur un téléphone en paysage');
   assert.equal(f({scaleMode: 'fit'}, 2560, 1440), 1, 'maxScale 1 : un écran 4K n agrandit pas le pixel-art');
