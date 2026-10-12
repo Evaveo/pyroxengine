@@ -4,7 +4,8 @@
 // qu'une IA locale (Claude Desktop, Claude Code, LM Studio…) appelle les commandes du copilote.
 //
 // Le protocole est minuscule :
-//   éditeur → pont : {type:'hello', token, catalog:[{name, description, input_schema, domain}], instructions, knowledge}
+//   éditeur → pont : {type:'hello', token, tokenIds?, catalog:[{name, description, input_schema, domain}], instructions, knowledge}
+//   éditeur → relais cloud : {type:'bind', tokenIds} — les URL MCP que sert cet onglet (un projet par onglet)
 //   pont → éditeur : {type:'welcome'} | {type:'error', message}
 //   pont → éditeur : {type:'call', id, name, input}
 //   éditeur → pont : {type:'result', id, text, image?, isError}
@@ -21,7 +22,7 @@ export const MCP_CONSENT_QUESTION = 'Autoriser l\'IA locale à modifier le proje
 
 /**
  * Le lien, sans DOM : tout ce qui touche au navigateur est injecté, ce qui le rend testable.
- * deps : {WebSocketCtor, getCatalog, run, confirm, instructions, log, onStatus}
+ * deps : {WebSocketCtor, getCatalog, run, confirm, instructions, log, onStatus, getTokenIds?}
  */
 export function createMcpLink(deps){
   const link = {ws: null, status: 'déconnecté', consented: false, calls: 0};
@@ -88,10 +89,14 @@ export function createMcpLink(deps){
   };
 
   /** Relais cloud (ou toute URL) : l'authentification est portée par la session du navigateur,
-   *  pas de jeton dans le hello. */
+   *  pas de jeton dans le hello. `tokenIds` : les URL MCP que sert cet onglet ; aucune = l'onglet
+   *  par défaut du compte, qui reçoit les appels des URL qu'aucun autre onglet ne sert. */
   link.connectUrl = function(url){
-    open(String(url), {}, 'erreur de connexion au relais cloud');
+    open(String(url), {tokenIds: deps.getTokenIds ? deps.getTokenIds() : []}, 'erreur de connexion au relais cloud');
   };
+
+  /** Change les URL servies par cet onglet sans se reconnecter (relais cloud). */
+  link.bind = function(tokenIds){ send({type: 'bind', tokenIds: tokenIds || []}); };
 
   function open(url, helloExtra, errorText){
     link.disconnect();
@@ -119,8 +124,8 @@ export function createMcpLink(deps){
     ws.onclose = function(ev){
       if(link.ws !== ws) return;
       link.ws = null;
-      // 4003 : le relais cloud a donné la main à un autre onglet du même compte.
-      if(ev && ev.code === 4003) setStatus('refusé : remplacé par un autre onglet de l’éditeur');
+      // 4003 : le relais cloud a donné la main à un autre onglet qui sert les mêmes URL MCP.
+      if(ev && ev.code === 4003) setStatus('refusé : remplacé par un autre onglet qui sert les mêmes URL MCP');
       else if(link.status === 'connecté' || link.status === 'connexion…') setStatus('déconnecté');
     };
   }
@@ -145,6 +150,17 @@ let statusView = null;
 
 function storeGet(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }
 function storeSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+
+// Les URL servies sont propres à CET onglet (un projet par onglet) : sessionStorage, pas localStorage
+// qui est partagé entre onglets.
+const TAB_TOKENS_KEY = 'mcp-cloud-token-ids';
+function tabTokenIds(){
+  try {
+    const v = JSON.parse(sessionStorage.getItem(TAB_TOKENS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter(function(n){ return Number.isInteger(n) && n > 0; }) : [];
+  } catch(e){ return []; }
+}
+function setTabTokenIds(ids){ try { sessionStorage.setItem(TAB_TOKENS_KEY, JSON.stringify(ids)); } catch(e){} }
 
 // Le navigateur ne peut pas lancer de processus : c'est le client IA (Claude Desktop, Claude
 // Code, LM Studio…) qui démarre le pont, à partir de la configuration qu'on lui donne. L'éditeur
@@ -422,6 +438,7 @@ function startCloud(opts){
       confirm: askInPage,
       instructions: opts && opts.instructions,
       log: function(s){ logConsole('log', s, null); },
+      getTokenIds: tabTokenIds,
       onStatus: function(s){
         // Un autre onglet a pris la main : ne pas la lui reprendre à chaque tentative.
         if(/^refusé/.test(s)){ if(cloudRetry) cloudRetry.stop(); storeSet(CLOUD_ENABLED_KEY, ''); }
@@ -459,7 +476,8 @@ function mountCloudSection(host, localDetails, opts){
   host.innerHTML =
     '<div class="cop-note"><b>Via le cloud (recommandé)</b><br>'
     + '1. Cliquez « Connecter l’éditeur » (cet onglet reçoit les appels de l’IA).<br>'
-    + '2. Créez une URL pour votre IA et collez-la dans son client. Rien à installer.</div>'
+    + '2. Créez une URL pour votre IA et collez-la dans son client. Rien à installer.<br>'
+    + 'Plusieurs projets ouverts ? Une URL par projet, et cochez « Cet onglet » sur l’URL que sert cet onglet.</div>'
     + '<div class="field"><button class="btn-modal" id="mcp-cloud-connect">Connecter l’éditeur</button>'
     + '<button class="btn-modal" id="mcp-cloud-disconnect">Déconnecter</button></div>'
     + '<div class="cop-note" id="mcp-cloud-status">État : déconnecté</div>'
@@ -485,8 +503,24 @@ function mountCloudSection(host, localDetails, opts){
       const list = j.jetons || [];
       if(!list.length) return;
       tokensEl.appendChild(el('div', {class: 'cop-note'}, 'URL actives (le secret n’est montré qu’à la création) :'));
+      // Oublie les URL révoquées entre-temps.
+      const known = list.map(function(t){ return t.id; });
+      const mine = tabTokenIds().filter(function(id){ return known.indexOf(id) >= 0; });
+      setTabTokenIds(mine);
       list.forEach(function(t){
         const row = el('div', {class: 'field'});
+        const servedLabel = el('label', {title: 'Les appels de l’IA faits avec cette URL arrivent dans cet onglet'});
+        const served = el('input', {type: 'checkbox'});
+        served.checked = mine.indexOf(t.id) >= 0;
+        served.addEventListener('change', function(){
+          const ids = tabTokenIds().filter(function(id){ return id !== t.id; });
+          if(served.checked) ids.push(t.id);
+          setTabTokenIds(ids);
+          if(cloudLink && cloudLink.status === 'connecté') cloudLink.bind(ids);
+        });
+        servedLabel.appendChild(served);
+        servedLabel.appendChild(document.createTextNode(' Cet onglet '));
+        row.appendChild(servedLabel);
         row.appendChild(el('span', null, t.name + ' — créée le ' + new Date(t.createdAt).toLocaleDateString()
           + (t.lastUsedAt ? ', utilisée le ' + new Date(t.lastUsedAt).toLocaleString() : ', jamais utilisée')));
         const revoke = el('button', {class: 'btn-modal'}, 'Révoquer');
