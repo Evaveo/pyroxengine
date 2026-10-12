@@ -54,7 +54,7 @@ export const GROUPS = {
     'regroupement-editeur.test.mjs',
     'extraction-materiaux.test.mjs', 'graphe-shader.test.mjs', 'graphe-shader-editeur.test.mjs',
     'graphe-shader-tsl-reel.test.mjs', 'grille-sol.test.mjs',
-    'instances-materiau-noeuds.test.mjs', 'lightmap.test.mjs', 'lightmap-cuisson.test.mjs',
+    'instances-materiau-noeuds.test.mjs', 'lightmap.test.mjs', 'lightmap-cuisson.test.mjs', 'light-modes.test.mjs',
     'lissage.test.mjs', 'lissage-tsl.test.mjs', 'masque-orm.test.mjs',
     'materiau-plugin.test.mjs', 'materiau-shader-inspecteur.test.mjs', 'noeud-debris.test.mjs',
     'ombre-cadrage.test.mjs', 'post-etat-neutre.test.mjs', 'post-orientation.test.mjs',

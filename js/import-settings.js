@@ -2603,10 +2603,10 @@ export function buildInspectorAsset(a){
       + ipCell('ip-swap-uvs', 'Échanger les UV', !!p.swapUvs,
           'Échange uv et uv1 — utile quand l\'exportateur a mis la lightmap dans le premier '
           + 'jeu. « Swap UVs » d\'Unity.')
-      + ipCell('ip-uv-lightmap', 'UV de lightmap', p.lightmapUv,
-          'Déplie le modèle dans un second jeu d\'UV (uv1) sans recouvrement, que la cuisson de '
-          + 'lightmap utilisera. Sans lui elle se rabat sur les UV de texture, qui se recouvrent '
-          + 'dès qu\'une texture est carrelée — deux surfaces éclairées dans les mêmes texels.')
+      + ipCell('ip-uv-lightmap', 'Générer les UV de lightmap', p.lightmapUv,
+          '« Generate Lightmap UVs » d\'Unity : déplie le modèle dans un second jeu d\'UV (uv1) sans recouvrement, '
+          + 'que la cuisson utilisera. Sans lui elle se rabat sur les UV de texture, qui se recouvrent dès qu\'une '
+          + 'texture est carrelée. Inutile si le fichier porte déjà ce dépliage (second calque UV de Blender).')
       + (p.lightmapUv
         ? ipNumber('ip-lm-hard-angle', 'Angle dur', p.lightmapHardAngle === undefined ? 60
             : p.lightmapHardAngle, 1, 0, 180, false,

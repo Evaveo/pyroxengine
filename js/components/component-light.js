@@ -1,5 +1,5 @@
 // moteur/js/components/component-light.js
-import { ed, ensureLight } from '../component-data.js';
+import { ed, ensureLight, litInRealtime } from '../component-data.js';
 import { Registry } from '../component-registry.js';
 import { Component, detachData, mergeIntoBag } from '../component.js';
 
@@ -27,6 +27,22 @@ export class Light extends Component {
   set angle(v) { this.data.angle = v; }
   get penumbra() { return this.data.penumbra; }
   set penumbra(v) { this.data.penumbra = v; }
+  // LE MODE (v1.7.0) : realtime | mixed | baked — voir LIGHT_MODES (component-data.js). Le
+  // changer rallume ou éteint aussitôt la lampe three : une lampe cuite n'éclaire plus en
+  // temps réel, elle ne vit que dans la lightmap.
+  get mode() { return this.data.mode; }
+  set mode(v) { this.data.mode = v; this.applyVisibility(); }
+
+  /**
+   * La lampe three n'est allumée que si le composant est actif ET que son mode éclaire en temps
+   * réel. Un seul endroit décide, pour que l'éditeur et le jeu publié (qui partagent ce fichier)
+   * ne puissent pas diverger. La cuisson, elle, rallume les lampes cuites le temps de son calcul.
+   */
+  applyVisibility(active) {
+    if (!this.objectThree) return;
+    const on = (active !== undefined) ? active : this.active !== false;
+    this.objectThree.visible = on && litInRealtime(this.data.mode);
+  }
   // OMBRE D'UNE DIRECTIONNELLE (v0.189.0, champs facultatifs) : résolution de la carte, demi-largeur
   // de la boîte d'ombre, biais de profondeur. Absents = réglages automatiques (ShadowFit.lightSettings).
   get shadowMapSize() { return this.data.shadowMapSize; }
@@ -70,6 +86,7 @@ export class Light extends Component {
     }
     this.applyMarker();
     this.objectThree = lum;
+    this.applyVisibility();
     this.applyShadowSettings();
     this.markType(this.subType);
   }
@@ -108,6 +125,7 @@ export class Light extends Component {
     if (d.range !== undefined) this.range = d.range;
     if (d.angle !== undefined) this.angle = d.angle;
     if (d.penumbra !== undefined) this.penumbra = d.penumbra;
+    if (d.mode !== undefined) this.data.mode = d.mode;
     ['shadowMapSize', 'shadowExtent', 'shadowBias'].forEach((k) => { if (d[k] !== undefined) this.data[k] = d[k]; });
     // Sur une lumière THREE qui existe déjà, les champs relus doivent redescendre dedans :
     // sans ça, l'inspecteur affiche la bonne couleur et la scène en montre une autre.
@@ -118,6 +136,7 @@ export class Light extends Component {
       if (lum.distance !== undefined) lum.distance = this.range;
       if (this.subType === 'spot') { lum.angle = this.angle; lum.penumbra = this.penumbra; }
     }
+    this.applyVisibility();
     this.applyShadowSettings();
     this.applyMarker();
   }
@@ -136,7 +155,7 @@ export class Light extends Component {
   }
 
   onActiveChange(active) {
-    if (this.objectThree) this.objectThree.visible = active;
+    this.applyVisibility(active);
   }
 
   // DÉTACHÉE : `this.data` EST `userData.lum` (contrat de component.js, règle 4).

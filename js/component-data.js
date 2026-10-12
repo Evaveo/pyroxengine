@@ -155,8 +155,54 @@ export function ensureGame(o){
 // l'un des deux en silence.
 
 export const LIGHT_DEFAULT = {
-  subType: 'point', color: 0xffffff, intensity: 1, range: 0, angle: Math.PI / 4, penumbra: 0
+  subType: 'point', color: 0xffffff, intensity: 1, range: 0, angle: Math.PI / 4, penumbra: 0,
+  mode: 'mixed'
 };
+
+// LE MODE D'UNE LUMIÈRE (v1.7.0) — le « Mode » du composant Light d'Unity : ce que la cuisson
+// de lightmaps fait de cette lampe, et si elle éclaire encore en temps réel.
+//
+//   realtime  ignorée par la cuisson ; éclaire en temps réel.
+//   mixed     son REBOND est cuit, son éclairage direct reste en temps réel (le « Baked
+//             Indirect » d'Unity : ombres et reflets dynamiques, lumière indirecte précalculée).
+//   baked     direct ET rebond cuits ; n'éclaire plus rien en temps réel, même avant la
+//             première cuisson — comme dans Unity, où une lampe Baked ne se voit qu'une fois
+//             la scène cuite.
+//
+// Avant ce champ, la cuisson prenait TOUTES les lampes et les laissait allumées : leur direct
+// comptait deux fois, une fois dans la lightmap, une fois en temps réel — d'où des scènes
+// cuites surexposées. Le défaut est `mixed`, et pour une bonne raison : c'est le seul mode qui
+// ne change RIEN à un projet d'avant tant qu'on ne recuit pas (la lampe éclaire toujours en
+// temps réel), et qui rend une cuisson utile sans double comptage dès qu'on recuit.
+export const LIGHT_MODES = ['realtime', 'mixed', 'baked'];
+
+/** Le mode d'un sac de lumière (absent ou inconnu : le défaut). */
+export function lightModeOf(bag){
+  const m = bag && bag.mode;
+  return LIGHT_MODES.indexOf(m) >= 0 ? m : LIGHT_DEFAULT.mode;
+}
+
+/** La lampe éclaire-t-elle la scène en temps réel ? Une lampe cuite ne vit que dans la lightmap. */
+export function litInRealtime(mode){
+  return lightModeOf({mode: mode}) !== 'baked';
+}
+
+/**
+ * La lampe est-elle allumée pendant cette phase de la cuisson (js/lightmap-bake.js) ?
+ *   'direct'  : les passes qui cuisent l'éclairage DIRECT dans la lightmap → les lampes cuites ;
+ *   'bounce'  : la capture qui sert de source au REBOND. Les lampes cuites y sont ÉTEINTES —
+ *               leur direct est déjà dans la lightmap de la passe précédente, que la capture
+ *               voit ; les rallumer le compterait deux fois. Les lampes mixtes y sont ALLUMÉES :
+ *               leur direct n'est dans aucune map, c'est la seule façon pour leur lumière de
+ *               rebondir.
+ * Une lampe `realtime` n'est jamais allumée pendant la cuisson.
+ */
+export function bakeLightRole(mode, phase){
+  const m = lightModeOf({mode: mode});
+  if(phase === 'direct') return m === 'baked';
+  if(phase === 'bounce') return m === 'mixed';
+  return false;
+}
 
 export function ensureLight(o){
   if(!o.userData.lum) o.userData.lum = {};

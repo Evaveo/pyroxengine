@@ -23,7 +23,7 @@ import { validateFalloffAudio } from '../audio-falloff.js';
 import { applyKindDefaultsAudio, ensureListenerAudio, testAudioSelection } from '../audio.js';
 import { updateBarTilemap } from '../brush-tilemap.js';
 import { updateColliderViz } from '../collider.js';
-import { ed, ensureGame, ensureProbe, isPlayableAudio } from '../component-data.js';
+import { ed, ensureGame, ensureProbe, isPlayableAudio, lightModeOf } from '../component-data.js';
 import { Registry } from '../component-registry.js';
 import { ComponentViews } from '../component-views.js';
 import { assetSpriteOfNode } from '../components/component-anim-sprite.js';
@@ -156,6 +156,12 @@ declareComponentPanel('Light', {
         createHelperFor(o);
         buildInspector();
       } },
+    // Le « Mode » d'Unity : ce que la cuisson de lightmaps fait de la lampe (LIGHT_MODES,
+    // component-data.js). Cuite = n'éclaire plus en temps réel, même avant la cuisson.
+    { ids: ['f-lmode'], label: 'Mode', type: 'choice',
+      options: [['realtime', 'Temps réel'], ['mixed', 'Mixte'], ['baked', 'Cuite']],
+      get: function(c){ return lightModeOf(c.data); },
+      set: function(c, v){ c.mode = v; } },
     { ids: ['f-lcolor'], label: 'Couleur', type: 'color',
       get: function(c){ return c.objectThree ? '#' + c.objectThree.color.getHexString() : '#ffffff'; },
       set: function(c, v){
@@ -170,7 +176,9 @@ declareComponentPanel('Light', {
         o.userData.emissiveSel = lum.color.getHex();
         c.color = lum.color.getHex();
       } },
-    { ids: ['f-intensite'], label: 'Intensité', type: 'number', step: 0.05, min: 0, max: 8,
+    // Unités physiques de three (candelas pour un spot ou une ponctuelle) : une lampe d'intérieur
+    // dépasse vite 8, qui était le plafond — une scène importée d'Unity à 50 cd ne s'éditait pas.
+    { ids: ['f-intensite'], label: 'Intensité', type: 'number', step: 0.05, min: 0, max: 1000,
       get: function(c){ return c.objectThree ? c.objectThree.intensity : c.intensity; },
       set: function(c, v){ if(c.objectThree) c.objectThree.intensity = v; c.intensity = v; } },
     { ids: ['f-range'], label: 'Portée', type: 'number', step: 1, min: 0, max: 100,

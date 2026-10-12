@@ -22,7 +22,7 @@ import { busOfSource } from './audio-bus.js';
 import { validateFalloffAudio } from './audio-falloff.js';
 import { applyKindDefaultsAudio, createAssetAudio, createAssetLoop, createAssetSfx, ensureAudio, freeAudioFileName, playSoundGlobal, setLoopRecipe, setProjectBusVolumes, setSfxRecipe } from './audio.js';
 import { describeSfx, mergeSfx, mutateSfx, presetSfx, validateSfx } from './chip-synth.js';
-import { isPlayableAudio } from './component-data.js';
+import { LIGHT_MODES, isPlayableAudio, lightModeOf } from './component-data.js';
 import { describeLoop, mergeLoop, presetLoop, retuneLoop, validateLoop } from './music-loop.js';
 import { rebuildTilemap } from './components/component-tilemap.js';
 import { kindProjectADate } from './copilot-observer.js';
@@ -668,9 +668,13 @@ CopilotTools.register({
   description: 'Règle une lumière : couleur, intensité, portée, angle et pénombre pour un spot. '
     + 'Sans lumière, un décor 3D est noir ; avec une seule directionnelle trop forte, il est plat. '
     + 'Pour une directionnelle : shadowMapSize, shadowExtent, shadowBias règlent son ombre (sauvegardés avec '
-    + 'la scène, appliqués dans l\'éditeur et le jeu). L\'ambiance hémisphérique (ciel/sol) : configure_environment.',
+    + 'la scène, appliqués dans l\'éditeur et le jeu). L\'ambiance hémisphérique (ciel/sol) : configure_environment. '
+    + 'mode : ce que la cuisson de lightmaps (bake_lightmaps) fait de la lampe — realtime (ignorée, éclaire en '
+    + 'temps réel), mixed (rebond cuit, direct en temps réel ; défaut), baked (tout cuit, n\'éclaire plus en temps '
+    + 'réel, même avant la cuisson). Recuire après avoir changé un mode.',
   schema: {type: 'object', properties: {
     name: {type: 'string', description: 'nom de l\'objet lumière'},
+    mode: {type: 'string', enum: ['realtime', 'mixed', 'baked'], description: 'mode de cuisson, comme le Mode d\'une lumière Unity'},
     color: {type: 'string', description: '#rrggbb'},
     intensity: {type: 'number'}, range: {type: 'number'},
     angle: {type: 'number', description: 'spot : demi-angle en degrés'},
@@ -701,6 +705,11 @@ CopilotTools.register({
       if(l.angle !== undefined) c.angle = l.angle;
       if(l.penumbra !== undefined) c.penumbra = l.penumbra;
     }
+    if(a.mode !== undefined){
+      if(LIGHT_MODES.indexOf(a.mode) < 0) throw new Error('mode inconnu : « ' + a.mode + ' » (realtime, mixed ou baked)');
+      if(!c) throw new Error('« ' + a.name + ' » n\'a pas de composant Light');
+      c.mode = a.mode;
+    }
     const shadow = ShadowFit.toolFields(a);
     let shadowText = '';
     if(Object.keys(shadow).length){
@@ -716,7 +725,8 @@ CopilotTools.register({
         shadowExtent: c.data.shadowExtent || 'auto', shadowBias: c.data.shadowBias === undefined ? 'auto' : c.data.shadowBias});
     }
     buildInspector();
-    return 'lumière « ' + o.name + ' » : #' + l.color.getHexString() + ', intensité ' + l.intensity + shadowText;
+    return 'lumière « ' + o.name + ' » : #' + l.color.getHexString() + ', intensité ' + l.intensity
+      + (c ? ', mode ' + lightModeOf(c.data) : '') + shadowText;
   }
 });
 

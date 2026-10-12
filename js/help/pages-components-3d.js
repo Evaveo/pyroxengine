@@ -195,7 +195,10 @@ export const PAGES_COMPONENTS_3D = [
    summary:'Une source de lumière : ponctuelle, spot ou directionnelle.',
    anchors:[
      {f:'js/components/component-light.js', c:"static get typeName() { return 'Light'; }"},
-     {f:'js/component-data.js', c:"subType: 'point', color: 0xffffff, intensity: 1, range: 0, angle: Math.PI / 4, penumbra: 0"}
+     {f:'js/component-data.js', c:"subType: 'point', color: 0xffffff, intensity: 1, range: 0, angle: Math.PI / 4, penumbra: 0"},
+     {f:'js/component-data.js', c:"export const LIGHT_MODES = ['realtime', 'mixed', 'baked'];"},
+     {f:'js/component-data.js', c:"export function bakeLightRole(mode, phase)"},
+     {f:'js/components/component-light.js', c:'this.objectThree.visible = on && litInRealtime(this.data.mode);'}
    ],
    html:function(){ return ''
      + essentialHelp('<p>Le composant <b>Lumière</b> éclaire la scène. Une lumière <b>ponctuelle</b> '
@@ -206,12 +209,32 @@ export const PAGES_COMPONENTS_3D = [
      + '<h3>Propriétés</h3>'
      + propsHelp([
        ['Type', 'subType', 'point', 'Ponctuelle, Spot ou Directionnelle.'],
+       ['Mode', 'mode', 'mixed', 'Temps réel, Mixte ou Cuite : ce que la ' + linkHelp('lightmaps', 'cuisson de lightmaps')
+         + ' fait de cette lumière (voir ci-dessous).'],
        ['Couleur', 'color', '#ffffff', 'La teinte de la lumière.'],
        ['Intensité', 'intensity', '1', 'La puissance.'],
        ['Portée', 'range', '0', 'Distance au-delà de laquelle la lumière n\'éclaire plus ; 0 = sans limite.'],
        ['Angle °', 'angle', '45°', 'Spot : ouverture du cône (stockée en radians).'],
        ['Pénombre', 'penumbra', '0', 'Spot : douceur du bord du cône, de 0 (net) à 1.']
      ])
+     + '<h3>Le mode : temps réel, mixte ou cuite</h3>'
+     + '<p>Le même réglage que le <b>Mode</b> d\'une lumière Unity. Il décide de ce que la cuisson de '
+       + 'lightmaps garde de la lampe, et de ce qu\'elle éclaire encore à chaque image :</p>'
+     + arrayHelp(['Mode', 'Cuit dans la lightmap', 'Éclaire en temps réel', 'Pour'], [
+       ['Temps réel', 'rien', 'oui', 'ce qui bouge, s\'allume ou change de couleur en jeu'],
+       ['Mixte', 'le rebond (lumière indirecte)', 'oui — direct, ombres, reflets', 'les lampes principales d\'un décor : '
+         + 'ombres nettes et reflets en temps réel, lumière indirecte précalculée'],
+       ['Cuite', 'le direct et le rebond', 'non', 'les lampes d\'appoint d\'un décor immobile : elles ne coûtent '
+         + 'plus rien à l\'affichage']
+     ])
+     + trapHelp('Une lumière <b>Cuite n\'éclaire plus rien en temps réel</b>, même avant la première cuisson — '
+       + 'comme dans Unity. Passer une lampe en Cuite sans recuire la fait donc disparaître de la vue. '
+       + 'Et un objet <b>non cuit</b> (un personnage, un objet qui bouge) ne reçoit plus sa lumière : gardez en '
+       + 'Mixte ou Temps réel les lampes qui doivent éclairer ce qui se déplace.')
+     + tipHelp('<p>Avant ce réglage, la cuisson prenait toutes les lampes et les laissait allumées : leur '
+       + 'éclairage direct comptait deux fois, une fois dans la lightmap et une fois en temps réel, d\'où des '
+       + 'scènes cuites surexposées. Le défaut, <b>Mixte</b>, ne change rien à une scène tant qu\'on ne la '
+       + 'recuit pas.</p>')
      + '<h3>Utilisation</h3>'
      + tipHelp('<p>Pour une scène d\'extérieur, une seule directionnelle (le soleil) plus l\'ambiance de '
        + 'l\'' + linkHelp('panel-environment', 'Environnement') + ' suffisent souvent. Les lumières ponctuelles '

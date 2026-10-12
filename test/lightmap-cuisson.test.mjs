@@ -46,6 +46,9 @@ function contexte(){
   // test/globales-non-declarees.test.mjs a ete ecrit pour rattraper.
   vm.runInContext(deEsm(read('js/primitive-geometry.js')), ctx,
     {filename:'js/primitive-geometry.js'});
+  // Le mode des lumières (v1.7.0) : la capture demande à chaque lampe, par son composant, si
+  // elle doit rester allumée — `lightModeOf`/`bakeLightRole` vivent dans les données partagées.
+  vm.runInContext(deEsm(read('js/component-data.js')), ctx, {filename:'js/component-data.js'});
   vm.runInContext(deEsm(read('js/lightmap-bake.js')), ctx, {filename:'js/lightmap-bake.js'});
   return ctx;
 }

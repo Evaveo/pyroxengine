@@ -23,6 +23,7 @@
 // Résolution de l'atlas complet, pas d'un objet : tous les objets s'y partagent la place.
 import { assets, awaitAssetTextureReady, createAssetTexture, disposeTexturesReplaced, replaceContentAssetTexture, updateProject } from './assets.js';
 import { setStatus } from './hierarchy.js';
+import { bakeLightRole, lightModeOf } from './component-data.js';
 import { setTransformedAtlas } from './lightmap-atlas.js';
 import { applyMaterialEverywhere, ensurePropsMaterial } from './materials.js';
 import { listMats, objects } from './objects.js';
@@ -315,7 +316,15 @@ export function buildMaterialBake(texturePrecedente){
 //
 // Au premier tour, `lightmapPrecedente` est nulle : les surfaces sont noires et la capture
 // ne contient que le ciel, occulté. Un seul chemin de code sert donc aux deux usages.
-export function captureEnvironmentBounce(meshes, lightmapPrecedente, res){
+//
+// LES LAMPES MIXTES (v1.7.0) font exception à « lampes éteintes » : leur direct n'est dans
+// AUCUNE lightmap (il reste en temps réel), donc la capture est le seul endroit où leur lumière
+// peut rebondir — elles y sont allumées. `lampsBake` (bakeLightsState) porte cette décision ;
+// sans lui (appel direct, tests), toutes les lampes sont éteintes comme avant. `withMixed` est
+// faux au premier tour : le direct des lampes cuites n'entre dans la capture qu'au 2ᵉ tour (par
+// la lightmap du 1ᵉʳ) ; y faire entrer celui des mixtes dès le 1ᵉʳ leur donnerait un rebond de
+// plus qu'aux autres — et cuire avec 0 rebond leur cuirait quand même un indirect.
+export function captureEnvironmentBounce(meshes, lightmapPrecedente, res, lampsBake, withMixed){
   const rt = createTargetCube(res);
   const cam = new THREE.CubeCamera(0.1, 800, rt);
   // Même masque que les sondes : une capture ne doit jamais voir le gizmo, la grille ni les
@@ -333,8 +342,9 @@ export function captureEnvironmentBounce(meshes, lightmapPrecedente, res){
   meshes.forEach(function(m){ box.expandByObject(m); });
   if(!box.isEmpty()) box.getCenter(cam.position);
 
-  const lights = [];
-  scene.traverse(function(x){ if(x.isLight){ lights.push([x, x.intensity]); x.intensity = 0; } });
+  // Sans état fourni (appel direct) : toutes les lampes éteintes le temps de la capture.
+  const ownLamps = lampsBake ? null : bakeLightsState();
+  setBakePhase(lampsBake || ownLamps, (lampsBake && withMixed) ? 'bounce' : 'none');
 
   const keys = [];
   if(lightmapPrecedente){
@@ -363,9 +373,49 @@ export function captureEnvironmentBounce(meshes, lightmapPrecedente, res){
       t[0].lightMapIntensity = t[2];
       t[0].needsUpdate = true;
     });
-    lights.forEach(function(p){ p[0].intensity = p[1]; });
+    // La capture rend la main aux passes de cuisson, qui cuisent le DIRECT.
+    if(lampsBake) setBakePhase(lampsBake, 'direct');
+    else restoreBakeLights(ownLamps);
   }
   return rt;
+}
+
+// ---------- 3ter. Les lampes pendant la cuisson ----------
+
+/**
+ * L'état de chaque lampe de la scène AVANT la cuisson, et ce que son mode en fait (voir
+ * `bakeLightRole`, js/component-data.js). Une lampe cuite est ÉTEINTE en temps réel
+ * (`visible = false`, Light.applyVisibility) : la cuisson doit la rallumer pour la voir.
+ * `enabled` dit si elle participe tout court — un composant désactivé reste hors du calcul.
+ * Une lampe three sans composant Light (le soleil de l'environnement) suit le mode par défaut.
+ */
+export function bakeLightsState(root){
+  const list = [];
+  (root || scene).traverse(function(x){
+    if(!x.isLight) return;
+    const node = x.parent;
+    const c = node && typeof node.getComponent === 'function' ? node.getComponent('Light') : null;
+    list.push({light: x, visible: x.visible, intensity: x.intensity,
+      mode: lightModeOf(c ? c.data : null),
+      enabled: c ? (c.active !== false) : x.visible});
+  });
+  return list;
+}
+
+/** Allume ou éteint chaque lampe pour une phase : 'direct', 'bounce' ou 'none' (tout éteint). */
+export function setBakePhase(list, phase){
+  list.forEach(function(e){
+    const on = e.enabled && bakeLightRole(e.mode, phase);
+    // Visible même éteinte : changer le nombre de lampes visibles reconstruit les shaders de
+    // toute la scène, alors qu'une intensité nulle ne coûte rien.
+    e.light.visible = e.enabled;
+    e.light.intensity = on ? e.intensity : 0;
+  });
+}
+
+/** Rend à chaque lampe son état d'avant la cuisson. */
+export function restoreBakeLights(list){
+  list.forEach(function(e){ e.light.visible = e.visible; e.light.intensity = e.intensity; });
 }
 
 // ---------- 4. La cuisson ----------
@@ -534,6 +584,16 @@ export async function bakeLightmap(opts){
   lightmapBakeState.total = total * passes;
   lightmapBakeState.image = 0;
 
+  // Le mode de chaque lampe (realtime / mixed / baked) décide de ce qu'elle apporte à chaque
+  // phase. Noté avant d'y toucher, rendu dans le `finally`.
+  const lampsBake = bakeLightsState();
+  const nBaked = lampsBake.filter(function(e){ return e.enabled && e.mode === 'baked'; }).length;
+  const nMixed = lampsBake.filter(function(e){ return e.enabled && e.mode === 'mixed'; }).length;
+  if(!nBaked && !nMixed){
+    setStatus('Aucune lumière en mode Cuite ou Mixte : la cuisson ne contiendra que le ciel. '
+      + 'Réglez le Mode des lumières dans leur composant Light.', 8000);
+  }
+
   let data = null, finale = null, capture = null;
   try {
     for(let pass = 0; pass < passes; pass++){
@@ -541,7 +601,8 @@ export async function bakeLightmap(opts){
       // la capture ne rapporte que le ciel occulté par les objets, ce qui donne déjà à la
       // pass directe son éclairage d'ambiance.
       const ancienne = capture;
-      capture = captureEnvironmentBounce(meshes, finale ? finale.texture : null, resCapture);
+      capture = captureEnvironmentBounce(meshes, finale ? finale.texture : null, resCapture,
+        lampsBake, pass > 0);
       if(ancienne) ancienne.dispose();
       scene.environment = capture.texture;
 
@@ -593,6 +654,7 @@ export async function bakeLightmap(opts){
     renderer.setRenderTarget(targetOrigine);
     scene.environment = envOrigine;
     exitOfBake();
+    restoreBakeLights(lampsBake);
     if(capture) capture.dispose();
     rt1.dispose();
     rt2.dispose();

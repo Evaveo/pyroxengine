@@ -451,6 +451,7 @@ export const PAGES_WORKFLOWS = [
  summary:'Précalculer l\'éclairage d\'un décor immobile dans des lightmaps.',
  anchors:[
    {f:'js/lightmap-bake.js', c:'const LIGHTMAP_RES = 1024'},
+   {f:'js/lightmap-bake.js', c:'export function setBakePhase(list, phase)'},
    {f:'js/lightmap-bake.js', c:'const LIGHTMAP_IMAGES = 240'},
    {f:'js/lightmap-bake.js', c:'const LIGHTMAP_BOUNCES = 1'},
    {f:'js/lightmap-bake.js', c:'const LIGHTMAP_SMOOTH = 0.35'},
@@ -468,7 +469,11 @@ export const PAGES_WORKFLOWS = [
 
   + '<h3>Cuire un décor</h3>'
   + stepsHelp([
-      'Importez des modèles qui ont un second jeu d\'UV sans chevauchement (voir ci-dessous).',
+      'Importez des modèles qui ont un second jeu d\'UV sans chevauchement, ou cochez '
+        + '<b>Générer les UV de lightmap</b> dans leurs paramètres d\'import (voir ci-dessous).',
+      'Réglez le <b>Mode</b> de chaque lumière, dans son composant ' + linkHelp('component-Light', 'Lumière')
+        + ' : <b>Cuite</b> pour les lampes d\'appoint du décor, <b>Mixte</b> pour celles qui doivent garder '
+        + 'ombres et reflets en temps réel, <b>Temps réel</b> pour celles que la cuisson doit ignorer.',
       'Optionnel : sélectionnez les objets à cuire. Sans sélection, toute la scène est cuite.',
       '<b>Objet → 💡 Cuire les lightmaps…</b> ouvre la fenêtre de réglages ; elle annonce la portée et la mémoire nécessaire.',
       'Lancez la cuisson. La vue <b>se fige sur sa dernière image</b> et l\'avancement passe par la barre d\'état ; l\'onglet reste réactif.',
@@ -479,10 +484,12 @@ export const PAGES_WORKFLOWS = [
   + '<p>Une lightmap a besoin d\'un <b>dépliage</b> où chaque triangle a sa place, <b>sans aucun '
   + 'chevauchement</b>. Ce n\'est pas le jeu d\'UV des textures, qui se chevauche presque toujours '
   + 'pour répéter un motif.</p>'
-  + '<p><b>L\'éditeur ne fabrique pas ce dépliage.</b> Exportez-le depuis le logiciel de '
-  + 'modélisation — dans Blender, <i>UV → Lightmap Pack</i> ou <i>Smart UV Project</i> sur un '
-  + 'second calque UV, qui ressort dans le <code>.glb</code> comme <code>uv1</code>. C\'est aussi '
-  + 'ce que demande Unity ; aucun moteur temps réel ne déplie à votre place.</p>'
+  + '<p>Deux façons de l\'obtenir, comme dans Unity. <b>Le générer à l\'import</b> : la case '
+  + '<b>Générer les UV de lightmap</b> des paramètres d\'import d\'un modèle (« Generate Lightmap UVs ») '
+  + 'le déplie par projection plane, avec un angle dur et une marge d\'empaquetage réglables. Ou '
+  + '<b>l\'exporter du logiciel de modélisation</b>, meilleur sur une forme organique — dans Blender, '
+  + '<i>UV → Lightmap Pack</i> ou <i>Smart UV Project</i> sur un second calque UV, qui ressort dans le '
+  + '<code>.glb</code> comme <code>uv1</code>.</p>'
   + trapHelp('<b>Les primitives du moteur ne conviennent pas.</b> Un cube, une '
   + 'sphère, un cylindre n\'ont qu\'un seul jeu d\'UV, et un cube y empile ses six faces au même '
   + 'endroit. Cuit tel quel, il ressort d\'une seule teinte : une face a écrasé les cinq autres. '
@@ -531,6 +538,13 @@ export const PAGES_WORKFLOWS = [
   + 'l\'aire totale des triangles dans le plan UV, et une aire supérieure à 1 prouve qu\'ils ne '
   + 'peuvent pas tenir sans se recouvrir. Le contrôle est fiable dans ce sens-là et pas dans '
   + 'l\'autre : il ne crie jamais à tort, mais il ne voit pas tous les chevauchements.</p>')
+  + advancedHelp('Les lumières pendant la cuisson', '<p>Chaque passe de la cuisson calcule l\'éclairage '
+  + '<b>direct</b>, puis le <b>rebond</b> à partir d\'une capture de la scène. Le mode d\'une lumière dit à '
+  + 'quelle phase elle participe : une lumière <b>Cuite</b> éclaire les passes directes, puis s\'éteint dans la '
+  + 'capture — son direct y est déjà, par la lightmap de la passe précédente. Une lumière <b>Mixte</b> fait '
+  + 'l\'inverse : absente des passes directes (son direct reste en temps réel), allumée dans la capture, seule '
+  + 'façon pour sa lumière de rebondir. Une lumière <b>Temps réel</b> n\'est allumée nulle part. Avec '
+  + '<b>0 rebond</b>, une lumière Mixte n\'apporte donc rien à la lightmap.</p>')
   + advancedHelp('Ce que la cuisson produit', '<p>Une texture ajoutée au projet, branchée automatiquement sur l\'emplacement '
   + '<b>Lightmap</b> des matériaux concernés — donc présente dans le jeu publié sans manipulation '
   + '(voir ' + linkHelp('materials-reference', 'toutes les propriétés') + '). Recuire '
