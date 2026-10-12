@@ -569,6 +569,13 @@ function mountCloudSection(host, localDetails, opts){
     const payload = {};
     payload['nom'] = nameEl.value.trim() || 'IA';
     cloudApiCall('POST', '/api/mcp/jetons', payload).then(function(j){
+      // L'URL créée ici est servie par cet onglet d'office : deux projets ouverts ne se disputent
+      // plus les appels sans qu'on ait à cocher « Cet onglet ».
+      if(Number.isInteger(j.jeton.id)){
+        const ids = tabTokenIds().filter(function(id){ return id !== j.jeton.id; }).concat([j.jeton.id]);
+        setTabTokenIds(ids);
+        if(cloudLink && cloudLink.status === 'connecté') cloudLink.bind(ids);
+      }
       showSecret(j.jeton.secret); nameEl.value = ''; renderTokens();
     }, function(e){ cloudStatusView('création impossible : ' + e.message); });
   });
