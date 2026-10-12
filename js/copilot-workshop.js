@@ -140,8 +140,20 @@ export const resumes = new Map();
 
 export function setPointOfResume(name){
   const n = String(name || 'defaut');
-  resumes.set(n, JSON.parse(JSON.stringify(stateCurrent())));
+  resumes.set(n, copyState(stateCurrent()));
   return n;
+}
+
+// `assets` porte les assets VIVANTS (Texture, File, AudioBuffer) — comme dans l'historique, on
+// garde les références. Les passer par JSON faisait crier three (« Unable to serialize Texture »,
+// des centaines de fois par point de reprise) et rendait au retour des assets morts, sans image.
+// Le reste de l'instantané est déjà des données : copié, pour qu'un retour n'abîme pas le point.
+function copyState(state){
+  const out = {};
+  Object.keys(state).forEach(function(k){
+    out[k] = (k === 'assets') ? state[k].slice() : JSON.parse(JSON.stringify(state[k] === undefined ? null : state[k]));
+  });
+  return out;
 }
 
 export function goBackAtPointOfResume(name){
@@ -151,7 +163,7 @@ export function goBackAtPointOfResume(name){
   // Un pas d'annulation AVANT de revenir : sinon le retour lui-même serait irréversible, et un agent
   // qui se trompe de point de reprise aurait détruit son travail sans recours.
   pushHistory();
-  restoreState(JSON.parse(JSON.stringify(state)));
+  restoreState(copyState(state));
   return n;
 }
 

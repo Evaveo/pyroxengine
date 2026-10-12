@@ -638,7 +638,7 @@ export const PAGES_INTERFACE = [
  summary:'Résumé de scène, document de conception et points de reprise : mener une session sans perdre son travail.',
  anchors:[
    {f:'js/copilot-workshop.js', c:'const DESIGN_MAX = 20000;'},
-   {f:'js/copilot-workshop.js', c:'resumes.set(n, JSON.parse(JSON.stringify(stateCurrent())));'},
+   {f:'js/copilot-workshop.js', c:'resumes.set(n, copyState(stateCurrent()));'},
    {f:'js/copilot-workshop.js', c:'function goBackAtPointOfResume(name){'},
    {f:'js/copilot-workshop.js', c:"name: 'summarize_scene',"},
    {f:'js/project-settings.js', c:'design: brut.design ?? null,'},
