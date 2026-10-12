@@ -38,3 +38,23 @@ import * as TSL from 'three/tsl';
 window.THREE = Object.assign({}, window.THREE, THREE_WEBGPU);
 window.TSL = TSL;
 window.dispatchEvent(new Event('moteur-webgpu-pret'));
+
+// Lance `renderer.init()` en demandant au GPU les limites de textures qu'il SAIT tenir. Sans
+// ça, WebGPU impose le plancher de la norme (16 textures échantillonnées par étage de shader) :
+// un matériau standard + ombres + lightmap + sondes le dépasse, et l'objet ne s'affiche plus
+// (« The number of sampled textures (19) … exceeds the maximum per-stage limit (16) »).
+// On lit les limites de l'adaptateur AVANT init() — three refait sa propre demande
+// d'adaptateur ensuite et passe `requiredLimits` tel quel à requestDevice.
+const GPU_LIMITS_WANTED = ['maxSampledTexturesPerShaderStage', 'maxSamplersPerShaderStage'];
+window.initRendererGpu = function(renderer){
+  if(typeof renderer.init !== 'function') return Promise.resolve();
+  const backend = renderer.backend;
+  const gpu = (typeof navigator !== 'undefined') ? navigator.gpu : null;
+  if(!backend || !backend.isWebGPUBackend || !gpu) return renderer.init();
+  return gpu.requestAdapter().then(function(adapter){
+    if(adapter){
+      const lim = backend.parameters.requiredLimits || (backend.parameters.requiredLimits = {});
+      GPU_LIMITS_WANTED.forEach(function(k){ if(adapter.limits[k] > 16) lim[k] = adapter.limits[k]; });
+    }
+  }, function(){}).then(function(){ return renderer.init(); });
+};

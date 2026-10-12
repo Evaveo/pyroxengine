@@ -51,8 +51,11 @@ export const blobsShared = {};
 // texture qui en remplace une autre est invisible à l'œil — on croit avoir mal exporté.
 export function shareBlobs(blobs){
   Object.keys(blobs || {}).forEach(function(n){
-    if(blobsShared[n] && blobsShared[n] !== blobs[n]){
-      const msg = 'Deux fichiers importés s\'appellent « ' + n + '  » : le plus récent '
+    // Même taille : c'est le MÊME fichier réimporté (réimport Blender en place), pas un homonyme —
+    // le signaler à chaque réimport noyait la console d'une fausse alerte.
+    const prev = blobsShared[n];
+    if(prev && prev !== blobs[n] && !(prev.size !== undefined && prev.size === blobs[n].size)){
+      const msg = 'Deux fichiers importés s\'appellent « ' + n + ' » : le plus récent '
         + 'remplacera l\'autre pour les décodeurs. Renommez-en un.';
       if(typeof setStatus === 'function') setStatus(msg, 7000);
       console.warn('[compression] ' + msg);

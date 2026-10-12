@@ -96,9 +96,30 @@ export function fieldsAssetHisto(a){
     // prototype est une poignée vivante (Texture, File, AudioBuffer, Image, Blob…).
     const proto = Object.getPrototypeOf(v);
     if(!Array.isArray(v) && proto !== Object.prototype && proto !== null) return;
-    try { out[k] = JSON.parse(JSON.stringify(v)); }
-    catch(e){ /* structure circulaire ou non sérialisable : on laisse tomber ce champ */ }
+    try { out[k] = clonePlainData(v, []); }
+    catch(e){ /* structure non copiable : on laisse tomber ce champ */ }
   });
+  return out;
+}
+
+// Copie profonde des seules DONNÉES : une poignée vivante imbriquée (Texture d'un modèle importé
+// depuis Blender…) est omise. `JSON.stringify` ne convenait pas : il appelle `Texture.toJSON`
+// AVANT tout filtre, et three crie « Unable to serialize Texture » pour chaque texture, à chaque
+// entrée d'historique — des milliers de lignes par import. Un cycle est coupé, pas suivi.
+function clonePlainData(v, path){
+  if(v === null || typeof v !== 'object') return (typeof v === 'function') ? undefined : v;
+  const isArr = Array.isArray(v);
+  const proto = Object.getPrototypeOf(v);
+  if(!isArr && proto !== Object.prototype && proto !== null) return undefined;
+  if(path.indexOf(v) >= 0) return undefined;
+  path.push(v);
+  let out;
+  if(isArr) out = v.map(function(x){ const c = clonePlainData(x, path); return c === undefined ? null : c; });
+  else {
+    out = {};
+    Object.keys(v).forEach(function(k){ const c = clonePlainData(v[k], path); if(c !== undefined) out[k] = c; });
+  }
+  path.pop();
   return out;
 }
 

@@ -845,7 +845,7 @@ renderer.__ready = (typeof renderer.init !== 'function');
 // Rappeler init() marcherait (three met sa promesse en hidden) mais reposerait sur un
 // détail d'implémentation ; garder la référence ne repose sur rien.
 renderer.__init = (typeof renderer.init === 'function')
-  ? renderer.init().then(function(){ renderer.__ready = true; })
+  ? (window.initRendererGpu ? window.initRendererGpu(renderer) : renderer.init()).then(function(){ renderer.__ready = true; })
   : Promise.resolve();
 RT_RENDER.attach(renderer, function(){ resize(); }, function(){ return XR_WANTED && XRRuntime.isPresenting(); });
 renderer.shadowMap.enabled = true;

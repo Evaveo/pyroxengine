@@ -61,7 +61,7 @@ export function setPreviewCam(c){ previewCam = c; }
 export const renderer = new THREE.WebGPURenderer({antialias:true});
 renderer.__ready = (typeof renderer.init !== 'function');
 if(typeof renderer.init === 'function'){
-  renderer.init().then(function(){ renderer.__ready = true; });
+  (window.initRendererGpu ? window.initRendererGpu(renderer) : renderer.init()).then(function(){ renderer.__ready = true; });
 }
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
