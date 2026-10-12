@@ -2,14 +2,15 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Test build</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
   html,body{height:100%;overflow:hidden;background:#0d0f12;color:#d6d9de;
     font-family:"Segoe UI",system-ui,sans-serif;}
   #rj-view{position:fixed;inset:0;}
-  #rj-view canvas{display:block;}
+  #rj-view canvas{display:block;touch-action:none;}
   #rj-ui{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:6;}
   #rj-ui .ui-button{pointer-events:auto;cursor:pointer;font:inherit;}
   #rj-loading{position:fixed;inset:0;background:#0d0f12;display:flex;
@@ -104,6 +105,7 @@
 <script type="module" src="../js/locale.js"></script>
 <script type="module" src="../js/gamepad-input.js"></script>
 <script type="module" src="../js/touch-input.js"></script>
+<script type="module" src="../js/render-scale.js"></script>
 <script type="module" src="../js/components/component-synth.js"></script>
 <script type="module" src="../js/components/component-touch-controls.js"></script>
 <script type="module" src="../js/components/component-sprite.js"></script>

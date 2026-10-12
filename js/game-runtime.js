@@ -37,6 +37,7 @@ import { buildExtraPrimitive } from './primitives-extra.js';
 import { makeSynthApi } from './synth.js';
 import { makeSteamApi, readSave, removeSave, writeSave } from './steam-bridge.js';
 import { combineAxis, syncTouchControls, touchAxis } from './touch-input.js';
+import { renderSetupFor } from './render-scale.js';
 
 // LA CONSOLE DU JEU REMONTE À L'ÉDITEUR. En mode Lecture, ce runtime tourne dans une iframe de
 // l'éditeur : ses console.error/warn (erreurs de script comprises) n'apparaissaient que dans les
@@ -836,7 +837,8 @@ function progress(txt){
 // js/xr-runtime.js. Décidé UNE fois au démarrage, depuis les données : le backend ne se change
 // pas sur un renderer vivant.
 const XR_WANTED = XRRuntime.projectUsesXr(D);
-const renderer = new THREE.WebGPURenderer({antialias:true, forceWebGL: XR_WANTED});
+const RT_RENDER = renderSetupFor(D && D.settings, devicePixelRatio);   // résolution adaptative, anticrénelage : js/render-scale.js
+const renderer = new THREE.WebGPURenderer({antialias:RT_RENDER.antialias, forceWebGL: XR_WANTED});
 renderer.__ready = (typeof renderer.init !== 'function');
 // La promesse est CONSERVÉE, pas seulement lancée : le démarrage l'attend avant de charger
 // les assets, parce que KTX2Loader interroge le GPU pour choisir sa cible de transcodage.
@@ -845,7 +847,7 @@ renderer.__ready = (typeof renderer.init !== 'function');
 renderer.__init = (typeof renderer.init === 'function')
   ? renderer.init().then(function(){ renderer.__ready = true; })
   : Promise.resolve();
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+RT_RENDER.attach(renderer, function(){ resize(); }, function(){ return XR_WANTED && XRRuntime.isPresenting(); });
 renderer.shadowMap.enabled = true;
 // PCFSoftShadowMap est deprecie en r185 et three retombe de toute facon sur PCFShadowMap :
 // on l ecrit explicitement plutot que de laisser un repli silencieux. Les ombres sont donc
@@ -4665,6 +4667,7 @@ function loop(){
   // image qui suit une interruption encaisse toute la durée de l'interruption.
   clock.update();
   const dt = Math.min(clock.getDelta(), 0.05);
+  RT_RENDER.tick(dt);   // plafonné à 0,05 : 20 i/s reste bien sous le seuil de 45 i/s
   // EN PAUSE, LE MONDE RECOIT ZERO. Geler la boucle entiere arreterait aussi le rendu et les
   // scripts : l ecran figerait sur la derniere image et plus aucun code ne pourrait relancer.
   // On passe donc un dt NUL a tout ce qui simule, et le dt reel reste disponible aux scripts

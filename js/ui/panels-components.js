@@ -674,6 +674,29 @@ declareComponentPanel('UIDocument', {
       label: '＋ Créer et éditer…',
       visible: function(c){ return !(c.documentUI || c.feuillesStyle[0]); },
       run: function(c){ editUIDocument(c); } }
+  ]}, { id: 'uidoc-scale', title: "Mise à l'échelle", fields: [
+    // Référence Unity : Canvas Scaler « Scale With Screen Size » — voir uiScaleFactor (game-ui.js).
+    { ids: ['f-uidoc-scale-mode'], label: 'Mode', type: 'choice',
+      options: function(){ return [['none', 'Aucune (pixels fixes)'], ['fit', 'Tout faire tenir'],
+        ['fill', 'Remplir'], ['match', 'Mélange largeur/hauteur']]; },
+      get: function(c){ return c.data.scaleMode || 'none'; },
+      set: function(c, v){ c.data.scaleMode = v; } },
+    { ids: ['f-uidoc-ref-w'], label: 'Largeur de référence', type: 'number',
+      visible: function(c){ return (c.data.scaleMode || 'none') !== 'none'; },
+      get: function(c){ return c.data.referenceWidth || 1280; },
+      set: function(c, v){ c.data.referenceWidth = Number(v) || 1280; } },
+    { ids: ['f-uidoc-ref-h'], label: 'Hauteur de référence', type: 'number',
+      visible: function(c){ return (c.data.scaleMode || 'none') !== 'none'; },
+      get: function(c){ return c.data.referenceHeight || 720; },
+      set: function(c, v){ c.data.referenceHeight = Number(v) || 720; } },
+    { ids: ['f-uidoc-match'], label: 'Largeur ↔ hauteur', type: 'number',
+      visible: function(c){ return c.data.scaleMode === 'match'; },
+      get: function(c){ return (c.data.match === undefined) ? 0.5 : c.data.match; },
+      set: function(c, v){ c.data.match = Math.max(0, Math.min(1, Number(v) || 0)); } },
+    { ids: ['f-uidoc-max'], label: 'Échelle max', type: 'number',
+      visible: function(c){ return (c.data.scaleMode || 'none') !== 'none'; },
+      get: function(c){ return c.data.maxScale || 1; },
+      set: function(c, v){ c.data.maxScale = Number(v) || 1; } }
   ]}]
 });
 

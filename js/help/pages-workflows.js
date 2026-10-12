@@ -1498,7 +1498,7 @@ export const PAGES_WORKFLOWS = [
    {f:'js/game-ui.js', c:"const prefixe = '#' + idPrefixe;"},
    {f:'js/game-ui.js', c:'data-event'},
    {f:'js/game-ui.js', c:'data-bind'},
-   {f:'js/game-ui.js', c:"if (!_isFieldOfInput(el)) { el.textContent = String(values[key]); return; }"},
+   {f:'js/game-ui.js', c:"if (!_isFieldOfInput(el)) { el.textContent = String(value); return; }"},
    {f:'js/build.js', c:'.ui-button'},
    {f:'test/scoper-css.test.mjs', c:'@media'}
  ],
@@ -1628,7 +1628,7 @@ PAGE_RICH_TEXT,
 {id:'webxr', part:'workflows', section:'Jeu', title:'Réalité virtuelle (WebXR)', level:'both',
  summary:'Rendre un jeu jouable au casque de réalité virtuelle avec WebXR.',
  anchors:[
-   {f:'js/game-runtime.js', c:'new THREE.WebGPURenderer({antialias:true, forceWebGL: XR_WANTED})'},
+   {f:'js/game-runtime.js', c:'new THREE.WebGPURenderer({antialias:RT_RENDER.antialias, forceWebGL: XR_WANTED})'},
    {f:'js/xr-runtime.js', c:"export const XR_BUTTONS = {trigger: 0, squeeze: 1, touchpad: 2, stick: 3, a: 4, b: 5};"},
    {f:'js/component-data.js', c:"snapTurn: 45,"},
    {f:'js/hub/template-webxr-vr.js', c:"HubTemplates.attachApply('webxr-vr'"}
@@ -1739,7 +1739,7 @@ PAGE_RICH_TEXT,
   + '<p>Un build tout embarqué porte <b>2,48 Mo</b> de code avant compression et '
   + '<b>' + TAGS_BUILD_FULL + ' balises de script</b>. <b>17 modules</b> en sont retirables, '
   + '<b>449 Ko</b> en tout : c\'est le <b>plafond</b>, et il ne dépend d\'aucune scène. Un platformer '
-  + '2D en atteint <b>341 Ko</b> et descend à <b>81 balises</b>.</p>'
+  + '2D en atteint <b>341 Ko</b> et descend à <b>82 balises</b>.</p>'
   + '<p class="help-trap"><b>Ce que vous gagnerez dépend de votre scène, pas du moteur.</b> Le '
   + 'chiffre que vous lirez à l\'export sera le vôtre : un jeu 3D avec des animations garde quatre '
   + 'modules qu\'un jeu 2D retire, et l\'inverse. C\'est pourquoi le message d\'export les '

@@ -28,6 +28,8 @@ function harnais(){
   // mesure. La liaison elle-même est exercée par test/bind-texte.test.mjs.
   const applied = [];
   env._applyValuesBind = function(div, values){ applied.push(JSON.parse(JSON.stringify(values))); };
+  // Depuis la v1.5.0, les images suivantes ne reposent que les clés changées.
+  env._applyChangedBind = function(idx, values, keys){ applied.push(JSON.parse(JSON.stringify(values))); };
   const redraw = () => env.uiDocumentsRedraw(container, [node], function(){}, function(){ return doc; });
   return {env, uiDoc, redraw, applied};
 }

@@ -392,7 +392,10 @@ export const PAGES_COMPONENTS_2D = [
   + propsHelp([
       ['Document UI', 'documentUIId', '— aucun —', 'L\'asset qui porte le HTML.'],
       ['Feuille de style', 'sheetStyleIds', '— aucune —', 'L\'asset qui porte le CSS.'],
-      ['✎ Éditer…', '', '', 'Ouvre l\'éditeur HTML/CSS sur les assets choisis.']
+      ['✎ Éditer…', '', '', 'Ouvre l\'éditeur HTML/CSS sur les assets choisis.'],
+      ['Mise à l\'échelle › Mode', 'scaleMode', 'none', 'Comme le Canvas Scaler d\'Unity : « Tout faire tenir » réduit l\'interface entière pour qu\'elle tienne sur un téléphone.'],
+      ['Mise à l\'échelle › Référence', 'referenceWidth / referenceHeight', '1280 / 720', 'La taille d\'écran pour laquelle le HTML/CSS a été écrit.'],
+      ['Mise à l\'échelle › Échelle max', 'maxScale', '1', 'Plafond d\'agrandissement sur un grand écran.']
     ])
   + '<h3>Utilisation</h3>'
   + '<p>Un bouton ne reçoit le clic que s\'il porte la classe <code>ui-button</code> ; son <code>data-event</code> '
@@ -450,6 +453,9 @@ export const PAGES_COMPONENTS_2D = [
       ['Joystick › Taille (px)', 'joystick.size', '150', 'Diamètre du joystick.'],
       ['Joystick › Zone morte', 'joystick.deadZone', '0.15', 'Petit mouvement ignoré au centre.'],
       ['Joystick › Axe X / Axe Y', 'joystick.axisX', 'horizontal / vertical', 'Les axes de la table d\'entrées pilotés.'],
+      ['Joystick › Actions', 'joystick.actions', '(aucune)', 'Actions pressées par le stick (haut, bas, gauche, droite) — pour un jeu qui lit des directions plutôt que des axes.'],
+      ['Joystick › 4 directions', 'joystick.fourWay', 'oui', 'Une seule direction à la fois (grille, menus).'],
+      ['Taille des boutons (px)', 'buttonSize', '84', 'Diamètre des boutons tactiles.'],
       ['Glisser › Actif', 'swipe.enabled', 'non', 'Active la zone de glisser.'],
       ['Glisser › Axe', 'swipe.axis', 'horizontal', 'L\'axe piloté par le glisser.'],
       ['Glisser › Sensibilité', 'swipe.sensitivity', '1.5', 'Amplifie le geste.'],

@@ -135,6 +135,7 @@ export const BUILD_MODULES = [
   {src: 'js/locale.js'},
   {src: 'js/gamepad-input.js'},
   {src: 'js/touch-input.js'},
+  {src: 'js/render-scale.js'},
   {src: 'js/post-volume-blend.js'},
   {src: 'js/post-profile.js'}
 ];
@@ -207,14 +208,15 @@ export function pageIndexBuild(title, bundlesDecoders, trimming){
 
 export function pageIndexBuildBody(title, bundlesDecoders, emb){
   return '<!DOCTYPE html>\n<html lang="fr">\n<head>\n<meta charset="UTF-8">\n'
-    + '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">\n'
     + '<title>' + escapeHtml(title) + '</title>\n'
     + '<style>\n'
-    + '  *{margin:0;padding:0;box-sizing:border-box;}\n'
+    + '  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}\n'
+    + '  html,body{overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}\n'
     + '  html,body{height:100%;overflow:hidden;background:#0d0f12;color:#d6d9de;\n'
     + '    font-family:"Segoe UI",system-ui,sans-serif;}\n'
     + '  #rj-view{position:fixed;inset:0;}\n'
-    + '  #rj-view canvas{display:block;}\n'
+    + '  #rj-view canvas{display:block;touch-action:none;}\n'
     // Interface de jeu : transparente aux clics, sauf sur les boutons — sinon
     // elle avalerait toute la souris et la caméra deviendrait impilotable.
     + '  #rj-ui{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:6;}\n'
@@ -338,6 +340,7 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     + '<script type="module" src="locale.js"><\/script>\n'
     + '<script type="module" src="gamepad-input.js"><\/script>\n'
     + '<script type="module" src="touch-input.js"><\/script>\n'
+    + '<script type="module" src="render-scale.js"><\/script>\n'
     + '<script type="module" src="components/component-synth.js"><\/script>\n'
     + '<script type="module" src="components/component-touch-controls.js"><\/script>\n'
     + '<script type="module" src="components/component-sprite.js"><\/script>\n'

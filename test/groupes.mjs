@@ -104,7 +104,7 @@ export const GROUPS = {
     'miroir-runtime.test.mjs', 'plugins-api-v2.test.mjs', 'catalogue-plugins.test.mjs', 'pont-runtime-composants.test.mjs',
     'runtime-partage.test.mjs', 'script-asset-reference.test.mjs', 'script-confiance.test.mjs',
     'script-expose-persistance.test.mjs', 'script-portee.test.mjs', 'son-proc.test.mjs',
-    'localisation.test.mjs', 'manette.test.mjs', 'steam.test.mjs', 'souris-fps.test.mjs', 'souris-script.test.mjs', 'reseau-protocole.test.mjs', 'reseau-transports.test.mjs', 'synth-touch.test.mjs', 'systems.test.mjs'
+    'localisation.test.mjs', 'manette.test.mjs', 'steam.test.mjs', 'souris-fps.test.mjs', 'souris-script.test.mjs', 'reseau-protocole.test.mjs', 'reseau-transports.test.mjs', 'synth-touch.test.mjs', 'mobile-ecran.test.mjs', 'systems.test.mjs'
   ],
 
   // Caméras, physique, personnage, import de modèles, calques.

@@ -16,7 +16,11 @@ export const TOUCH_CONTROLS_DEFAULT = {
   showOnDesktop: false,   // faux : n'apparaît que sur un écran tactile
   opacity: 0.85,
   joystick: {enabled: true, side: 'left', size: 150, deadZone: 0.15,
-             axisX: 'horizontal', axisY: 'vertical', invertY: false},
+             axisX: 'horizontal', axisY: 'vertical', invertY: false,
+             // Les ACTIONS pressées par le stick, pour un jeu qui lit des directions et non des
+             // axes (`api.actionPressed('haut')` — grille, menus). Vide : rien n'est pressé.
+             actions: {up: '', down: '', left: '', right: ''}, fourWay: true},
+  buttonSize: 84,
   swipe: {enabled: false, axis: 'horizontal', sensitivity: 1.5},
   buttons: []             // [{id, label, action, side: 'right'}]
 };
@@ -32,7 +36,7 @@ function side(v, def){ return (v === 'left' || v === 'right') ? v : def; }
 export function normalizeTouchControls(data){
   const s = data || {};
   const D = TOUCH_CONTROLS_DEFAULT;
-  const j = s.joystick || {}, w = s.swipe || {};
+  const j = s.joystick || {}, w = s.swipe || {}, ja = j.actions || {};
   return {
     showOnDesktop: !!s.showOnDesktop,
     opacity: num(s.opacity, D.opacity, 0.1, 1),
@@ -43,8 +47,11 @@ export function normalizeTouchControls(data){
       deadZone: num(j.deadZone, D.joystick.deadZone, 0, 0.9),
       axisX: str(j.axisX, D.joystick.axisX),
       axisY: str(j.axisY, D.joystick.axisY),
-      invertY: !!j.invertY
+      invertY: !!j.invertY,
+      actions: {up: str(ja.up, ''), down: str(ja.down, ''), left: str(ja.left, ''), right: str(ja.right, '')},
+      fourWay: j.fourWay === undefined ? true : !!j.fourWay
     },
+    buttonSize: num(s.buttonSize, D.buttonSize, 40, 160),
     swipe: {
       enabled: !!w.enabled,
       axis: str(w.axis, D.swipe.axis),
@@ -74,6 +81,24 @@ export function joystickVector(dx, dy, radius, deadZone){
   if(m <= dz) return {x: 0, y: 0};
   const k = ((m - dz) / (1 - dz)) / m;
   return {x: x * k, y: y * k};
+}
+
+/**
+ * Les directions pressées par un stick : sous-ensemble de {up, down, left, right}. Seuil 0,5 ;
+ * en `fourWay`, seule la composante dominante compte (une grille ne connaît pas la diagonale, et
+ * un menu qui reçoit « haut » et « droite » à la fois saute deux cases).
+ */
+export function joystickDirections(v, fourWay){
+  const out = [];
+  const ax = Math.abs(v.x), ay = Math.abs(v.y);
+  if(Math.max(ax, ay) < 0.5) return out;
+  if(fourWay){
+    if(ax >= ay) out.push(v.x > 0 ? 'right' : 'left'); else out.push(v.y > 0 ? 'up' : 'down');
+    return out;
+  }
+  if(ax >= 0.5) out.push(v.x > 0 ? 'right' : 'left');
+  if(ay >= 0.5) out.push(v.y > 0 ? 'up' : 'down');
+  return out;
 }
 
 /** L'état partagé : valeurs d'axes analogiques écrites par le tactile. */
@@ -227,7 +252,17 @@ function buildOverlay(host, cfg, ctx){
       knob.style.transform = 'translate(' + (Math.cos(ang) * len) + 'px,' + (Math.sin(ang) * len) + 'px)';
       touchState.axes[j.axisX] = v.x;
       touchState.axes[j.axisY] = j.invertY ? -v.y : v.y;
+      pressDirections(joystickDirections(v, j.fourWay));
     }
+    // Les touches tenues par le stick : relâchées dès que la direction change.
+    let held = [];
+    function pressDirections(dirs){
+      const want = dirs.map(function(d){ return firstKeyOf(ctx, j.actions[d]); }).filter(Boolean);
+      held.forEach(function(k){ if(want.indexOf(k) < 0 && ctx.keys) ctx.keys.delete(k); });
+      want.forEach(function(k){ if(held.indexOf(k) < 0 && ctx.keys) ctx.keys.add(k); });
+      held = want;
+    }
+    MOUNT.cleanups.push(function(){ pressDirections([]); });
     listen(base, 'pointerdown', function(e){
       if(id !== null) return;
       id = e.pointerId;
@@ -240,6 +275,7 @@ function buildOverlay(host, cfg, ctx){
       if(e.pointerId !== id) return;
       id = null; knob.style.transform = '';
       touchState.axes[j.axisX] = 0; touchState.axes[j.axisY] = 0;
+      pressDirections([]);
     };
     listen(base, 'pointerup', end);
     listen(base, 'pointercancel', end);
@@ -249,14 +285,15 @@ function buildOverlay(host, cfg, ctx){
   cfg.buttons.forEach(function(b){
     if(!columns[b.side]){
       const col = el('div', 'touch-buttons', {position: 'absolute', bottom: '32px', display: 'flex',
-        flexDirection: 'column', gap: '14px', pointerEvents: 'none'});
+        flexDirection: 'column', flexWrap: 'wrap', gap: '12px', pointerEvents: 'none',
+        maxHeight: 'calc(100% - 48px)', alignContent: 'flex-end'});
       col.style[b.side] = '28px';
       if(cfg.joystick.enabled && cfg.joystick.side === b.side) col.style.bottom = (cfg.joystick.size + 48) + 'px';
       root.appendChild(col);
       columns[b.side] = col;
     }
-    const btn = el('button', 'touch-button', {pointerEvents: 'auto', touchAction: 'none', minWidth: '84px',
-      minHeight: '84px', borderRadius: '50%', border: '2px solid rgba(255,255,255,.6)',
+    const btn = el('button', 'touch-button', {pointerEvents: 'auto', touchAction: 'none', minWidth: cfg.buttonSize + 'px',
+      minHeight: cfg.buttonSize + 'px', borderRadius: '50%', border: '2px solid rgba(255,255,255,.6)',
       background: 'rgba(20,30,60,.55)', color: '#fff', font: '600 16px system-ui,sans-serif'});
     btn.type = 'button';
     btn.dataset.action = b.action;

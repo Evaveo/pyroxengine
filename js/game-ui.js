@@ -190,12 +190,23 @@ export function uiDocumentsRedraw(container, nodes, atEvent, resolveDocument) {
     if (htmlNew) {
       state.div.innerHTML = doc.html || '';
       state.html = doc.html;
+      state.index = null;
+      state.last = null;
     }
-    const fingerprint = _fingerprintValues(uiDoc.values);
-    if (htmlNew || fingerprint !== state.fingerprint) {
+    // INCRÉMENTAL : seules les clés qui ont changé depuis l'image précédente sont reposées, sur
+    // les seuls éléments qui les lient (index construit une fois par HTML). Avant, une seule
+    // valeur modifiée — un compte à rebours, une barre de vie — resérialisait TOUTES les valeurs
+    // (JSON.stringify à chaque image) puis réécrivait tous les éléments liés : 70 à 90 sur le
+    // HUD de jeux/Donjons, chaque image, ce qui pesait lourd sur téléphone.
+    const changed = _changedKeys(state, uiDoc.values);
+    if (htmlNew || changed === null) {
+      state.index = _bindIndex(state.div);
       _applyValuesBind(state.div, uiDoc.values);
-      state.fingerprint = fingerprint;
+    } else if (changed.length) {
+      if (typeof applyLocaleBind === 'function') applyLocaleBind(state.div);
+      _applyChangedBind(state.index, uiDoc.values, changed);
     }
+    _applyUIScale(container, state, uiDoc);
     if (state.css !== doc.css) {
       state.style.textContent = baseRulesUIDoc(id) + scopeCss(doc.css, id);
       state.css = doc.css;
@@ -211,6 +222,112 @@ export function uiDocumentsRedraw(container, nodes, atEvent, resolveDocument) {
     if (info.node) _renderUIDoc.delete(info.node);
     rendered.delete(id);
   });
+}
+
+// Les clés changées depuis le dernier appel (null : tout reposer — premier passage). Comparaison
+// par identité pour les scalaires, par sérialisation pour un objet/tableau (rare dans un HUD).
+export function _changedKeys(state, values) {
+  const v = values || {};
+  const first = !state.last;
+  const last = state.last || (state.last = {});
+  const out = [];
+  for (const k in v) {
+    const x = v[k];
+    const snap = (x !== null && typeof x === 'object') ? _fingerprintValues(x) : x;
+    if (!(k in last) || last[k] !== snap) { last[k] = snap; out.push(k); }
+  }
+  return first ? null : out;
+}
+
+// clé → éléments qui la lient, pour chaque sorte de liaison.
+export function _bindIndex(div) {
+  const idx = {text: new Map(), cls: new Map(), rich: new Map()};
+  if (!div || !div.querySelectorAll) return idx;
+  const add = function (m, k, el) { if (k === undefined || k === null) return; let a = m.get(k); if (!a) m.set(k, a = []); a.push(el); };
+  div.querySelectorAll('[data-bind], [data-bind-class], [data-bind-rich]').forEach(function (el) {
+    add(idx.rich, el.dataset.bindRich, el);
+    add(idx.cls, el.dataset.bindClass, el);
+    add(idx.text, el.dataset.bind, el);
+  });
+  return idx;
+}
+
+export function _applyChangedBind(idx, values, keys) {
+  if (!idx) return;
+  keys.forEach(function (k) {
+    const v = values[k];
+    (idx.rich.get(k) || []).forEach(function (el) { _applyRichBind(el, v); });
+    (idx.cls.get(k) || []).forEach(function (el) { _applyClassBind(el, v); });
+    (idx.text.get(k) || []).forEach(function (el) { _applyOneBind(el, v); });
+  });
+}
+
+// ---------- Mise à l'échelle (référence Unity : Canvas Scaler « Scale With Screen Size ») ----------
+// Une interface écrite en pixels pour 1280×720 débordait d'un téléphone (844×390 en paysage) :
+// textes coupés, panneaux hors écran. Le UIDocument déclare sa résolution de référence et le
+// moteur met tout le document à l'échelle d'un bloc. `scaleMode` :
+//   'none'   — rien (défaut, comportement historique) ;
+//   'fit'    — tout tient à l'écran (min des deux rapports) — ce qu'il faut à un HUD ;
+//   'fill'   — remplit (max des deux rapports) ;
+//   'match'  — mélange logarithmique largeur/hauteur selon `match` (0 = largeur, 1 = hauteur).
+// `maxScale` (défaut 1) évite qu'un écran 4K agrandisse le pixel-art au-delà du dessin d'origine.
+export function uiScaleFactor(cfg, w, h) {
+  const c = cfg || {};
+  const mode = c.scaleMode || 'none';
+  if (mode === 'none' || !(w > 0) || !(h > 0)) return 1;
+  const rw = Number(c.referenceWidth) > 0 ? Number(c.referenceWidth) : 1280;
+  const rh = Number(c.referenceHeight) > 0 ? Number(c.referenceHeight) : 720;
+  const sx = w / rw, sy = h / rh;
+  let k;
+  if (mode === 'fit') k = Math.min(sx, sy);
+  else if (mode === 'fill') k = Math.max(sx, sy);
+  else {
+    const m = Math.max(0, Math.min(1, Number.isFinite(Number(c.match)) ? Number(c.match) : 0.5));
+    k = Math.pow(2, Math.log2(sx) * (1 - m) + Math.log2(sy) * m);
+  }
+  const max = Number(c.maxScale) > 0 ? Number(c.maxScale) : 1;
+  const min = Number(c.minScale) > 0 ? Number(c.minScale) : 0.25;
+  return Math.max(min, Math.min(max, k));
+}
+
+// La taille du conteneur, lue par ResizeObserver et non à chaque image : lire clientWidth
+// juste après avoir écrit le DOM forcerait une mise en page complète par image.
+const _containerSize = new WeakMap();
+function _sizeOf(container) {
+  let s = _containerSize.get(container);
+  if (!s) {
+    s = {w: container.clientWidth || (typeof innerWidth === 'number' ? innerWidth : 0),
+         h: container.clientHeight || (typeof innerHeight === 'number' ? innerHeight : 0)};
+    _containerSize.set(container, s);
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(function (entries) {
+        const r = entries[0] && entries[0].contentRect;
+        if (r) { s.w = r.width; s.h = r.height; }
+      }).observe(container);
+    }
+  }
+  return s;
+}
+
+function _applyUIScale(container, state, cfg) {
+  const mode = cfg && cfg.scaleMode;
+  if (!mode || mode === 'none') {
+    if (state.scaleKey) {
+      const st = state.div.style;
+      ['position', 'left', 'top', 'width', 'height', 'transform', 'transformOrigin'].forEach(function (p) { st[p] = ''; });
+      state.scaleKey = '';
+    }
+    return;
+  }
+  const size = _sizeOf(container);
+  const k = uiScaleFactor(cfg, size.w, size.h);
+  const key = k.toFixed(4) + '|' + size.w + 'x' + size.h;
+  if (key === state.scaleKey) return;
+  state.scaleKey = key;
+  const st = state.div.style;
+  st.position = 'absolute'; st.left = '0'; st.top = '0';
+  st.width = (size.w / k) + 'px'; st.height = (size.h / k) + 'px';
+  st.transform = 'scale(' + k + ')'; st.transformOrigin = '0 0';
 }
 
 // L'empreinte des valeurs liées. Comparer l'objet ne dirait rien (c'est le même objet, muté en
@@ -280,15 +397,19 @@ export function _applyValuesBind(containerDiv, values) {
     const key = el.dataset.bind;
     if (key === undefined || key === null) return;
     if (!(key in values)) return;
+    _applyOneBind(el, values[key]);
+  });
+}
+
+export function _applyOneBind(el, value) {
     if (_fieldSeized(el)) return;
     // UN ELEMENT QUI N'EST PAS UN CHAMP RECOIT LE TEXTE. Avant, `el.value = ...` posait une
     // propriete JS sur un <div> : aucune erreur, et rien a l'ecran. Un script ne pouvait donc
     // afficher AUCUN texte dans l'interface du jeu — le seul rendu possible etait un champ de
     // saisie, ce que personne n'ecrit pour un score, un niveau ou un compte a rebours.
-    if (!_isFieldOfInput(el)) { el.textContent = String(values[key]); return; }
-    if (el.type === 'checkbox') el.checked = !!values[key];
-    else el.value = values[key];
-  });
+    if (!_isFieldOfInput(el)) { el.textContent = String(value); return; }
+    if (el.type === 'checkbox') el.checked = !!value;
+    else el.value = value;
 }
 
 // ---------- Texte riche (`data-bind-rich`) ----------
