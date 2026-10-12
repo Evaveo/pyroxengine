@@ -133,9 +133,22 @@ export function combineAxis(keyValue, name){
   return best;
 }
 
+// Tactile = le pointeur PRINCIPAL est un doigt, ou un vrai toucher a eu lieu. On ne lit plus
+// `navigator.maxTouchPoints > 0` : il est vrai sur tout PC à écran tactile et sur Firefox de
+// bureau, et les joysticks apparaissaient devant un joueur à la souris. Un PC tactile les voit
+// dès qu'il touche l'écran, pas avant.
+let touchSeen = false;
+if(typeof addEventListener === 'function'){
+  const seen = function(e){
+    if(e.type === 'touchstart' || e.pointerType === 'touch'){
+      touchSeen = true;
+      removeEventListener('touchstart', seen, true); removeEventListener('pointerdown', seen, true);
+    }
+  };
+  addEventListener('touchstart', seen, true); addEventListener('pointerdown', seen, true);
+}
 function isTouchDevice(){
-  return (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches)
-    || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
+  return touchSeen || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
 }
 
 // ---------- DOM ----------

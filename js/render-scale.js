@@ -62,10 +62,10 @@ export function createRenderScaler(cap, opts){
   return s;
 }
 
+// Le pointeur PRINCIPAL seulement : `maxTouchPoints > 0` est vrai sur un PC à écran tactile et
+// sur Firefox de bureau, qui recevaient alors les réglages d'un téléphone.
 export function isTouchScreen(){
-  const nav = globalThis.navigator;
-  return (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches)
-    || !!(nav && nav.maxTouchPoints > 0);
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 }
 
 /**
