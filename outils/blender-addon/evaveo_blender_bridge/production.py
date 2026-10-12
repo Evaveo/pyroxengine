@@ -670,7 +670,9 @@ def create_clip(target,name,keys,frames,interpolation='LINEAR',shape=False):
         for bone,value in saved.items():
             item=target.key_blocks[bone] if shape else target.pose.bones[bone] if bone else target
             if shape:item.value=value[0]
-            else:item.location,item.rotation_euler,item.scale,item.rotation_mode=value
+            # Le mode de rotation RESTE en XYZ : les clés sont des courbes rotation_euler, et un os
+            # remis en QUATERNION les ignore — l'export GLB sortait alors des clips figés en pose de repos.
+            else:item.location,item.rotation_euler,item.scale=value[0],value[1],value[2]
     return {'action':action.name,'clip':name,'frames':frames,'curves':sum(1 for _ in curves(action))}
 
 
