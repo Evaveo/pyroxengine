@@ -92,7 +92,7 @@ test('n° 4 — configure_camera_2d → sérialisation → cadrage du jeu : la c
 test('n° 4 — le jeu suit la THREE.Camera courante du nœud principal', () => {
   const src = read('js/game-runtime.js');
   assert.match(src, /function rtSyncCameraMain\(\)/);
-  assert.match(src, /rtSyncCameraMain\(\);\s*\n\s*applyMeasureCamera/);
+  assert.match(src, /rtSyncCameraMain\(\);[\s\S]{0,400}?typeof applyMeasureCamera === 'function'\) applyMeasureCamera/);
 });
 
 test('n° 26 — configure_sprite {depthSort:true} pose sortDepth, et la réponse le montre', () => {

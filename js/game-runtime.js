@@ -4728,7 +4728,7 @@ function loop(){
     applyPhysics();
   }
   rtSyncCameraMain();
-  applyMeasureCamera(game.cam, window.__measureCamera);   // play_and_measure {camera|focus} — camera-framing.js
+  if(window.__measureCamera && typeof applyMeasureCamera === 'function') applyMeasureCamera(game.cam, window.__measureCamera);   // play_and_measure — camera-framing.js, absent du build sans caméra 2D
   // APRÈS la physique et les scripts, JUSTE AVANT le rendu : les lots doivent refléter
   // les poses de cette image-ci. Placés plus haut, ils afficheraient celles de la
   // précédente — un décalage d'une image, invisible à l'arrêt et très visible en mouvement.
