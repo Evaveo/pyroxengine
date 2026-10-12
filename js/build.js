@@ -651,6 +651,11 @@ export async function publishBuildToCloud(){
     setStatus('Publication impossible : ' + e.message, 9000);
     return null;
   }
-  setStatus('🌐 Jeu publié (version ' + r.version + ') : ' + r.url + trimmingNote(build), 15000);
+  // Un jeu au catalogue republié : la nouvelle version attend la modération, le catalogue garde
+  // l'ancienne (le serveur le signale par `revalidation`, voir cloud/back/controleurs/publication.js).
+  const revalidation = r.revalidation
+    ? ' — au catalogue, cette version sera présentée après validation par l\'équipe PyroxEngine ; d\'ici là le catalogue garde la version validée.'
+    : '';
+  setStatus('🌐 Jeu publié (version ' + r.version + ') : ' + r.url + revalidation + trimmingNote(build), r.revalidation ? 20000 : 15000);
   return r;
 }
