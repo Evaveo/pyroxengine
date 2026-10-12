@@ -181,7 +181,7 @@ test('LES TRADUCTIONS PASSENT AVANT LES VALEURS liees par un script', () => {
   // effacerait le score a chaque image, et on chercherait la faute dans le script.
   const src = lire('js/game-ui.js');
   const i = src.indexOf('applyLocaleBind');
-  const j = src.indexOf("querySelectorAll('[data-bind], [data-bind-class]')");
+  const j = src.indexOf("querySelectorAll('[data-bind], [data-bind-class]");
   assert.ok(i !== -1, 'js/game-ui.js n applique plus les traductions : le HTML de jeu montrera '
     + 'les cles brutes');
   assert.ok(i < j, 'les traductions doivent etre appliquees AVANT les valeurs liees');

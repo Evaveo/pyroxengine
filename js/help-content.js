@@ -322,6 +322,7 @@ export const API_HELP = [
   {name:'on', sig:'api.on(name, fn)', quoi:'S\'abonne à un événement nommé : <code>api.emit</code> d\'un autre script, marqueur d\'animation, ou <b>clic d\'interface</b> — un élément <code>class="ui-button" data-event="jouer"</code> d\'un document UI appelle <code>fn(valeur)</code> (la valeur d\'un champ <code>data-bind</code>, sinon <code>undefined</code>). Voir la page « L\'interface de jeu ».'},
   {name:'changeScene', sig:'api.changeScene(name)', quoi:'Passe à une autre scène du projet.'},
   {name:'uiDocument', sig:'api.uiDocument(node?)', quoi:'Le composant UIDocument du nœud, ou <code>null</code>.'},
+  {name:'richText', sig:'api.richText.strip(texte) / .duration(texte, vitesse?) / .toHtml(texte, vitesse?)', quoi:'Outils du <b>texte riche</b> (<code>data-bind-rich</code>) : le texte sans balises, la durée de la machine à écrire en secondes, le HTML rendu. Voir la page « Texte riche ».'},
 
   {group:'Rendu, son, particules'},
   {name:'particles', sig:'api.particles(cible?)', quoi:'<code>.emit(n?)</code> et <code>.setActive(bool)</code> sur un émetteur.'},

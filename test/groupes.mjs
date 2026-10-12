@@ -80,7 +80,7 @@ export const GROUPS = {
   // Docks, panneaux, inspecteur, hiérarchie, fabrique d'interface.
   ui: [
     'affordances-lecture-seule.test.mjs',
-    'barre-haut.test.mjs', 'bind-texte.test.mjs', 'composant-uidocument.test.mjs',
+    'barre-haut.test.mjs', 'bind-texte.test.mjs', 'texte-riche.test.mjs', 'composant-uidocument.test.mjs',
     'dock-arbre.test.mjs', 'dock-cible-depot.test.mjs', 'dock-dom.test.mjs',
     'dock-hotes.test.mjs', 'dock-mutation.test.mjs',
     'editeur-code.test.mjs', 'table-editor.test.mjs', 'prefab-modele-perdu.test.mjs', 'etats-socle-visibles.test.mjs', 'fabrique-ui.test.mjs',

@@ -92,7 +92,8 @@ const DONNEES = {
     byTag: false,
     network: false,     // `networkHandle()` rend un singleton mémoïsé (js/network-game.js)
     isAuthority: false, // une référence de fonction
-    xr: false           // XRRuntime.api : un singleton dont les méthodes lisent l'état courant
+    xr: false,          // XRRuntime.api : un singleton dont les méthodes lisent l'état courant
+    richText: false     // RICH_TEXT_API : objet figé de fonctions pures (js/game-ui.js)
   },
   'js/game-runtime.js': {
     expose: true,
@@ -106,7 +107,8 @@ const DONNEES = {
     findByTag: false,
     action: false,      // référence de fonction (actionActive)
     status: false,      // référence de fonction (hud)
-    xr: false           // XRRuntime.api : un singleton dont les méthodes lisent l'état courant
+    xr: false,          // XRRuntime.api : un singleton dont les méthodes lisent l'état courant
+    richText: false     // RICH_TEXT_API : objet figé de fonctions pures (js/game-ui.js)
   }
 };
 

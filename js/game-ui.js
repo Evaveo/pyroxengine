@@ -270,7 +270,9 @@ export function _applyValuesBind(containerDiv, values) {
   if (!values || !containerDiv.querySelectorAll) return;
   // UN SEUL passage, et le tri se fait sur les ATTRIBUTS présents, pas sur le sélecteur qui a
   // ramené l'élément : un même élément peut porter les deux liaisons.
-  containerDiv.querySelectorAll('[data-bind], [data-bind-class]').forEach(function (el) {
+  containerDiv.querySelectorAll('[data-bind], [data-bind-class], [data-bind-rich]').forEach(function (el) {
+    const keyRich = el.dataset.bindRich;
+    if (keyRich !== undefined && keyRich !== null && (keyRich in values)) _applyRichBind(el, values[keyRich]);
     const keyClass = el.dataset.bindClass;
     if (keyClass !== undefined && keyClass !== null && (keyClass in values)) {
       _applyClassBind(el, values[keyClass]);
@@ -288,3 +290,208 @@ export function _applyValuesBind(containerDiv, values) {
     else el.value = values[key];
   });
 }
+
+// ---------- Texte riche (`data-bind-rich`) ----------
+// Né dans jeux/Donjons (script « Lib_Texte ») et remonté dans le moteur pour tous les projets.
+// Un élément `data-bind-rich="cle"` reçoit la valeur liée comme TEXTE BALISÉ : couleurs, gras,
+// effets animés lettre par lettre ([wave], [shake], [rainbow]…). Avec `data-typewriter="45"`,
+// le texte s'écrit lettre par lettre (45 lettres/s) à chaque changement de valeur.
+//
+// L'apparition est entièrement en CSS (un délai d'animation par lettre) : aucun travail par image,
+// pas de boucle à appeler depuis un script, et le DOM n'est réécrit que quand la valeur change.
+// Une balise inconnue reste affichée telle quelle ; le HTML de la valeur est échappé (une valeur
+// liée vient souvent du joueur : un pseudo ne doit pas pouvoir injecter de balises).
+const RICH_COLORS = {'red': '#ff5a5a', 'orange': '#ffa23a', 'yellow': '#ffe24a', 'green': '#6bff8a', 'cyan': '#5ee6ff',
+  'blue': '#6aa5ff', 'purple': '#b78cff', 'pink': '#ff8ad8', 'white': '#ffffff', 'gold': '#ffcf3a', 'gray': '#a8a8b8',
+  'black': '#101018',
+  // Noms français : le balisage est du CONTENU écrit par l'auteur du jeu, pas du code.
+  rouge: '#ff5a5a', 'jaune': '#ffe24a', 'vert': '#6bff8a', 'bleu': '#6aa5ff', 'violet': '#b78cff', 'rose': '#ff8ad8',
+  'blanc': '#ffffff', 'or': '#ffcf3a', 'gris': '#a8a8b8', 'noir': '#101018'};
+const RICH_ALIASES = {'arc': 'rainbow', 'tremble': 'shake', 'vague': 'wave', 'saut': 'bounce', 'lueur': 'glow',
+  'bold': 'b', 'italic': 'i', 'underline': 'u', 'strike': 's', 'c': 'color', 'couleur': 'color', 'taille': 'size',
+  'grand': 'big', 'petit': 'small', 'fantome': 'ghost', 'scintille': 'sparkle', 'balance': 'swing', 'feu': 'fire',
+  'glace': 'ice', 'contour': 'outline', 'ombre': 'shadow', 'fin': 'end'};
+const RICH_EFFECTS = ['rainbow', 'shake', 'wave', 'bounce', 'pulse', 'sparkle', 'swing', 'fire', 'ice',
+  'glitch', 'ghost', 'shadow', 'outline'];
+const RICH_STATIC_EFFECTS = ['shadow', 'outline'];
+const RICH_OTHER_TAGS = ['b', 'i', 'u', 's', 'color', 'size', 'big', 'small', 'glow', 'pause', 'end'];
+export const RICH_TEXT_SPEED = 45;
+
+export const RICH_TEXT_CSS = [
+  '.rt-word{display:inline-block;white-space:nowrap}',
+  '.rt-ch{white-space:pre-wrap}',
+  '.rt-reveal{animation:rt-reveal 0s linear both}',
+  '@keyframes rt-reveal{from{visibility:hidden}to{visibility:visible}}',
+  // `rt-skip` sur l'élément (par data-bind-class) : la machine à écrire finit d'un coup.
+  '.rt-skip .rt-reveal{animation:none}',
+  '.rt-anim{display:inline-block;animation-delay:calc(var(--i,0) * var(--dl,-0.1s));animation-iteration-count:infinite;animation-timing-function:linear}',
+  '.rt-rainbow{animation-name:rt-rainbow;animation-duration:2.2s;--dl:-0.13s}',
+  '@keyframes rt-rainbow{0%{color:#ff4d4d}17%{color:#ffb84d}33%{color:#f2ff4d}50%{color:#4dff7a}67%{color:#4dc3ff}83%{color:#b04dff}100%{color:#ff4d4d}}',
+  '.rt-shake{animation-name:rt-shake;animation-duration:.22s;animation-timing-function:steps(1,end);--dl:-0.057s}',
+  '@keyframes rt-shake{0%{transform:translate(0,0)}20%{transform:translate(-.06em,.05em)}40%{transform:translate(.05em,-.06em)}60%{transform:translate(-.04em,-.04em)}80%{transform:translate(.06em,.04em)}100%{transform:translate(0,0)}}',
+  '.rt-wave{animation-name:rt-wave;animation-duration:1.1s;animation-timing-function:ease-in-out;--dl:-0.09s}',
+  '@keyframes rt-wave{0%,100%{transform:translateY(.12em)}50%{transform:translateY(-.28em)}}',
+  '.rt-bounce{animation-name:rt-bounce;animation-duration:.9s;animation-timing-function:ease-out;--dl:-0.07s}',
+  '@keyframes rt-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-.4em)}}',
+  '.rt-pulse{animation-name:rt-pulse;animation-duration:.8s;animation-timing-function:ease-in-out;--dl:-0.05s}',
+  '@keyframes rt-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}',
+  '.rt-sparkle{animation-name:rt-sparkle;animation-duration:1.3s;animation-timing-function:steps(1,end);--dl:-0.21s}',
+  '@keyframes rt-sparkle{0%{opacity:1;text-shadow:0 0 .5em #fff}15%{opacity:.35;text-shadow:none}30%{opacity:1;text-shadow:0 0 .8em #fff}55%{opacity:.6;text-shadow:none}70%{opacity:1;text-shadow:0 0 .4em #fff}100%{opacity:1}}',
+  '.rt-swing{animation-name:rt-swing;animation-duration:1.4s;animation-timing-function:ease-in-out;transform-origin:50% 90%;--dl:-0.12s}',
+  '@keyframes rt-swing{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}',
+  '.rt-fire{animation-name:rt-fire;animation-duration:.6s;animation-timing-function:ease-in-out;transform-origin:50% 100%;--dl:-0.083s}',
+  '@keyframes rt-fire{0%{color:#ffe24a;transform:translateY(0) scaleY(1);text-shadow:0 0 .4em #ff7a1a}33%{color:#ff9a2a;transform:translateY(-.06em) scaleY(1.12);text-shadow:0 0 .6em #ff4a1a}66%{color:#ff5a2a;transform:translateY(.02em) scaleY(.95);text-shadow:0 0 .5em #ff7a1a}100%{color:#ffe24a;transform:translateY(0) scaleY(1);text-shadow:0 0 .4em #ff7a1a}}',
+  '.rt-ice{animation-name:rt-ice;animation-duration:2s;animation-timing-function:ease-in-out;--dl:-0.15s}',
+  '@keyframes rt-ice{0%,100%{color:#9be8ff;text-shadow:0 0 .35em #4dc3ff}50%{color:#ffffff;text-shadow:0 0 .7em #bff2ff}}',
+  '.rt-glitch{animation-name:rt-glitch;animation-duration:1.6s;animation-timing-function:steps(1,end);--dl:-0.31s}',
+  '@keyframes rt-glitch{0%,86%,100%{transform:translate(0,0);text-shadow:none}88%{transform:translate(.08em,-.03em) skewX(-14deg);text-shadow:-.07em 0 #ff3a6a,.07em 0 #3affd8}92%{transform:translate(-.1em,.02em);text-shadow:.07em 0 #ff3a6a,-.07em 0 #3affd8}96%{transform:translate(.03em,0) skewX(10deg);text-shadow:none}}',
+  '.rt-ghost{animation-name:rt-ghost;animation-duration:2.4s;animation-timing-function:ease-in-out;--dl:-0.17s}',
+  '@keyframes rt-ghost{0%,100%{opacity:1}50%{opacity:.15}}',
+  '.rt-shadow{text-shadow:.08em .1em 0 rgba(0,0,0,.75)}',
+  '.rt-outline{text-shadow:-.05em 0 #000,.05em 0 #000,0 -.05em #000,0 .05em #000,-.04em -.04em #000,.04em .04em #000,-.04em .04em #000,.04em -.04em #000}'
+].join('\n');
+
+function _richColor(v) {
+  v = String(v || '').trim().toLowerCase();
+  return RICH_COLORS[v] || (/^#[0-9a-f]{3,8}$/.test(v) || /^(rgb|hsl)a?\([0-9.,%\s]*\)$/.test(v) ? v : null);
+}
+
+function _richApply(state, name, value) {
+  if (name === 'b' || name === 'i' || name === 'u' || name === 's') state[name] = 1;
+  else if (name === 'color') state.color = _richColor(value) || state.color;
+  else if (RICH_COLORS[name]) state.color = RICH_COLORS[name];
+  else if (name === 'size') state.size = Math.max(0.5, Math.min(3, parseFloat(value) || 1));
+  else if (name === 'big') state.size = 1.4;
+  else if (name === 'small') state.size = 0.8;
+  else if (name === 'glow') state.glow = _richColor(value) || '#ffffff';
+  else if (RICH_EFFECTS.indexOf(name) >= 0 && state.fx.indexOf(name) < 0) state.fx.push(name);
+}
+
+// Texte balisé → liste de {c, e} (une lettre et son style) et de {pause} (secondes).
+// `[/]` ferme la dernière balise ouverte ; `[/nom]` ferme jusqu'à la balise « nom » incluse.
+export function parseRichText(src) {
+  src = String(src == null ? '' : src).replace(/\[\/\]/g, '[/end]');
+  const items = [], stack = [];
+  let state = {b: 0, i: 0, u: 0, s: 0, color: null, size: null, glow: null, fx: []};
+  const re = /\[(\/?)([A-Za-zÀ-ÿ]+)(?:=([^\]]*))?\]/g;
+  let pos = 0, m;
+  function text(t) { for (let k = 0; k < t.length; k++) items.push({c: t.charAt(k), e: state}); }
+  while ((m = re.exec(src))) {
+    let name = m[2].toLowerCase();
+    name = RICH_ALIASES[name] || name;
+    const known = RICH_EFFECTS.indexOf(name) >= 0 || RICH_OTHER_TAGS.indexOf(name) >= 0 || !!RICH_COLORS[name];
+    if (!known) continue;   // balise inconnue : elle reste affichée
+    text(src.slice(pos, m.index)); pos = re.lastIndex;
+    if (m[1]) {
+      let n = stack.length - 1;
+      if (name !== 'end') while (n >= 0 && stack[n].name !== name) n--;
+      if (n >= 0) { state = stack[n].state; stack.length = n; }
+    }
+    else if (name === 'pause') items.push({pause: Math.max(0, Math.min(5, parseFloat(m[3]) || 0.4))});
+    else if (name !== 'end') {
+      stack.push({state: state, name: name});
+      state = {b: state.b, i: state.i, u: state.u, s: state.s, color: state.color, size: state.size,
+               glow: state.glow, fx: state.fx.slice()};
+      _richApply(state, name, m[3]);
+    }
+  }
+  text(src.slice(pos));
+  return items;
+}
+
+// Le même texte sans balises (journal, bulle, longueur, comparaison).
+export function stripRichText(src) {
+  return parseRichText(src).filter(function (x) { return x.pause === undefined; })
+    .map(function (x) { return x.c; }).join('');
+}
+
+function _escapeHtml(c) {
+  return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : c;
+}
+
+// Délai d'apparition de chaque élément (machine à écrire). Les fins de phrase et les virgules
+// marquent un temps d'arrêt ; `[pause=s]` en ajoute un explicite.
+function _richTimes(items, speed) {
+  const times = [], d = 1 / Math.max(1, speed);
+  let t = 0;
+  items.forEach(function (it, n) {
+    if (it.pause !== undefined) { t += it.pause; times.push(null); return; }
+    if (it.c === ' ' || it.c === '\n') { times.push(t); return; }
+    t += d;
+    times.push(t);
+    const next = items[n + 1];
+    if (!next || next.c === ' ' || next.c === '\n' || next.pause !== undefined) {
+      if (/[.!?…]/.test(it.c)) t += 0.3; else if (/[,;:]/.test(it.c)) t += 0.14;
+    }
+  });
+  return {times: times, total: t};
+}
+
+// Durée (secondes) de l'écriture d'un texte balisé à `speed` lettres par seconde.
+export function richTextDuration(src, speed) {
+  return _richTimes(parseRichText(src), speed || RICH_TEXT_SPEED).total;
+}
+
+// Texte balisé → HTML (spans stylés). `opts.speed` : machine à écrire (lettres/s), sinon tout
+// s'affiche d'un coup. Le CSS des effets (RICH_TEXT_CSS) doit être présent dans la page.
+export function richTextToHtml(src, opts) {
+  const items = parseRichText(src);
+  const speed = opts && opts.speed > 0 ? opts.speed : 0;
+  const times = speed ? _richTimes(items, speed).times : null;
+  let html = '', inWord = false, k = 0;
+  items.forEach(function (it, n) {
+    if (it.pause !== undefined) return;
+    if (it.c === '\n') { if (inWord) { html += '</span>'; inWord = false; } html += '<br>'; return; }
+    const e = it.e;
+    let style = '--i:' + k++;
+    if (e.b) style += ';font-weight:bold';
+    if (e.i) style += ';font-style:italic';
+    if (e.u || e.s) style += ';text-decoration:' + [e.u ? 'underline' : '', e.s ? 'line-through' : ''].join(' ').trim();
+    if (e.color) style += ';color:' + e.color;
+    if (e.size) style += ';font-size:' + e.size + 'em';
+    if (e.glow) style += ';text-shadow:0 0 .35em ' + e.glow + ',0 0 .8em ' + e.glow;
+    let cls = 'rt-ch';
+    e.fx.forEach(function (f) {
+      cls += ' rt-' + f;
+      if (RICH_STATIC_EFFECTS.indexOf(f) < 0) cls += ' rt-anim';
+    });
+    let letter = '<span class="' + cls + '" style="' + style + '">' + _escapeHtml(it.c) + '</span>';
+    // L'apparition vit sur un ENVELOPPANT : l'effet animé de la lettre garde son propre `animation`.
+    if (times) letter = '<span class="rt-reveal" style="animation-delay:' + times[n].toFixed(3) + 's">' + letter + '</span>';
+    if (it.c === ' ') { if (inWord) { html += '</span>'; inWord = false; } html += letter; return; }
+    if (!inWord) { html += '<span class="rt-word">'; inWord = true; }
+    html += letter;
+  });
+  if (inWord) html += '</span>';
+  return html;
+}
+
+// Pose le CSS des effets une fois dans la page (sans DOM, ne fait rien).
+export function ensureRichTextCss() {
+  if (typeof document === 'undefined' || !document.getElementById || !document.head) return;
+  if (document.getElementById('rich-text-css')) return;
+  const s = document.createElement('style');
+  s.id = 'rich-text-css';
+  s.textContent = RICH_TEXT_CSS;
+  document.head.appendChild(s);
+}
+
+// Un élément `data-bind-rich` n'est réécrit que si SA valeur a changé : les liaisons sont
+// reposées dès qu'une valeur quelconque du document bouge, et réécrire relancerait la machine
+// à écrire de toutes les bulles à chaque point de score marqué.
+export function _applyRichBind(el, value) {
+  const src = value === null || value === undefined ? '' : String(value);
+  if (el._richSource === src) return;
+  el._richSource = src;
+  ensureRichTextCss();
+  const speed = el.dataset.typewriter !== undefined ? (parseFloat(el.dataset.typewriter) || RICH_TEXT_SPEED) : 0;
+  el.innerHTML = richTextToHtml(src, {speed: speed});
+}
+
+// `api.richText` (éditeur ET jeu publié : le même objet, importé des deux côtés).
+export const RICH_TEXT_API = Object.freeze({
+  strip: stripRichText,
+  duration: richTextDuration,
+  toHtml: function (src, speed) { return richTextToHtml(src, {speed: speed}); }
+});
+globalThis.RICH_TEXT_API = RICH_TEXT_API;

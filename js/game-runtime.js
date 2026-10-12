@@ -3918,6 +3918,7 @@ function buildApi(o, i, frame){
         get values(){ return d.values; }
       };
     },
+    richText:globalThis.RICH_TEXT_API || null,
     changeScene:function(name){
       const i = D.scenes.findIndex(function(s){ return s.name === name; });
       if(i !== -1) game.sceneDemandee = i;

@@ -4,6 +4,8 @@
 import { advancedHelp, arrayHelp, defaultHelp, essentialHelp, linkHelp, stepsHelp, termHelp, tipHelp, trapHelp, TAGS_BUILD_FULL } from './help-format.js';
 import { renderApiHelp, renderCommandsHelp, renderPropsMaterialHelp, renderShortcutsHelp } from '../help-page.js';
 
+import { PAGE_RICH_TEXT } from './pages-rich-text.js';
+
 export const PAGES_WORKFLOWS = [
 
 {id:'materials-contract', part:'workflows', section:'Matériaux', title:'Le contrat glTF', level:'both',
@@ -1536,7 +1538,8 @@ export const PAGES_WORKFLOWS = [
   + arrayHelp(['Élément', 'Ce que fait <code>data-bind="clé"</code>'], [
       ['Texte (<code>&lt;span&gt;</code>, <code>&lt;div&gt;</code>…)', 'Affiche la valeur de <code>values[clé]</code>, mise à jour dès qu\'un script la change.'],
       ['Champ de formulaire', 'Affiche la valeur, et la saisie du joueur l\'écrit en retour dans <code>values</code>.'],
-      ['<code>data-bind-class="clé"</code>', 'Ajoute la valeur comme <b>classe CSS</b>, en gardant la classe d\'origine : un voile rouge quand on prend un coup, une vie qui pulse sous 30 %.']
+      ['<code>data-bind-class="clé"</code>', 'Ajoute la valeur comme <b>classe CSS</b>, en gardant la classe d\'origine : un voile rouge quand on prend un coup, une vie qui pulse sous 30 %.'],
+      ['<code>data-bind-rich="clé"</code>', 'Affiche la valeur comme <b>texte riche</b> : couleurs, effets animés, machine à écrire avec <code>data-typewriter</code>. Voir ' + linkHelp('rich-text', 'Texte riche') + '.']
     ])
   + '<p>Pour un texte fixe à traduire, c\'est <code>data-t</code> : ' + linkHelp('localization', 'Traduire le jeu') + '.</p>'
 
@@ -1555,9 +1558,12 @@ export const PAGES_WORKFLOWS = [
   + '<h3>Voir aussi</h3><ul>'
   + '<li>' + linkHelp('component-UIDocument', 'La fiche Interface (UI)') + '</li>'
   + '<li>' + linkHelp('localization', 'Traduire le jeu') + '</li>'
+  + '<li>' + linkHelp('rich-text', 'Texte riche : couleurs et effets animés') + '</li>'
   + '<li>' + linkHelp('scripts-api', 'L\'API de scripts') + '</li>'
   + '</ul>';
 }},
+
+PAGE_RICH_TEXT,
 
 {id:'multiplayer', part:'workflows', section:'Jeu', title:'Multijoueur', level:'advanced',
  summary:'Faire jouer plusieurs joueurs dans la même partie, en relais ou en pair-à-pair.',

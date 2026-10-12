@@ -115,7 +115,7 @@ const MEASURES = {
 const CEILINGS = {
   // +4 le 2026-09-29 : api.lib (import + entrée d'api) et les caméras en incrustation (import +
   // un appel après le rendu) — les deux DOIVENT exister dans le jeu publié.
-  'lignes de game-runtime.js': 4852, // v0.194.0 : +2 pour api.steam et l'import de js/steam-bridge.js (succès, statistiques, sauvegardes cloud — la logique vit dans ce module partagé, seuls l'import et l'entrée d'api sont ici). v0.193.0 : le ciel suit le type de caméra (2D = image plein écran, js/sky-camera.js) — la règle est partagée, seuls l'appel et l'import vivent ici
+  'lignes de game-runtime.js': 4853, // v1.3.0 : +1 pour api.richText (texte riche, la logique vit dans js/game-ui.js). v0.194.0 : +2 pour api.steam et l'import de js/steam-bridge.js (succès, statistiques, sauvegardes cloud — la logique vit dans ce module partagé, seuls l'import et l'entrée d'api sont ici). v0.193.0 : le ciel suit le type de caméra (2D = image plein écran, js/sky-camera.js) — la règle est partagée, seuls l'appel et l'import vivent ici
   'lignes de import-settings.js': 3673, // v0.196.0 : -24, les sélecteurs de texture sortis dans js/texture-preview.js
   '.traverse(': 97,
   "typeof X !== 'undefined'": 195,

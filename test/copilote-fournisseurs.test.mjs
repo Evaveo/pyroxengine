@@ -163,7 +163,7 @@ test('validateProvider SIGNALE un modele envoye au bad fournisseur', () => {
   assert.ok(p.some((x) => x.includes('appartient à')), JSON.stringify(hote(p)));
   // Un modèle inconnu est un AVERTISSEMENT, pas un refusal : un service compatible OpenAI propose ses
   // propres noms, et refuser interdirait tout serveur local.
-  const q = ctx.validateProvider('openai', 'mistral-large', 'sk-x');
+  const q = ctx.validateProvider('openai', 'mon-modele-local', 'sk-x');
   assert.ok(q.some((x) => x.includes('pas dans la liste connue')));
   assert.ok(!q.some((x) => x.includes('appartient à')));
   // Pas de clé : c'est le seul cas bloquant, et il doit être dit avant la requête.

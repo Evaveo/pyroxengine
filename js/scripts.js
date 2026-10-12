@@ -952,6 +952,7 @@ export function buildApi(o, i, frame){
       const n = node || o;
       return (n && typeof n.getComponent === 'function') ? n.getComponent('UIDocument') : null;
     },
+    richText: globalThis.RICH_TEXT_API || null,
     changeScene: function(name){
       const i = project.scenes.findIndex(function(s){ return s.name === name; });
       if(i === -1) logConsole('warn', 'api.changeScene : scène « ' + name + ' » introuvable', o);

@@ -11,7 +11,7 @@ export const HELP_PARTS = ['js/help/help-format.js'].concat(
   readdirSync(path.join(root, 'js/help')).filter((f) => /^pages-.*\.js$/.test(f)).sort()
     .map((f) => 'js/help/' + f));
 
-export const HELP_SCRIPTS = ['js/material-props.js'].concat(HELP_PARTS,
+export const HELP_SCRIPTS = ['js/material-props.js', 'js/game-ui.js'].concat(HELP_PARTS,
   ['js/help-content.js', 'js/help-page.js']);
 
 // Le SOURCE de toute l'aide, pour les tests qui y cherchent du texte.

@@ -167,6 +167,21 @@ export const PROVIDERS = {
   }
 };
 
+// Mistral parle le dialecte OpenAI (outils `function`, un message `tool` par appel) : on reprend sa
+// traduction et on ne change que ce qui diffère — l'adresse, le nom du plafond de jetons
+// (`max_tokens`, `max_completion_tokens` étant inconnu chez Mistral) et l'absence de `reasoning_effort`.
+PROVIDERS.mistral = Object.assign({}, PROVIDERS.openai, {
+  name: 'Mistral AI',
+  models: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest',
+           'magistral-medium-latest', 'devstral-medium-latest', 'codestral-latest'],
+  url: 'https://api.mistral.ai/v1/chat/completions',
+  helpKey: 'Créez une clé sur console.mistral.ai.',
+  body: function(o){
+    const messages = [{role: 'system', content: o.system}].concat(o.messages);
+    return {model: o.model, max_tokens: o.maxTokens, tools: this.tools(o.commands), messages: messages};
+  }
+});
+
 /** Le fournisseur d'un identifiant, ou celui par défaut. */
 export function providerBy(id){
   return PROVIDERS[id] || PROVIDERS.anthropic;
