@@ -1076,8 +1076,8 @@ function rtUpdateShadows(camera){
   const sphere = ShadowFit.frustumSphere(_rtCorners);
   _rtCenter.set(sphere.center.x, sphere.center.y, sphere.center.z);
 
-  const local = []; game.scene.traverse(function(l){   // ombres locales plafonnées : ShadowFit.budgetLocalShadows
-    if(l.isPointLight || l.isSpotLight){ local.push(l); return; } if(!l.isDirectionalLight || !l.castShadow || !l.shadow || !l.shadow.camera) return;
+  const shadowLocals = []; game.scene.traverse(function(l){   // ombres locales plafonnées : ShadowFit.budgetLocalShadows
+    if(l.isPointLight || l.isSpotLight){ shadowLocals.push(l); return; } if(!l.isDirectionalLight || !l.castShadow || !l.shadow || !l.shadow.camera) return;
     const st = ShadowFit.lightSettings(l.userData.shadowSettings, (D && D.settings && D.settings.shadowMapSize) || 2048, sphere.radius), wanted = st.mapSize;
     // CHANGER LA RÉSOLUTION EXIGE DE JETER LA CARTE. `mapSize` n'est lu qu'à l'allocation :
     // l'écrire sur une lumière déjà rendue ne fait rien du tout, et le réglage semble sans
@@ -1114,7 +1114,7 @@ function rtUpdateShadows(camera){
     cam.updateProjectionMatrix();
     l.shadow.normalBias = st.normalBias;
     l.shadow.bias = st.bias;
-  }); ShadowFit.budgetLocalShadows(local, ShadowFit.MAX_LOCAL_SHADOWS);
+  }); ShadowFit.budgetLocalShadows(shadowLocals, ShadowFit.MAX_LOCAL_SHADOWS);
 }
 
 function rtSetEnvironmentOn(m, tex, intensity, node){

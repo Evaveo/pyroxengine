@@ -486,9 +486,9 @@ export function updateShadows(camera){
   const sphere = ShadowFit.frustumSphere(corners);
   _shadowCenter.set(sphere.center.x, sphere.center.y, sphere.center.z);
 
-  const local = [];   // lumières ponctuelles/spots : budget d'ombres, voir ShadowFit.budgetLocalShadows
+  const shadowLocals = [];   // lumières ponctuelles/spots : budget d'ombres, voir ShadowFit.budgetLocalShadows
   scene.traverse(function(l){
-    if(l.isPointLight || l.isSpotLight){ local.push(l); return; }
+    if(l.isPointLight || l.isSpotLight){ shadowLocals.push(l); return; }
     if(!l.isDirectionalLight || !l.castShadow || !l.shadow || !l.shadow.camera) return;
     // Réglages imposés par le composant Light (configure_light), sinon automatiques.
     const st = ShadowFit.lightSettings(l.userData.shadowSettings,
@@ -549,7 +549,7 @@ export function updateShadows(camera){
     l.shadow.normalBias = st.normalBias;
     l.shadow.bias = st.bias;
   });
-  ShadowFit.budgetLocalShadows(local, ShadowFit.MAX_LOCAL_SHADOWS);
+  ShadowFit.budgetLocalShadows(shadowLocals, ShadowFit.MAX_LOCAL_SHADOWS);
 }
 if (typeof globalThis !== 'undefined') globalThis.updateShadows = updateShadows;
 
