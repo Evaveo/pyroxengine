@@ -161,7 +161,14 @@ export function cloudApi(base = ''){
         method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scene })
       });
-      return r.json().catch(() => ({ ok: false }));
+      // Seul un 409 est un REFUS (la scène est tenue par un autre compte). Tout autre échec —
+      // 502 pendant un redémarrage du serveur, 402 d'un plan sans verrouillage — se lisait
+      // `{ ok: false }` et passait l'éditeur en lecture seule « verrouillée par un autre
+      // membre », alors que personne d'autre n'était sur le projet. On le jette : pour
+      // scene-lock.js, une demande qui échoue n'est pas un refus.
+      if(r.status === 409) return r.json().catch(() => ({ ok: false }));
+      if(!r.ok) throw new Error('verrou : HTTP ' + r.status);
+      return r.json();
     },
     async releaseLock(projetId, scene){
       await fetch(url('/api/projets/' + projetId + '/verrous/' + encodeURIComponent(scene)),

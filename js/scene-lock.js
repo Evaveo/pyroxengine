@@ -98,11 +98,14 @@ export function claimIfNeeded(){
         sceneLock.expireLe = r.expire_le || 0;
         sceneLock.echecs = 0;
         startHeartbeat();
-      } else {
+      } else if(r && (r.detenteur || r.email)){
         sceneLock.state = 'other';
         // `detenteur` : c'est le champ que renvoie le serveur (controleurs/verrous.js). `email`
         // n'existait pas, et le détenteur n'était jamais nommé.
         sceneLock.holder = (r && (r.detenteur || r.email)) || null;
+      } else {
+        // Ni accord ni détenteur nommé : réponse inexploitable, pas un refus.
+        sceneLock.state = 'unknown';
       }
     } catch(e){
       // Une demande qui échoue n'est PAS un refus : sans réponse, on ne sait pas qui tient la

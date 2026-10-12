@@ -59,6 +59,15 @@ test("verrou refuse : lecture seule, et le message NOMME le detenteur", async ()
   assert.match(lockMessage(), /Ville/);
 });
 
+test("une reponse sans detenteur (502, 402) n est pas un refus : pas de lecture seule", async () => {
+  const { cloud } = cloudQui(() => ({ ok: false }));
+  initSceneLock(cloud, 'Ville');
+  await claimIfNeeded();
+  assert.equal(sceneLock.state, 'unknown',
+    "seul sur son projet, un 502 du serveur passait l editeur en « verrouillee par un autre membre »");
+  assert.equal(lockBlocks(), false);
+});
+
 test("une demande qui ECHOUE n est pas un refus : on reste en unknown", async () => {
   const { cloud } = cloudQui(() => { throw new Error('reseau coupe'); });
   initSceneLock(cloud, 'Ville');
