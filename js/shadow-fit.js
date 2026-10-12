@@ -273,10 +273,38 @@ export const ShadowFit = (function(){
     return out;
   }
 
+  /**
+   * BUDGET D'OMBRES LOCALES (lumières ponctuelles et spots), comme l'URP de Unity.
+   *
+   * Chaque lumière qui projette une ombre ajoute sa carte d'ombre à TOUS les matériaux qu'elle
+   * éclaire. Or le moteur fait projeter toutes ses lumières : une scène de campement avec ses
+   * torches dépassait les 16 textures/échantillonneurs qu'un GPU accepte par shader, et le
+   * matériau devenait invalide (objet invisible, console saturée de « Invalid RenderPipeline »).
+   * Au-delà de `max`, les lumières suivantes éclairent toujours, mais sans ombre.
+   *
+   * Le choix est STABLE (ordre de création) : le basculer selon la caméra ou l'intensité (une
+   * torche qui vacille) recompilerait les matériaux en boucle. L'intention d'origine est gardée
+   * dans `userData.shadowWanted` — `castShadow` d'une lumière n'est pas sérialisé.
+   */
+  // `lights` : les lumières locales relevées par le parcours de scène que l'appelant fait DÉJÀ
+  // (un second parcours par image coûterait sur les grandes scènes).
+  function budgetLocalShadows(lights, max){
+    const local = (lights || []).filter(function(l){
+      if(l.userData.shadowWanted === undefined) l.userData.shadowWanted = !!l.castShadow;
+      return l.userData.shadowWanted;
+    });
+    local.sort(function(a, b){ return a.id - b.id; });
+    local.forEach(function(l, i){
+      const on = i < max;
+      if(l.castShadow !== on) l.castShadow = on;
+    });
+  }
+
   return {fit: fit, clampDepth: clampDepth, report: report, normalBias: normalBias, depthBias: depthBias, lightSettings: lightSettings, toolFields: toolFields,
           nearNdcZ: nearNdcZ,
           radiusFromCorners: radiusFromCorners,
-          frustumSphere: frustumSphere, snapToTexel: snapToTexel};
+          frustumSphere: frustumSphere, snapToTexel: snapToTexel,
+          budgetLocalShadows: budgetLocalShadows, MAX_LOCAL_SHADOWS: 4};
 })();
 
 if (typeof globalThis !== 'undefined') globalThis.ShadowFit = ShadowFit;

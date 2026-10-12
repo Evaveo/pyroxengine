@@ -57,7 +57,7 @@ export const GROUPS = {
     'instances-materiau-noeuds.test.mjs', 'lightmap.test.mjs', 'lightmap-cuisson.test.mjs', 'light-modes.test.mjs',
     'lissage.test.mjs', 'lissage-tsl.test.mjs', 'masque-orm.test.mjs',
     'materiau-plugin.test.mjs', 'materiau-shader-inspecteur.test.mjs', 'noeud-debris.test.mjs',
-    'ombre-cadrage.test.mjs', 'post-etat-neutre.test.mjs', 'post-orientation.test.mjs',
+    'ombre-cadrage.test.mjs', 'shadow-budget.test.mjs', 'post-etat-neutre.test.mjs', 'post-orientation.test.mjs',
     'post-profile-asset.test.mjs', 'post-sortie-ecran.test.mjs', 'post-volume-blend.test.mjs',
     'post-volume-component.test.mjs', 'reflets-retrait.test.mjs', 'sonde-ambiance.test.mjs',
     'sondes-non-eclaire.test.mjs', 'sondes-reflets.test.mjs',
