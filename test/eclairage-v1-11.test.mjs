@@ -194,3 +194,18 @@ test('dépliage auto persisté : la relecture rejoue le même uv1 (désindexatio
   assert.deepEqual(Array.from(b.geometry.attributes.uv1.array), Array.from(a.geometry.attributes.uv1.array));
   assert.ok(atlas.clearTransformedAtlas(b.geometry));
 });
+
+test('RÉGRESSION v1.11.1 — le matériau de cuisson ne passe PAS par vertexNode (ponctuelles à la bonne distance)', () => {
+  // Avec un vertexNode, three WebGPU reconstruit la position de vue du fragment depuis la
+  // position de découpe : en cuisson, c'est la coordonnée de lightmap, pas le monde — une
+  // ponctuelle s'y retrouve à des dizaines de mètres et son halo disparaît.
+  const src = readFileSync(new URL('../js/lightmap-bake.js', import.meta.url), 'utf8');
+  assert.ok(!/\bm\.vertexNode\s*=/.test(src), 'buildMaterialBake pose encore un vertexNode');
+  assert.ok(/m\.setupVertex\s*=\s*function/.test(src), 'setupVertex n’est plus remplacé');
+});
+
+test('v1.11.1 — une sélection sans maillage cuit toute la scène', () => {
+  const src = readFileSync(new URL('../js/lightmap-bake.js', import.meta.url), 'utf8');
+  assert.ok(/!meshesBakeable\(racines\)\.length\) racines = null/.test(src),
+    'une sélection sans maillage (lumière) ne retombe plus sur toute la scène');
+});

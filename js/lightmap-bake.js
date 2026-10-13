@@ -297,7 +297,20 @@ export function buildMaterialBake(texturePrecedente){
   // La ligne qui fait tout : la position du sommet EST sa coordonnée de lightmap, ramenée
   // de [0,1] à [-1,1]. Le rastériseur remplit alors les texels de l'îlot, et le fragment y
   // exécute l'éclairage réel du point de surface correspondant.
-  m.vertexNode = vec4(uv(1).flipY().sub(vec2(0.5)).mul(2), 1, 1);
+  //
+  // PAS PAR `vertexNode` (v1.11.1). three WebGPU, quand un matériau a un `vertexNode`, RECONSTRUIT
+  // la position de vue du fragment depuis la position de découpe (projection inverse × clip) :
+  // le fragment se croyait donc dans l'espace de la lightmap, à ~36 m du feu au lieu de 7. Une
+  // directionnelle n'en dépend pas (cuite juste), une PONCTUELLE si — distance fausse, portée
+  // dépassée, halo nul. On remplace donc `setupVertex` : la sortie clip devient l'UV, mais three
+  // garde sa position de vue réelle (setupPositionView) pour l'éclairage. Mesuré sur un feu de
+  // camp : 0,008 sous la flamme avant, alors que le soleil cuit donnait 0,61 au même endroit.
+  const clipUv = vec4(uv(1).flipY().sub(vec2(0.5)).mul(2), 1, 1);
+  const setupVertexBase = m.setupVertex;
+  m.setupVertex = function(builder){
+    setupVertexBase.call(this, builder);   // skinning, morphs, positionLocal : inchangés
+    return clipUv;
+  };
   // Moyenne courante avec l'image précédente : c'est la progressivité. `output` est la
   // couleur qu'aurait produite le matériau, donc ici la lumière reçue.
   //
@@ -521,7 +534,11 @@ export async function bakeLightmap(opts){
   const smooth = (opts.smooth !== undefined) ? opts.smooth : reg.smooth;
 
   // Cuisson sélective : la sélection si elle existe, toute la scène sinon.
-  const racines = opts.selection || allSelection();
+  // Une sélection SANS maillage (une lumière, une caméra, un groupe vide) cuit toute la scène,
+  // comme Unity : sélectionner la lampe qu'on vient de régler puis cuire répondait « Aucun
+  // maillage à cuire » (v1.11.1).
+  let racines = opts.selection || allSelection();
+  if(racines && racines.length && !meshesBakeable(racines).length) racines = null;
   const selectif = !!(racines && racines.length);
   const meshes = meshesBakeable(racines);
   if(!meshes.length){ setStatus('Aucun maillage à cuire', 3000); return null; }
