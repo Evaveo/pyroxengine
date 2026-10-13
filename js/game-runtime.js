@@ -20,7 +20,7 @@ import { NodeShells, Registry } from './component-registry.js';
 import { indexByTag, nodesByTag } from './components/component-tag.js';
 import { bindSpriteMesh, rebuildMeshSprite, updateImageSprite } from './components/component-sprite.js';
 import { resolveCssAssetUrls, uiDocumentsRedraw } from './game-ui.js';
-import { reapplyAtlasLightmap } from './lightmap-atlas.js';
+import { applyLightmapOverrides, reapplyAtlasLightmap } from './lightmap-atlas.js';
 import { MODEL_IMPORT_DEFAULT, applyAnimationImport, applyModelGeometry, applyModelHierarchy, bakeScaleModel, fileMaterialFor } from './model-import.js';
 import { applyModelOverrides, exposeModelNodes, exposedNodesOf, isLegacySkinnedEntry, modelNodeByKey, wantsAnimator } from './model-nodes.js';
 import { compileScript } from './script-scope.js';
@@ -38,6 +38,8 @@ import { buildExtraPrimitive } from './primitives-extra.js';
 import { makeSynthApi } from './synth.js';
 import { makeSteamApi, readSave, removeSave, writeSave } from './steam-bridge.js';
 import { combineAxis, syncTouchControls, touchAxis } from './touch-input.js';
+import { createLightCache, createNameIndex, createUIDocResolver, worldHasMovingBody } from './runtime-caches.js';
+import { releaseLater } from './gpu-release.js';
 import { renderSetupFor } from './render-scale.js';
 
 // LA CONSOLE DU JEU REMONTE À L'ÉDITEUR. En mode Lecture, ce runtime tourne dans une iframe de
@@ -910,6 +912,9 @@ const game = {
 // interrogation du Registry, donc dans la boucle d'image.
 const _indexObjectsGame = new Set();
 
+// api.find/findNode : index nom → nœud (js/runtime-caches.js), même sémantique « premier trouvé ».
+const _rtFind = createNameIndex(function(){ return game.objects; });
+
 function isSceneObject(o){
   return !!o && _indexObjectsGame.has(o);
 }
@@ -918,6 +923,7 @@ function addSceneObject(o){
   if(!o || _indexObjectsGame.has(o)) return o;
   _indexObjectsGame.add(o);
   game.objects.push(o);
+  _rtLights.invalidate(); _rtFind.invalidate();
   return o;
 }
 
@@ -925,6 +931,7 @@ function removeSceneObject(o){
   if(!_indexObjectsGame.delete(o)) return false;
   const i = game.objects.indexOf(o);
   if(i !== -1) game.objects.splice(i, 1);
+  _rtLights.invalidate(); _rtFind.invalidate();
   Registry.unindexNode(o);
   return true;
 }
@@ -935,6 +942,7 @@ function removeSceneObject(o){
 function clearSceneObjects(){
   game.objects = [];
   _indexObjectsGame.clear();
+  _rtLights.invalidate(); _rtFind.invalidate();
   Registry.clear();
 }
 
@@ -1058,6 +1066,12 @@ const _rtPos = new THREE.Vector3();
 const _rtTarget = new THREE.Vector3();
 const _rtView = new THREE.Matrix4();
 const _rtInvView = new THREE.Matrix4();
+const _rtLocal = new THREE.Vector3();
+// Lumières en cache (js/runtime-caches.js), refaites aussi toutes les 60 images (lumière posée par api.scene.add).
+const _rtLights = createLightCache(60);
+// La sphère visible ne dépend que de la caméra : inchangée tant que ses matrices le sont.
+const _rtFitCamWorld = new THREE.Matrix4(), _rtFitCamProj = new THREE.Matrix4();
+const _rtFitSphere = {camera: null, distance: -1, radius: 0};
 const RT_UP = new THREE.Vector3(0, 1, 0);
 // Ce qui est derrière la sphère visible mais projette dedans : sans cette marge, un mur hors
 // champ voit son ombre coupée net par le plan proche dès qu'on tourne la caméra.
@@ -1066,6 +1080,11 @@ const RT_SHADOW_MARGIN = 60;
 function rtUpdateShadows(camera){
   if(typeof ShadowFit === 'undefined' || !camera || !game.scene) return;
   const distance = (D && D.settings && D.settings.shadowDistance) || 60;
+  const fs = _rtFitSphere;
+  if(fs.camera !== camera || fs.distance !== distance
+     || !_rtFitCamWorld.equals(camera.matrixWorld) || !_rtFitCamProj.equals(camera.projectionMatrix)){
+  fs.camera = camera; fs.distance = distance;
+  _rtFitCamWorld.copy(camera.matrixWorld); _rtFitCamProj.copy(camera.projectionMatrix);
   _rtInv.copy(camera.projectionMatrix).invert();
   let i = 0;
   for(const z of [ShadowFit.nearNdcZ(camera), 1]){
@@ -1079,16 +1098,21 @@ function rtUpdateShadows(camera){
   ShadowFit.clampDepth(_rtCorners, camera, distance);
   const sphere = ShadowFit.frustumSphere(_rtCorners);
   _rtCenter.set(sphere.center.x, sphere.center.y, sphere.center.z);
+  fs.radius = sphere.radius;
+  }
+  const sphere = fs;
 
-  const shadowLocals = []; game.scene.traverse(function(l){   // ombres locales plafonnées : ShadowFit.budgetLocalShadows
-    if(l.isPointLight || l.isSpotLight){ shadowLocals.push(l); return; } if(!l.isDirectionalLight || !l.castShadow || !l.shadow || !l.shadow.camera) return;
+  const lights = _rtLights.get(game.scene);
+  for(let li = 0; li < lights.directional.length; li++){
+    const l = lights.directional[li];
+    if(!l.parent || !l.castShadow || !l.shadow || !l.shadow.camera) continue;
     const st = ShadowFit.lightSettings(l.userData.shadowSettings, (D && D.settings && D.settings.shadowMapSize) || 2048, sphere.radius), wanted = st.mapSize;
     // CHANGER LA RÉSOLUTION EXIGE DE JETER LA CARTE. `mapSize` n'est lu qu'à l'allocation :
     // l'écrire sur une lumière déjà rendue ne fait rien du tout, et le réglage semble sans
     // effet — trois.js garde la texture qu'il a déjà, à l'ancienne taille.
     if(l.shadow.mapSize.x !== wanted){
       l.shadow.mapSize.set(wanted, wanted);
-      if(l.shadow.map){ l.shadow.map.dispose(); l.shadow.map = null; }
+      if(l.shadow.map && l.shadow.map.isWebGLRenderTarget){ l.shadow.map.dispose(); l.shadow.map = null; }   // WebGL seul (WebGPU : voir scene.js)
     }
     const radius = st.radius;
     const texel = st.texel;
@@ -1105,7 +1129,7 @@ function rtUpdateShadows(camera){
     // déplacer un objet que l'utilisateur a placé.
     _rtView.lookAt(_rtPos, _rtTarget, RT_UP);
     _rtInvView.copy(_rtView).invert();
-    const local = _rtCenter.clone().applyMatrix4(_rtInvView);
+    const local = _rtLocal.copy(_rtCenter).applyMatrix4(_rtInvView);
     const cx = ShadowFit.snapToTexel(local.x, texel);
     const cy = ShadowFit.snapToTexel(local.y, texel);
     const depth = -local.z;   // une caméra regarde vers -Z
@@ -1118,7 +1142,8 @@ function rtUpdateShadows(camera){
     cam.updateProjectionMatrix();
     l.shadow.normalBias = st.normalBias;
     l.shadow.bias = st.bias;
-  }); ShadowFit.budgetLocalShadows(shadowLocals, ShadowFit.MAX_LOCAL_SHADOWS);
+  }
+  ShadowFit.budgetLocalShadows(lights.locals, ShadowFit.MAX_LOCAL_SHADOWS);   // ombres locales plafonnées
 }
 
 function rtSetEnvironmentOn(m, tex, intensity, node){
@@ -2504,7 +2529,7 @@ async function loadAssets(){
         // `url` est conservée pour l'interface de jeu : un élément d'UI est du
         // DOM, il lui faut une URL d'image, pas une THREE.Texture.
         assetsById[da.id] = {kind:'texture', name:da.name, texture:tex, url:url,
-                              paramsImport:da.paramsImport || null};
+                              paramsImport:da.paramsImport || null, rgbm:!!da.rgbm, rgbmRange:da.rgbmRange};
       }
       else if(da.kind === 'model'){
         const files = [];
@@ -2893,25 +2918,7 @@ function makeMaterialRuntime(a){
   // HDR : un asset marqué `rgbm` se décode UNE fois vers une texture demi-flottante linéaire
   // (js/lightmap-rgbm.js, partagé avec l'éditeur). Le chemin des images de couleur lui
   // appliquerait une correction de gamma en trop, et l'éclairage sortirait délavé.
-  const aRgbm = p.lightmapAsset && assetsById[p.lightmapAsset];
-  if(aRgbm && aRgbm.rgbm){
-    const texHdr = textureLightmapRgbm(aRgbm);
-    if(texHdr){
-      m.lightMap = texHdr;
-      m.lightMapIntensity = (p.lightmapIntensity !== undefined) ? p.lightmapIntensity : 1;
-      texHdr.channel = (p.lightmapUv === 0) ? 0 : 1;
-    }
-  }
-  const lm = (aRgbm && aRgbm.rgbm) ? null : textureMaterialRuntime(p.lightmapAsset, p);
-  if(lm){
-    m.lightMap = lm;
-    m.lightMapIntensity = (p.lightmapIntensity !== undefined) ? p.lightmapIntensity : 1;
-    lm.channel = (p.lightmapUv === 0) ? 0 : 1;
-    // Une lightmap ne se carrelle jamais : elle décrit l'éclairage d'UNE surface, à sa
-    // place exacte. Le reste des cartes hérite du tuilage du matériau, pas celle-ci.
-    lm.repeat.set(1, 1);
-    lm.offset.set(0, 0);
-  }
+  rtApplyLightmap(m, p);
   const comb = textureCombinedRuntime(p.combineAsset, p);
   if(comb){
     m.roughnessMap = comb; m.metalnessMap = comb; m.aoMap = comb;
@@ -2942,6 +2949,28 @@ function rtSetTextureDirect(o, ref){
   if(key === 'map') o.material.color.set(0xffffff);
   o.material.needsUpdate = true;
   return true;
+}
+
+function rtApplyLightmap(m, p){
+  const aRgbm = p.lightmapAsset && assetsById[p.lightmapAsset];
+  if(aRgbm && aRgbm.rgbm){
+    const texHdr = textureLightmapRgbm(aRgbm);
+    if(texHdr){
+      m.lightMap = texHdr;
+      m.lightMapIntensity = (p.lightmapIntensity !== undefined) ? p.lightmapIntensity : 1;
+      texHdr.channel = (p.lightmapUv === 0) ? 0 : 1;
+    }
+  }
+  const lm = (aRgbm && aRgbm.rgbm) ? null : textureMaterialRuntime(p.lightmapAsset, p);
+  if(lm){
+    m.lightMap = lm;
+    m.lightMapIntensity = (p.lightmapIntensity !== undefined) ? p.lightmapIntensity : 1;
+    lm.channel = (p.lightmapUv === 0) ? 0 : 1;
+    // Une lightmap ne se carrelle jamais : elle décrit l'éclairage d'UNE surface, à sa
+    // place exacte. Le reste des cartes hérite du tuilage du matériau, pas celle-ci.
+    lm.repeat.set(1, 1);
+    lm.offset.set(0, 0);
+  }
 }
 
 function applyMaterialRuntime(a, root){
@@ -3161,6 +3190,9 @@ function buildList(list){
     // APRÈS les sacs et le matériau, jamais avant : les composants les référencent.
     applyNodeMixin(o);
     applyComponents(o, d.components);
+    // Lightmap cuite portée par le MAILLAGE (emplacements au matériau du fichier) : APRÈS le
+    // matériau et les composants, qui remplacent les matériaux (js/lightmap-atlas.js).
+    if(d.lightmapAtlas) applyLightmapOverrides(o, rtApplyLightmap);
     // LES MIROIRS HISTORIQUES. Les composants Light et Camera rangent leur objet THREE dans
     // `ed(o)` (socle partagé) ; le runtime, lui, les lit dans `userData` — game.cam, le tri des
     // caméras de jeu, le cadrage 2D. Les deux doivent désigner le même objet.
@@ -3246,7 +3278,7 @@ function rtBuildSkyBackground(env){
 function applyEnvironment(env){
   env = env || {};
   rtEnvCurrent = env;   // relu par rtBakeProbes() pour le repli sur le ciel
-  if(game.skyTexture){ if(game.skyTexture.userData.flat) game.skyTexture.userData.flat.dispose(); game.skyTexture.dispose(); game.skyTexture = null; }
+  if(game.skyTexture){ releaseLater(game.skyTexture.userData.flat); releaseLater(game.skyTexture); game.skyTexture = null; }   // encore `background` : différé
   const fond = rtBuildSkyBackground(env);
   game.skyBackground = fond;
   game.scene.background = fond;
@@ -3413,7 +3445,7 @@ function applyPhysics(){
       l.obj.position.copy(_wp);
       l.obj.quaternion.copy(_wq);
     } else {
-      l.obj.position.copy(l.obj.parent.worldToLocal(_wp.clone()));
+      l.obj.position.copy(l.obj.parent.worldToLocal(_wp));   // _wp n'est plus relu ensuite : pas de copie
       l.obj.parent.getWorldQuaternion(_qParent);
       l.obj.quaternion.copy(_qParent.invert().multiply(_wq));
     }
@@ -3587,8 +3619,8 @@ function buildApi(o, i, frame){
     // marchait dans l'éditeur et plantait dans le build/aperçu sur un « Cannot read
     // properties of undefined ».
     me:o, node:o, dt:0, dtReal:0, time:0, scene:null,
-    find:function(name){ return game.objects.find(function(x){ return x.name === name; }) || null; },
-    findNode:function(name){ return game.objects.find(function(x){ return x.name === name; }) || null; },
+    find:function(name){ return _rtFind.find(name); },
+    findNode:function(name){ return _rtFind.find(name); },
     // LE REGISTRY, pas un balayage de la scène : `nodesByTag` vit dans
     // js/components/component-tag.js, embarqué par le build, et n'interroge que les nœuds
     // réellement étiquetés. Les deux moteurs tenaient ici leur propre `objects.filter(...)` —
@@ -4198,6 +4230,7 @@ function rtSnapshotInputs(){
   return {axes: axes, actions: actions};
 }
 
+const _rtScriptSnapshot = [];
 function runScripts(dt, dtReel){
   game.dtReel = (dtReel === undefined) ? dt : dtReel;
   game.time += dt;
@@ -4211,11 +4244,18 @@ function runScripts(dt, dtReel){
     }
   }
   evaluateContactsGame();
-  game.objects.slice().forEach(function(o){
+  // Copie dans un tableau RÉUTILISÉ (un script peut créer/détruire des objets pendant la boucle) :
+  // `slice()` allouait un tableau de la taille de la scène à chaque image.
+  const snap = _rtScriptSnapshot; snap.length = 0;
+  for(let k = 0; k < game.objects.length; k++) snap.push(game.objects[k]);
+  for(let k = 0; k < snap.length; k++){
+    const o = snap[k];
+    // Le test bon marché d'abord : la plupart des objets n'ont pas de script, et
+    // isActiveInHierarchy remonte toute la parenté.
+    const scripts = o.userData.scripts;
+    if(!scripts || !scripts.length) continue;
     // L'activité, pas la visibilité — même règle que l'éditeur (js/scripts.js, isActiveInHierarchy).
-    if(!isSceneObject(o) || !isActiveInHierarchy(o)) return;
-    const scripts = o.userData.scripts || [];
-    if(!scripts.length) return;
+    if(!isSceneObject(o) || !isActiveInHierarchy(o)) continue;
     let demarresObj = game.demarres.get(o);
     if(!demarresObj){ demarresObj = new Set(); game.demarres.set(o, demarresObj); }
     scripts.forEach(function(s, i){
@@ -4232,10 +4272,15 @@ function runScripts(dt, dtReel){
         reportScriptError(c, o, i, e);
       }
     });
-  });
-  const dues = game.minuteries.filter(function(m){ return m.t <= game.time; });
-  game.minuteries = game.minuteries.filter(function(m){ return m.t > game.time; });
-  dues.forEach(function(m){ try{ m.fn(); } catch(e){ console.error('[runtime] apres :', e); } });
+  }
+  snap.length = 0;   // ne pas retenir des objets détruits jusqu'à l'image suivante
+  if(game.minuteries.length){
+    const dues = game.minuteries.filter(function(m){ return m.t <= game.time; });
+    if(dues.length){
+      game.minuteries = game.minuteries.filter(function(m){ return m.t > game.time; });
+      dues.forEach(function(m){ try{ m.fn(); } catch(e){ console.error('[runtime] apres :', e); } });
+    }
+  }
   game.aDestroy.forEach(function(target){
     if(!isSceneObject(target)) return;
     // removeSceneObject désindexe aussi les composants du Noeud : un objet détruit par
@@ -4244,9 +4289,10 @@ function runScripts(dt, dtReel){
     target.traverse(function(x){ removeSceneObject(x); rtDetachBody(x); });
     if(target.parent) target.parent.remove(target);
   });
-  game.aDestroy = [];
-  keysPrev = new Set(keys);
-  buttonsPrev = new Set(mouseGame.buttons);
+  if(game.aDestroy.length) game.aDestroy = [];
+  // Les MÊMES ensembles, vidés et remplis : deux `new Set` par image en moins.
+  keysPrev.clear(); keys.forEach(function(k){ keysPrev.add(k); });
+  buttonsPrev.clear(); mouseGame.buttons.forEach(function(b){ buttonsPrev.add(b); });
   // Les deltas sont CONSOMMÉS par l'image : sans cette remise à zéro, un script qui ne lit pas
   // mouseDelta à une image verrait le mouvement de deux images arriver à la suivante — un
   // sursaut de visée après chaque pause, chaque menu, chaque changement de scène.
@@ -4418,11 +4464,10 @@ function rtDisposeScene(scene){
   if(!scene) return;
   const vus = new Set();
   scene.traverse(function(o){
-    if(o.isLight && o.shadow && o.shadow.map){ o.shadow.map.dispose(); o.shadow.map = null; }
+    if(o.isLight && o.shadow && o.shadow.map){ releaseLater(o.shadow.map); if(o.shadow.map.isWebGLRenderTarget) o.shadow.map = null; }   // différé : image en vol, ShadowNode WebGPU (v1.10.9)
     if(!o.isMesh && !o.isPoints && !o.isLine && !o.isSprite) return;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    mats.forEach(function(m){
-      if(m && !vus.has(m) && typeof m.dispose === 'function'){ vus.add(m); m.dispose(); }
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
+      if(m && !vus.has(m) && typeof m.dispose === 'function'){ vus.add(m); releaseLater(m); }
     });
   });
 }
@@ -4440,8 +4485,8 @@ function loadSceneGame(index){
   // ciel en texture et cartes d'ombre restaient sur la carte graphique, et la mémoire montait à
   // chaque changement de niveau — le ramasse-miettes JS ne libère pas la mémoire GPU (revue du
   // 2026-09-29, § 5.6 ; docs/BONNES_PRATIQUES.md).
-  rtDisposeScene(game.scene);
-  if(game.skyTexture){ game.skyTexture.dispose(); game.skyTexture = null; }
+  rtDisposeScene(game.scene);   // le ciel encore `background` de l'ancienne scène : libéré en différé
+  if(game.skyTexture){ releaseLater(game.skyTexture.userData.flat); releaseLater(game.skyTexture); game.skyTexture = null; }
   const sc = D.scenes[index];
   const data = (sc && sc.data) || {objects:[], tracks:[], duration:5, loop:true, env:null};
 
@@ -4703,7 +4748,10 @@ function loop(){
   }
   if(game.world){
     syncPhysics();
-    game.world.step(1/60, dt, 3);
+    // Un monde fait SEULEMENT de corps statiques n'a rien à résoudre : ni mouvement, ni contact
+    // (deux statiques ne se testent pas). Dès qu'un corps dynamique ou cinématique existe, on
+    // simule comme avant — les déclencheurs entre cinématiques ont besoin du pas.
+    if(game.links.length || game.kinematic.length || worldHasMovingBody(game.world, CANNON.Body.STATIC)) game.world.step(1/60, dt, 3);
     applyPhysics();
   }
   rtSyncCameraMain();
@@ -4771,14 +4819,9 @@ function rtTextureUrlByName(name){
   return null;
 }
 
-function resolveDocumentUIRuntime(node, uiDoc){
-  const doc = uiDoc.documentUIId ? assetsById[uiDoc.documentUIId] : null;
-  if(!doc) return null;
-  const css = (uiDoc.sheetStyleIds || []).map(function(id){
-    const a = assetsById[id]; return a ? a.css : '';
-  }).join('\n');
-  return {html: doc.html, css: resolveCssAssetUrls(css, rtTextureUrlByName)};
-}
+// Mémoïsé par uiDoc (js/runtime-caches.js) : plus de recollage ni de regex CSS à chaque image.
+const resolveDocumentUIRuntime = createUIDocResolver(function(){ return assetsById; },
+  function(css){ return resolveCssAssetUrls(css, rtTextureUrlByName); });
 
 function redrawUIGame(){
   const container = $('rj-ui');

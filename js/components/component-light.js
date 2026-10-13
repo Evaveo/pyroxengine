@@ -3,6 +3,12 @@ import { ed, ensureLight, litInRealtime } from '../component-data.js';
 import { Registry } from '../component-registry.js';
 import { Component, detachData, mergeIntoBag } from '../component.js';
 
+// Le cache de lumières de l'éditeur (scene.js) est prévenu quand une lumière three apparaît ou
+// disparaît (v1.11.0). Global et facultatif : ce fichier est partagé avec le jeu, qui n'en a pas.
+function invalidateLightCaches(){
+  if (typeof globalThis.invalidateLightCache === 'function') globalThis.invalidateLightCache();
+}
+
 export class Light extends Component {
   constructor(node, opts) {
     super(node);
@@ -45,6 +51,13 @@ export class Light extends Component {
   }
   // OMBRE D'UNE DIRECTIONNELLE (v0.189.0, champs facultatifs) : résolution de la carte, demi-largeur
   // de la boîte d'ombre, biais de profondeur. Absents = réglages automatiques (ShadowFit.lightSettings).
+  // Projeter une ombre (v1.11.0, exposé dans l'inspecteur et configure_light). `undefined` = défaut
+  // du type ; un booléen est un choix explicite, appliqué aussitôt (budget compris).
+  get castShadows() { return this.data.castShadows; }
+  set castShadows(v) {
+    if (typeof v === 'boolean') this.data.castShadows = v; else delete this.data.castShadows;
+    this.applyShadowSettings();
+  }
   get shadowMapSize() { return this.data.shadowMapSize; }
   set shadowMapSize(v) { this.data.shadowMapSize = v; }
   get shadowExtent() { return this.data.shadowExtent; }
@@ -59,11 +72,24 @@ export class Light extends Component {
    */
   applyShadowSettings() {
     const lum = ed(this.node).light;
+    // `castShadows` (facultatif) : choix EXPLICITE de projeter ou non. Absent = défaut du type
+    // (ponctuelle sans ombre, spot/directionnelle avec). Écrit aussi l'intention lue par
+    // ShadowFit.budgetLocalShadows, sinon le budget figerait l'ancienne valeur.
+    //
+    // SANS choix explicite (v1.11.0), l'intention est REMISE au défaut du type à chaque appel
+    // (pose, relecture, changement de sous-type). Elle était figée à la première image vue par le
+    // budget : une ponctuelle devenue spot restait sans ombre, et l'inverse. Pour un script, la
+    // voie stable est le composant (`light.castShadows = true`) ; écrire `castShadow` sur la
+    // lumière three est repris par le budget, qui ne lit que `userData.shadowWanted`.
+    if (!lum) return;
+    const wanted = (typeof this.data.castShadows === 'boolean') ? this.data.castShadows : !lum.isPointLight;
+    lum.castShadow = wanted;
+    lum.userData.shadowWanted = wanted;
     if (lum && lum.isDirectionalLight) lum.userData.shadowSettings = this.data;
   }
 
   onAdd() {
-    this.data = mergeIntoBag(ensureLight(this.node), this.data);
+    this.data = mergeIntoBag(ensureLight(this.node, this.data && this.data.subType), this.data);
     const o = this.node;
     let lum = ed(o).light;
     // Ajouté via +Component sur un Noeud qui n'a pas déjà de lumière THREE.*
@@ -72,7 +98,7 @@ export class Light extends Component {
       if (this.subType === 'spot') lum = new THREE.SpotLight(this.color, this.intensity, this.range, this.angle, this.penumbra, 1.5);
       else if (this.subType === 'directional') lum = new THREE.DirectionalLight(this.color, this.intensity);
       else lum = new THREE.PointLight(this.color, this.intensity, this.range, 2);
-      lum.castShadow = true;
+      lum.castShadow = !lum.isPointLight;   // ponctuelle : ombre sur demande (castShadows)
       if (lum.shadow && lum.shadow.mapSize) lum.shadow.mapSize.set(1024, 1024);
       o.add(lum);
       ed(o).light = lum;
@@ -94,6 +120,7 @@ export class Light extends Component {
     this.applyVisibility();
     this.applyShadowSettings();
     this.markType(this.subType);
+    invalidateLightCaches();
   }
 
   /**
@@ -131,7 +158,7 @@ export class Light extends Component {
     if (d.angle !== undefined) this.angle = d.angle;
     if (d.penumbra !== undefined) this.penumbra = d.penumbra;
     if (d.mode !== undefined) this.data.mode = d.mode;
-    ['shadowMapSize', 'shadowExtent', 'shadowBias'].forEach((k) => { if (d[k] !== undefined) this.data[k] = d[k]; });
+    ['shadowMapSize', 'shadowExtent', 'shadowBias', 'castShadows'].forEach((k) => { if (d[k] !== undefined) this.data[k] = d[k]; });
     // Sur une lumière THREE qui existe déjà, les champs relus doivent redescendre dedans :
     // sans ça, l'inspecteur affiche la bonne couleur et la scène en montre une autre.
     const lum = ed(this.node).light;
@@ -157,6 +184,7 @@ export class Light extends Component {
     if (o.userData.type === this.subType) o.userData.type = 'group';
     delete o.userData.lum;
     if (typeof removeHelper === 'function') removeHelper(o);
+    invalidateLightCaches();
   }
 
   onActiveChange(active) {

@@ -174,7 +174,23 @@ export function uiDocumentsRedraw(container, nodes, atEvent, resolveDocument) {
       div.addEventListener('change', function (e) { _OnChangeBind(e, uiDoc, atEvent); });
     }
     rendered.set(id, {div: state.div, style: state.style, node: node});
-    state.div.style.display = active ? 'block' : 'none';
+    // LE HTML EST POSÉ MÊME CACHÉ (une fois par document) : un script qui rend le document visible
+    // puis remplit ses data-ref DANS LA MÊME IMAGE doit les trouver (régression v1.10.4 :
+    // « Cannot set properties of null » à l'ouverture d'une fenêtre jamais affichée).
+    const htmlNew = state.html !== doc.html;
+    if (htmlNew) {
+      state.div.innerHTML = doc.html || '';
+      state.html = doc.html;
+      state.index = null;
+      state.last = null;
+    }
+    // CACHÉ : le reste (liaisons, CSS) est rattrapé au retour, les valeurs changées entre-temps
+    // étant détectées par `_changedKeys` contre `state.last`.
+    if (!active) {
+      if (state.div.style.display !== 'none') state.div.style.display = 'none';
+      return;
+    }
+    if (state.div.style.display !== 'block') state.div.style.display = 'block';
     // LES VALEURS SONT REPOSÉES DÈS QU'ELLES CHANGENT, et c'est un correctif.
     //
     // `_appliquerValeursBind` n'était appelé QUE dans la branche « le HTML a changé » ci-dessous.
@@ -186,13 +202,6 @@ export function uiDocumentsRedraw(container, nodes, atEvent, resolveDocument) {
     //
     // L'empreinte évite de réécrire le DOM à chaque image quand rien n'a bougé : un HUD ne change
     // que quelques fois par seconde, et `textContent` sur trente éléments à 120 images/s se paie.
-    const htmlNew = state.html !== doc.html;
-    if (htmlNew) {
-      state.div.innerHTML = doc.html || '';
-      state.html = doc.html;
-      state.index = null;
-      state.last = null;
-    }
     // INCRÉMENTAL : seules les clés qui ont changé depuis l'image précédente sont reposées, sur
     // les seuls éléments qui les lient (index construit une fois par HTML). Avant, une seule
     // valeur modifiée — un compte à rebours, une barre de vie — resérialisait TOUTES les valeurs

@@ -51,6 +51,7 @@ export function addSceneObject(o) {
   _indexObjects.add(o);
   objects.push(o);
   markLayersDirty(o);
+  if (typeof globalThis.invalidateLightCache === 'function') globalThis.invalidateLightCache();   // scene.js, v1.11.0
   return o;
 }
 
@@ -193,6 +194,7 @@ export function createFromCreatable(typeName){
 
 export function removeSceneObject(o) {
   if (!_indexObjects.delete(o)) return false;
+  if (typeof globalThis.invalidateLightCache === 'function') globalThis.invalidateLightCache();   // scene.js, v1.11.0
   const i = objects.indexOf(o);
   if (i !== -1) objects.splice(i, 1);
   // Point d'étranglement unique du retrait : c'est ICI qu'on désindexe les
@@ -578,7 +580,9 @@ export function makeLight(type){
   // remplace. Il projetait l'ombre que l'on voyait au centre du cône d'un spot — voir
   // hideEditorMarker (js/editor-overlay.js) et docs/KNOWN_ISSUES.md.
   hideEditorMarker(mesh);
-  lum.castShadow = true;
+  // Ombre d'une PONCTUELLE sur demande seulement (6 rendus par image) : `castShadows` du
+  // composant Light l'active. Spots et directionnelles projettent par défaut.
+  lum.castShadow = !lum.isPointLight;
   if(lum.shadow && lum.shadow.mapSize) lum.shadow.mapSize.set(1024,1024);
   mesh.add(lum);
   ed(mesh).light = lum;

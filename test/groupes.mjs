@@ -32,7 +32,7 @@ export const GROUPS = {
 
   // Format de projet, dossier-projet, assets, migrations, enregistrement.
   projet: [
-    'api-cache.test.mjs', 'avatar-persistence.test.mjs', 'cloud-binaires-assets.test.mjs', 'focus-jeu-integre.test.mjs', 'cloud-project.test.mjs', 'cloud-removed.test.mjs', 'cloud-session.test.mjs',
+    'api-cache.test.mjs', 'runtime-caches.test.mjs', 'lightmap-maillage.test.mjs', 'avatar-persistence.test.mjs', 'cloud-binaires-assets.test.mjs', 'focus-jeu-integre.test.mjs', 'cloud-project.test.mjs', 'cloud-removed.test.mjs', 'cloud-session.test.mjs',
     'conflit-resolution.test.mjs',
     'compression-assets.test.mjs',
     'dossier-suppression.test.mjs', 'dossierProjet.test.mjs', 'double-stockage.test.mjs',
@@ -58,7 +58,7 @@ export const GROUPS = {
     'instances-materiau-noeuds.test.mjs', 'lightmap.test.mjs', 'lightmap-cuisson.test.mjs', 'lightmap-effacer.test.mjs', 'light-modes.test.mjs', 'ciel-hdri.test.mjs', 'folders-tree-resize.test.mjs',
     'lissage.test.mjs', 'lissage-tsl.test.mjs', 'masque-orm.test.mjs',
     'materiau-plugin.test.mjs', 'materiau-shader-inspecteur.test.mjs', 'noeud-debris.test.mjs',
-    'ombre-cadrage.test.mjs', 'shadow-budget.test.mjs', 'post-etat-neutre.test.mjs', 'post-orientation.test.mjs',
+    'ombre-cadrage.test.mjs', 'shadow-budget.test.mjs', 'eclairage-v1-11.test.mjs', 'post-etat-neutre.test.mjs', 'post-orientation.test.mjs',
     'post-profile-asset.test.mjs', 'post-sortie-ecran.test.mjs', 'post-volume-blend.test.mjs',
     'post-volume-component.test.mjs', 'reflets-retrait.test.mjs', 'sonde-ambiance.test.mjs',
     'sondes-non-eclaire.test.mjs', 'sondes-reflets.test.mjs',

@@ -34,6 +34,9 @@ function contexte(){
   // TSL n'est pas chargeable hors navigateur (bundle ESM) : seules les fonctions qui n'y
   // touchent pas sont exercées ici. buildMaterialBake() est laissée de côté, et
   // c'est dit plutôt que masqué par un faux TSL qui ferait croire à une couverture.
+  // v1.11.0 : libération GPU différée et dépliage automatique, purs, appelés sans garde.
+  vm.runInContext(deEsm(read('js/gpu-release.js')), ctx, {filename:'js/gpu-release.js'});
+  vm.runInContext(deEsm(read('js/lightmap-unwrap.js')), ctx, {filename:'js/lightmap-unwrap.js'});
   vm.runInContext(deEsm(read('js/lightmap-rgbm.js')), ctx, {filename:'js/lightmap-rgbm.js'});
   // AVANT la cuisson : depuis la v0.149.3, la transformée d'UV d'un atlas vit dans son propre
   // module partagé (js/lightmap-atlas.js), pour que le JEU PUBLIÉ sache la reposer — ce
@@ -405,16 +408,24 @@ test('l affectation par OBJET continue de marcher', () => {
     'le matériau trouvé en remontant la hiérarchie n’a pas reçu la lightmap');
 });
 
-test('un emplacement reste sur le materiau DU FICHIER : compte et annonce', () => {
-  // Il n'y a rien où écrire lightmapAsset : ce n'est pas un asset du project. Ces surfaces
-  // sont cuites et resteront sans éclairage précalculé, au milieu de voisines qui en ont.
-  // Le taire donnerait un défaut visible sans cause visible.
+test('un emplacement reste sur le materiau DU FICHIER : le MAILLAGE porte la lightmap', async () => {
+  // Il n'y a rien où écrire lightmapAsset : ce n'est pas un asset du projet. Jusqu'en v1.10.4,
+  // ces surfaces étaient seulement comptées et annoncées — la lightmap d'un modèle glTF aux
+  // matériaux « embedded » n'allait NULLE PART (0 maillage éclairé sur 152). Le maillage la
+  // porte désormais lui-même (js/lightmap-atlas.js, applyLightmapOverrides).
+  const {applyLightmapOverrides} = await import('../js/lightmap-atlas.js');
   const {ctx, journal} = contexteAffectation();
-  const r = ctx.assignLightmapToMaterials([meshEmplacement(null)], {id:'lm'});
-  assert.equal(r.orphelins, 1, 'l’emplacement sans asset n’est pas compté');
-  assert.equal(r.materials, 0, 'aucun matériau de project n’était concerné');
-  assert.equal(journal.statuts.length, 1, 'rien n’a été annoncé à l’utilisateur');
-  assert.match(journal.statuts[0], /fichier de modèle/);
+  ctx.applyLightmapOverrides = applyLightmapOverrides;
+  ctx.applyLightmap = (m, p) => { m.lightMap = p.lightmapAsset; };
+  const mesh = meshEmplacement(null);
+  mesh.material.clone = function(){ return {userData: Object.assign({}, this.userData)}; };
+  mesh.traverse = function(f){ f(this); };
+  const r = ctx.assignLightmapToMaterials([mesh], {id:'lm'});
+  assert.equal(mesh.userData.lightmapOverride, 'lm', 'le maillage ne porte pas la lightmap');
+  assert.equal(mesh.material.lightMap, 'lm', 'la lightmap n’est pas posée sur le matériau du fichier');
+  assert.equal(r.perMesh, 1);
+  assert.equal(r.materials, 0, 'aucun matériau de projet n’était concerné');
+  assert.equal(journal.statuts.length, 0, 'plus rien à annoncer : la surface est éclairée');
 });
 
 test('zero rebond est un reglage LEGITIME, pas une valeur absente', () => {
@@ -798,4 +809,18 @@ test('editeur et jeu publie neutralisent tous deux le carrelage de la lightmap',
       + 'base plaquerait l’éclairage du haut du mur en son milieu');
     assert.match(block, /\.offset\.set\(0, ?0\)/, name + ' : le décalage n’est pas neutralisé');
   });
+});
+
+test('RÉGRESSION v1.10.8 — la capture du rebond ne TOUCHE PAS au matériau vivant', () => {
+  // Écrire la lightmap sur le matériau vivant puis lui rendre `null` cassait l'observateur de
+  // nœuds WebGPU (« reading 'isTexture' » en boucle dans viewport.js). La capture travaille sur
+  // une COPIE posée le temps du rendu : le matériau d'origine ne voit ni écriture ni invalidation.
+  const {ctx, journal, T} = contexteRebond();
+  const {mat} = sceneRebond(ctx, T);
+  const mesh = ctx.scene.children[0], versionAvant = mat.version;
+  ctx.captureEnvironmentBounce([mesh], {channel:0, __nom:'L1'}, 64);
+  assert.ok(journal.captures[0].cartes.includes('L1'), 'la copie portant la lightmap n’a pas été rendue');
+  assert.equal(mat.lightMap, null, 'le matériau vivant a reçu une lightmap');
+  assert.equal(mat.version, versionAvant, 'le matériau vivant a été invalidé');
+  assert.equal(mesh.material, mat, 'le maillage n’a pas retrouvé son matériau d’origine');
 });

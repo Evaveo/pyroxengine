@@ -65,7 +65,8 @@ test('LE CLIC « VIENT D ETRE PRESSE » se distingue du clic MAINTENU', () => {
     assert.ok(s.indexOf('mouseGame.buttons.has(b) && !buttonsPrev.has(b)') >= 0,
       m[0] + ' : clicAppuye ne compare pas à l\'image précédente');
     // Et la mémoire doit être RAFRAÎCHIE, sinon la comparaison est toujours vraie.
-    assert.ok(s.indexOf('buttonsPrev = new Set(mouseGame.buttons);') >= 0,
+    assert.ok(s.indexOf('buttonsPrev = new Set(mouseGame.buttons);') >= 0
+      || s.indexOf('buttonsPrev.clear(); mouseGame.buttons.forEach(function(b){ buttonsPrev.add(b); });') >= 0,   // le même ensemble vidé et rempli, sans allocation
       m[0] + ' : l\'état de l\'image précédente n\'est jamais mis à jour — clicAppuye resterait vrai');
   });
 });

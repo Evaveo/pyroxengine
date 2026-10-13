@@ -195,7 +195,9 @@ export const PAGES_COMPONENTS_3D = [
    summary:'Une source de lumière : ponctuelle, spot ou directionnelle.',
    anchors:[
      {f:'js/components/component-light.js', c:"static get typeName() { return 'Light'; }"},
-     {f:'js/component-data.js', c:"subType: 'point', color: 0xffffff, intensity: 1, range: 0, angle: Math.PI / 4, penumbra: 0"},
+     {f:'js/component-data.js', c:"subType: 'point', color: 0xffd9a0, intensity: 1.25, range: 28, angle: Math.PI / 4, penumbra: 0"},
+     {f:'js/component-data.js', c:"export const LIGHT_DEFAULTS_BY_TYPE = {"},
+     {f:'js/components/component-light.js', c:"get castShadows() { return this.data.castShadows; }"},
      {f:'js/component-data.js', c:"export const LIGHT_MODES = ['realtime', 'mixed', 'baked'];"},
      {f:'js/component-data.js', c:"export function bakeLightRole(mode, phase)"},
      {f:'js/components/component-light.js', c:'this.objectThree.visible = on && litInRealtime(this.data.mode);'}
@@ -211,11 +213,16 @@ export const PAGES_COMPONENTS_3D = [
        ['Type', 'subType', 'point', 'Ponctuelle, Spot ou Directionnelle.'],
        ['Mode', 'mode', 'mixed', 'Temps réel, Mixte ou Cuite : ce que la ' + linkHelp('lightmaps', 'cuisson de lightmaps')
          + ' fait de cette lumière (voir ci-dessous).'],
-       ['Couleur', 'color', '#ffffff', 'La teinte de la lumière.'],
-       ['Intensité', 'intensity', '1', 'La puissance.'],
-       ['Portée', 'range', '0', 'Distance au-delà de laquelle la lumière n\'éclaire plus ; 0 = sans limite.'],
-       ['Angle °', 'angle', '45°', 'Spot : ouverture du cône (stockée en radians).'],
-       ['Pénombre', 'penumbra', '0', 'Spot : douceur du bord du cône, de 0 (net) à 1.']
+       ['Couleur', 'color', '#ffd9a0', 'La teinte de la lumière.'],
+       ['Intensité', 'intensity', '1,25 (spot 1,6 ; directionnelle 0,8)', 'La puissance.'],
+       ['Portée', 'range', '28 (spot 30)', 'Distance au-delà de laquelle la lumière n\'éclaire plus ; 0 = sans limite.'],
+       ['Angle °', 'angle', '30° pour un spot', 'Spot : ouverture du cône (stockée en radians).'],
+       ['Pénombre', 'penumbra', '0,3 pour un spot', 'Spot : douceur du bord du cône, de 0 (net) à 1.'],
+       ['Projette une ombre', 'castShadows', 'spot et directionnelle oui, ponctuelle non', 'Une seule ombre locale '
+         + '(ponctuelle ou spot) à la fois : la plus ancienne parmi les lampes allumées. Un script écrit '
+         + '<code>light.castShadows</code> sur le composant.'],
+       ['Résolution / étendue / biais d\'ombre', 'shadowMapSize, shadowExtent, shadowBias', '0 = automatique',
+         'Directionnelle seulement.']
      ])
      + '<h3>Le mode : temps réel, mixte ou cuite</h3>'
      + '<p>Le même réglage que le <b>Mode</b> d\'une lumière Unity. Il décide de ce que la cuisson de '

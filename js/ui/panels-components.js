@@ -201,9 +201,44 @@ declareComponentPanel('Light', {
     { ids: ['f-penombre'], label: 'Pénombre', type: 'number', step: 0.05, min: 0, max: 1,
       visible: function(c){ return c.subType === 'spot'; },
       get: function(c){ return c.objectThree ? c.objectThree.penumbra : c.penumbra; },
-      set: function(c, v){ if(c.objectThree) c.objectThree.penumbra = v; c.penumbra = v; } }
+      set: function(c, v){ if(c.objectThree) c.objectThree.penumbra = v; c.penumbra = v; } },
+    // OMBRES (v1.11.0) — `castShadows` n'existait que pour les scripts et le copilote. Cocher pose
+    // un choix explicite ; le défaut du type (spot/directionnelle oui, ponctuelle non) s'affiche
+    // tant qu'on n'a rien choisi.
+    { ids: ['f-lshadow'], label: 'Projette une ombre', type: 'checkbox',
+      help: 'Une seule ombre locale (ponctuelle ou spot) à la fois : la première créée parmi les lampes allumées.',
+      get: function(c){
+        if(typeof c.castShadows === 'boolean') return c.castShadows;
+        return c.subType !== 'point';
+      },
+      set: function(c, v){ c.castShadows = !!v; } },
+    { ids: ['f-lshadow-size'], label: 'Résolution d’ombre', type: 'number', step: 256, min: 0, max: 8192,
+      help: '0 = celle du projet.',
+      visible: function(c){ return c.subType === 'directional'; },
+      get: function(c){ return (c.data || {}).shadowMapSize || 0; },
+      set: function(c, v){ setLightShadowField(c, 'shadowMapSize', v); } },
+    { ids: ['f-lshadow-ext'], label: 'Étendue d’ombre', type: 'number', step: 1, min: 0, max: 1000,
+      help: 'Demi-largeur de la boîte d’ombre, en unités. 0 = automatique.',
+      visible: function(c){ return c.subType === 'directional'; },
+      get: function(c){ return (c.data || {}).shadowExtent || 0; },
+      set: function(c, v){ setLightShadowField(c, 'shadowExtent', v); } },
+    { ids: ['f-lshadow-bias'], label: 'Biais d’ombre', type: 'number', step: 0.0001, min: -0.05, max: 0.05,
+      help: '0 = automatique.',
+      visible: function(c){ return c.subType === 'directional'; },
+      get: function(c){ const d = c.data || {}; return (typeof d.shadowBias === 'number') ? d.shadowBias : 0; },
+      set: function(c, v){ setLightShadowField(c, 'shadowBias', v); } }
   ]}]
 });
+
+// Un réglage d'ombre de directionnelle : ShadowFit.toolFields le normalise comme configure_light
+// (bornes, 0 = automatique), puis le sac est relu par le recadrage d'ombre à l'image suivante.
+function setLightShadowField(c, key, v){
+  const a = {};
+  a[key] = (key === 'shadowBias') ? (Number(v) === 0 ? 'auto' : Number(v)) : Number(v) || 0;
+  const f = ShadowFit.toolFields(a);
+  if(f[key] === null || f[key] === undefined) delete c.data[key]; else c.data[key] = f[key];
+  c.applyShadowSettings();
+}
 
 // ---------------------------------------------------------------------------
 // Collider — la forme de collision. « Auto » suit la boîte englobante du maillage et n'a donc ni

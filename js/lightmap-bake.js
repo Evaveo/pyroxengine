@@ -24,8 +24,9 @@
 import { assets, awaitAssetTextureReady, createAssetTexture, disposeTexturesReplaced, removeAssetAndFile, replaceContentAssetTexture, updateProject } from './assets.js';
 import { setStatus } from './hierarchy.js';
 import { bakeLightRole, lightModeOf } from './component-data.js';
-import { clearTransformedAtlas, setTransformedAtlas } from './lightmap-atlas.js';
-import { MATERIAL_DEFAULT, applyMaterialEverywhere, ensurePropsMaterial } from './materials.js';
+import { AUTO_UV, applyLightmapOverrides, clearLightmapOverride, clearTransformedAtlas, prepareAutoUnwrap, setTransformedAtlas } from './lightmap-atlas.js';
+import { unwrapPadding } from './lightmap-unwrap.js';
+import { MATERIAL_DEFAULT, applyLightmap, applyMaterialEverywhere, ensurePropsMaterial } from './materials.js';
 import { escapeHtml } from './escape-html.js';
 import { listMats, objects } from './objects.js';
 import { pass } from './postfx.js';
@@ -37,6 +38,7 @@ import { LAYER_HELPERS, grid, renderer, scene } from './scene.js';
 import { allSelection, selection } from './selection.js';
 import { closeModal, openModal } from './ui.js';
 import { isIconEdit } from './viewport.js';
+import { releaseLater } from './gpu-release.js';
 
 export const LIGHTMAP_RES = 1024;
 // Nombre d'images accumulées. C'est le curseur qualité/temps : la moyenne courante
@@ -206,38 +208,55 @@ export function setAtlasLightmap(meshes, res){
   const marge = LIGHTMAP_MARGIN_TEXELS / res;
   const avertissements = [];
   const boites = [];
+  // DÉPLIAGE AUTOMATIQUE (v1.11.0, js/lightmap-unwrap.js) : un maillage sans UV, ou dont les UV
+  // échouent au diagnostic (carrelage, îlots superposés), reçoit un uv1 généré au lieu d'un
+  // simple avertissement. Sa marge dépend de la part d'atlas qu'il recevra, estimée par l'aire.
+  const aires = meshes.map(areaWorld);
+  const aireTotale = aires.reduce(function(s, x){ return s + x; }, 0) || 1;
+  let autoDeplies = 0;
   meshes.forEach(function(m, i){
-    const name = gameUvSource(m.geometry);
-    if(!name){
-      avertissements.push({mesh:m, reason:'aucun jeu d\'UV : rien à éclairer'});
-      return;
-    }
-    if(name === 'uv'){
+    let name = gameUvSource(m.geometry);
+    const dejaAtlas = m.geometry.userData.lightmapAtlas;
+    let auto = name === AUTO_UV;
+    if(!auto && !name){ auto = true; }
+    else if(!auto && !(dejaAtlas && name === 'uv1')){
       const d = diagnoseUnfold(m.geometry, name);
-      if(!d.ok) avertissements.push({mesh:m, reason:d.reason});
+      if(!d.ok){
+        auto = true;
+        avertissements.push({mesh:m, reason:d.reason + ' — dépliage automatique appliqué', auto:true});
+      }
+    }
+    let pad;
+    if(auto){
+      name = AUTO_UV;
+      const texels = res * Math.sqrt(aires[i] / aireTotale) * 0.8;
+      pad = Math.round(unwrapPadding(texels) * 1e4) / 1e4;   // arrondi : persisté tel quel, rejoué à l'identique
+      prepareAutoUnwrap(m);
+      autoDeplies++;
     }
     // Côté du carré réservé : √area, pour que la surface dans l'atlas soit
     // proportionnelle à la surface dans le monde.
     const cote = Math.sqrt(areaWorld(m));
-    boites.push({w:cote + marge*2, h:cote + marge*2, x:0, y:0, index:i, cote:cote, game:name});
+    boites.push({w:cote + marge*2, h:cote + marge*2, x:0, y:0, index:i, cote:cote, game:name, pad:pad});
   });
-  if(!boites.length) return {avertissements:avertissements, remplissage:0};
+  if(!boites.length) return {avertissements:avertissements, remplissage:0, autoDeplies:0};
 
   const dim = potpack(boites);
   boites.forEach(function(b){
     // Le V est retourné (échelle négative) : c'est la convention de l'exemple de three,
     // qui la compense par un .flipY() côté sommet. Les deux vont ensemble — en changer un
-    // seul donne une cuisson miroir verticalement, ce qui se voit mal sur une scène
+    // seul donne une cuisson inversée verticalement, ce qui se voit mal sur une scène
     // symétrique et pas du tout sur un sol.
     // DÉTACHÉE AVANT D'ÊTRE ÉCRITE : les primitives partagent une géométrie par forme
     // (js/primitive-geometry.js), et chaque objet cuit a besoin de SON rangement dans
     // l'atlas. Sans cette copie, tous les cubes de la scène recevraient l'éclairage du
     // dernier cuit — une image plausible, et fausse partout.
-    setTransformedAtlas(geometryForWrite(meshes[b.index]), b.game,
+    const geo = (b.game === AUTO_UV) ? meshes[b.index].geometry : geometryForWrite(meshes[b.index]);
+    setTransformedAtlas(geo, b.game,
       [b.cote / dim.w, -b.cote / dim.h],
-      [(b.x + marge) / dim.w, 1 - (b.y + marge) / dim.h]);
+      [(b.x + marge) / dim.w, 1 - (b.y + marge) / dim.h], b.pad);
   });
-  return {avertissements:avertissements, remplissage:dim.fill};
+  return {avertissements:avertissements, remplissage:dim.fill, autoDeplies:autoDeplies};
 }
 
 // ---------- 3. Le matériau de cuisson ----------
@@ -281,7 +300,15 @@ export function buildMaterialBake(texturePrecedente){
   m.vertexNode = vec4(uv(1).flipY().sub(vec2(0.5)).mul(2), 1, 1);
   // Moyenne courante avec l'image précédente : c'est la progressivité. `output` est la
   // couleur qu'aurait produite le matériau, donc ici la lumière reçue.
-  m.outputNode = vec4(mix(precedente.sample(uv(1)), output, float(1).div(window)));
+  //
+  // × π (v1.11.0). `output` est la RADIANCE sortante d'une surface lambertienne blanche, soit
+  // E/π pour une irradiance E. Or three lit `lightMap` comme une IRRADIANCE (IrradianceNode, puis
+  // irradiance × albédo/π dans PhysicalLightingModel.indirectDiffuse — vérifié dans le bundle
+  // vendorisé). Stocker la radiance rendait la cuisson π fois plus sombre que la même lampe en
+  // temps réel, et le rebond (capture des surfaces lightmappées) π fois trop faible lui aussi.
+  // L'alpha reste celui de `output` : il marque les texels écrits (dilatation, débruitage).
+  const irradiance = vec4(output.rgb.mul(float(Math.PI)), output.a);
+  m.outputNode = vec4(mix(precedente.sample(uv(1)), irradiance, float(1).div(window)));
 
   return {material:m, window:window, precedente:precedente};
 }
@@ -313,11 +340,13 @@ export function buildMaterialBake(texturePrecedente){
 // enchaînées passaient, les mêmes séparées par un rendu tombaient dans la capture.
 // `envMapIntensity = 0` a été essayé comme contournement et ne neutralise rien (mesuré).
 //
-// Le ciel entre donc dans la capture par deux voies — le fond, vu directement par la caméra
-// cube, et les sondes — ce qui donne à la cuisson l'éclairage d'ambiance qu'elle ignorait.
+// Le ciel entrait donc dans la capture par deux voies — le fond, vu directement par la caméra
+// cube, et les sondes. DEPUIS v1.11.0, c'est l'option `includeSky` (cuisson « bakeSky ») : par
+// défaut le ciel en est EXCLU, sur des copies de matériaux sans envMap (jamais un null écrit sur
+// un matériau vivant) — voir le bloc dans la fonction pour la raison (double comptage).
 //
 // Au premier tour, `lightmapPrecedente` est nulle : les surfaces sont noires et la capture
-// ne contient que le ciel, occulté. Un seul chemin de code sert donc aux deux usages.
+// ne contient que le ciel occulté (avec includeSky), ou rien d'autre que les lampes mixtes.
 //
 // LES LAMPES MIXTES (v1.7.0) font exception à « lampes éteintes » : leur direct n'est dans
 // AUCUNE lightmap (il reste en temps réel), donc la capture est le seul endroit où leur lumière
@@ -326,7 +355,8 @@ export function buildMaterialBake(texturePrecedente){
 // faux au premier tour : le direct des lampes cuites n'entre dans la capture qu'au 2ᵉ tour (par
 // la lightmap du 1ᵉʳ) ; y faire entrer celui des mixtes dès le 1ᵉʳ leur donnerait un rebond de
 // plus qu'aux autres — et cuire avec 0 rebond leur cuirait quand même un indirect.
-export function captureEnvironmentBounce(meshes, lightmapPrecedente, res, lampsBake, withMixed){
+export function captureEnvironmentBounce(meshes, lightmapPrecedente, res, lampsBake, withMixed, options){
+  const includeSky = !!(options && options.includeSky);
   const rt = createTargetCube(res);
   const cam = new THREE.CubeCamera(0.1, 800, rt);
   // Même masque que les sondes : une capture ne doit jamais voir le gizmo, la grille ni les
@@ -348,33 +378,54 @@ export function captureEnvironmentBounce(meshes, lightmapPrecedente, res, lampsB
   const ownLamps = lampsBake ? null : bakeLightsState();
   setBakePhase(lampsBake || ownLamps, (lampsBake && withMixed) ? 'bounce' : 'none');
 
-  const keys = [];
-  if(lightmapPrecedente){
-    lightmapPrecedente.channel = 1;
-    const vus = new Set();
-    meshes.forEach(function(x){
-      listMats(x).forEach(function(m){
-        if(vus.has(m) || !acceptsEnvironment(m)) return;
-        vus.add(m);
-        keys.push([m, m.lightMap, m.lightMapIntensity]);
-        m.lightMap = lightmapPrecedente;
-        m.lightMapIntensity = 1;
-        // Ajouter une map change le graphe de nœuds, et three ne recalcule la clé de
-        // hidden que si la version du matériau a bougé. Sans ça, la capture ne verrait rien
-        // de la lightmap — et le rebond serait nul, sans erreur. Même raison que dans
-        // setEnvironmentOn (js/probes.js).
-        m.needsUpdate = true;
-      });
-    });
+  // La lightmap précédente est posée sur des COPIES des matériaux, le temps de la capture : les
+  // matériaux vivants ne sont jamais touchés. Les écrire puis leur rendre `lightMap = null`
+  // (matériau qui n'en avait pas) cassait l'observateur de nœuds WebGPU au rendu suivant —
+  // « Cannot read properties of null (reading 'isTexture') » en boucle dans viewport.js,
+  // exactement le piège décrit plus haut pour `envMap` (v1.10.8).
+  // LE CIEL HORS DE LA CAPTURE (v1.11.0), sauf `includeSky`. Il y entrait par le fond et par les
+  // sondes (envMap des matériaux), donc la lightmap CUISAIT l'ambiance du ciel… que le jeu ajoute
+  // aussi en temps réel par ces mêmes sondes : compté deux fois, d'où un éclaircissement uniforme
+  // qui noyait le halo localisé d'une lampe cuite. Le ciel reste donc en temps réel, et la
+  // lightmap ne porte que la lumière des lampes et son rebond. Pour la même raison la capture
+  // n'a pas d'environnement de scène : `scene.environment` vaut la capture PRÉCÉDENTE pendant la
+  // cuisson, et la laisser éclairer des surfaces dont la lightmap la contient déjà doublerait
+  // le rebond. Les matériaux vivants ne sont jamais touchés : on rend des COPIES (règle v1.10.8).
+  const bakedSet = new Set(meshes);
+  const swaps = [], copies = new Map();
+  const copyFor = function(m, withLightmap){
+    let c = copies.get(m);
+    if(!c){
+      c = m.clone();
+      if(withLightmap){ c.lightMap = lightmapPrecedente; c.lightMapIntensity = 1; }
+      if(!includeSky) c.envMap = null;   // copie jamais rendue : écrire null y est sans danger
+      c.needsUpdate = true;
+      copies.set(m, c);
+    }
+    return c;
+  };
+  const swapMats = function(x, withLightmap){
+    const mats = listMats(x);
+    const touche = function(m){ return acceptsEnvironment(m) && (withLightmap || (!includeSky && m.envMap)); };
+    if(!mats.some(touche)) return;
+    const out = mats.map(function(m){ return touche(m) ? copyFor(m, withLightmap) : m; });
+    swaps.push([x, x.material]);
+    x.material = Array.isArray(x.material) ? out : out[0];
+  };
+  if(lightmapPrecedente) lightmapPrecedente.channel = 1;
+  meshes.forEach(function(x){ swapMats(x, !!lightmapPrecedente); });
+  if(!includeSky){
+    scene.traverseVisible(function(x){ if(x.isMesh && !bakedSet.has(x)) swapMats(x, false); });
   }
+  const fondAvant = scene.background, envAvant = scene.environment;
+  if(!includeSky){ scene.background = null; scene.environment = null; }
 
   try { cam.update(renderer, scene); }
   finally {
-    keys.forEach(function(t){
-      t[0].lightMap = t[1];
-      t[0].lightMapIntensity = t[2];
-      t[0].needsUpdate = true;
-    });
+    swaps.forEach(function(t){ t[0].material = t[1]; });
+    // Différé : la capture vient d'être ENCODÉE, pas exécutée (WebGPU, js/gpu-release.js).
+    copies.forEach(function(c){ releaseLater(c); });
+    if(!includeSky){ scene.background = fondAvant; scene.environment = envAvant; }
     // La capture rend la main aux passes de cuisson, qui cuisent le DIRECT.
     if(lampsBake) setBakePhase(lampsBake, 'direct');
     else restoreBakeLights(ownLamps);
@@ -489,8 +540,9 @@ export async function bakeLightmap(opts){
   atlas.avertissements.forEach(function(a){
     console.warn('Lightmap — ' + (a.mesh.name || 'maillage sans nom') + ' : ' + a.reason);
   });
-  if(atlas.avertissements.length){
-    setStatus(atlas.avertissements.length + ' objet(s) au dépliage douteux, voir la '
+  const douteux = atlas.avertissements.filter(function(a){ return !a.auto; }).length;
+  if(douteux){
+    setStatus(douteux + ' objet(s) au dépliage douteux, voir la '
       + 'console — la cuisson continue mais leur éclairage sera faux', 8000);
   }
 
@@ -561,10 +613,13 @@ export async function bakeLightmap(opts){
     muets.forEach(function(p){ p[0].colorWrite = false; p[0].depthWrite = false; });
     scene.background = null;
     renderer.setClearColor(0x000000, 0);
-    meshes.forEach(function(m){
+    meshes.forEach(function(m, i){
       m.material = material;
       m.frustumCulled = false;   // la caméra ne veut rien dire ici : le sommet ignore sa projection
-      m.castShadow = true;
+      // L'ombre PORTÉE reste celle de l'objet (v1.11.0) : la forcer faisait projeter dans la
+      // cuisson un objet réglé « ne projette pas d'ombre », et la lightmap contredisait le
+      // temps réel. Seule la RÉCEPTION est forcée — sans elle, aucune ombre ne serait cuite.
+      m.castShadow = ombresOrigine[i][0];
       m.receiveShadow = true;
     });
   }
@@ -604,9 +659,11 @@ export async function bakeLightmap(opts){
       // pass directe son éclairage d'ambiance.
       const ancienne = capture;
       capture = captureEnvironmentBounce(meshes, finale ? finale.texture : null, resCapture,
-        lampsBake, pass > 0);
-      if(ancienne) ancienne.dispose();
+        lampsBake, pass > 0, {includeSky: !!opts.bakeSky});
+      // La nouvelle capture est posée AVANT que l'ancienne parte, et l'ancienne part en différé :
+      // la passe qui vient de l'échantillonner est peut-être encore en vol (WebGPU).
       scene.environment = capture.texture;
+      if(ancienne) releaseLater(ancienne);
 
       // 2. La cuisson.
       enterInBake();
@@ -657,10 +714,11 @@ export async function bakeLightmap(opts){
     scene.environment = envOrigine;
     exitOfBake();
     restoreBakeLights(lampsBake);
-    if(capture) capture.dispose();
-    rt1.dispose();
-    rt2.dispose();
-    material.dispose();
+    // Différé : la dernière passe et la relecture viennent juste d'être soumises (WebGPU).
+    if(capture) releaseLater(capture);
+    releaseLater(rt1);
+    releaseLater(rt2);
+    releaseLater(material);
     lightmapBakeState.active = false;
   }
 
@@ -691,7 +749,12 @@ export async function bakeLightmap(opts){
   // invalidait ces clones et faisait tomber le rendu suivant (voir js/assets.js).
   disposeTexturesReplaced();
   setStatus('Lightmap cuite : ' + res + '×' + res + ', ' + bounces + ' rebond(s), remplissage '
-    + Math.round(atlas.remplissage * 100) + ' %', 6000);
+    + Math.round(atlas.remplissage * 100) + ' %'
+    + (atlas.autoDeplies ? ', ' + atlas.autoDeplies + ' maillage(s) dépliés automatiquement' : ''), 6000);
+  lightmapBakeState.lastReport = {autoUnwrapped: atlas.autoDeplies, warnings: douteux,
+    lamps: lampsBake.filter(function(e){ return e.enabled; }).map(function(e){
+      return {name: (e.light.parent && e.light.parent.name) || e.light.name || '', mode: e.mode};
+    })};
   return asset;
 }
 
@@ -834,7 +897,12 @@ export function connectSeams(pixels, res, seams, passes){
 // Les texels vides (alpha 0) sont exclus des DEUX côtés : ni débruités, ni pris comme voisins.
 // Sans ça le noir du vide serait moyenné dans les bords d'îlots — on aurait fabriqué le liseré
 // que la dilatation existe pour enlever.
-export function denoiseBilateral(pixels, res, radius, sigmaValue){
+//
+// RELATIF (v1.11.0, `opts.relative`) : en HDR, un écart absolu de 0,15 est du bruit au cœur d'un
+// halo de lampe (luminance 20) et un bord d'ombre franc dans un coin sombre (luminance 0,1). La
+// tolérance suit donc la luminance du texel central — `sigmaValue` devient une fraction.
+export function denoiseBilateral(pixels, res, radius, sigmaValue, opts){
+  const relative = !!(opts && opts.relative);
   const source = pixels.slice();
   const sigmaSpace = Math.max(1, radius / 2);
   const weightSpace = [];
@@ -847,6 +915,8 @@ export function denoiseBilateral(pixels, res, radius, sigmaValue){
       const i = y*res + x;
       if(source[i*4+3] <= 0) continue;
       const lc = lum(i);
+      let inv2 = inv2sv;
+      if(relative){ const sv = sigmaValue * Math.max(lc, 0.02); inv2 = 1 / (2 * sv * sv); }
       let r = 0, g = 0, b = 0, somme = 0;
       for(let dy = -radius; dy <= radius; dy++){
         const yy = y + dy;
@@ -857,7 +927,7 @@ export function denoiseBilateral(pixels, res, radius, sigmaValue){
           const j = yy*res + xx;
           if(source[j*4+3] <= 0) continue;
           const dl = lum(j) - lc;
-          const p = weightSpace[dy + radius] * weightSpace[dx + radius] * Math.exp(-(dl*dl) * inv2sv);
+          const p = weightSpace[dy + radius] * weightSpace[dx + radius] * Math.exp(-(dl*dl) * inv2);
           r += source[j*4] * p; g += source[j*4+1] * p; b += source[j*4+2] * p; somme += p;
         }
       }
@@ -874,6 +944,10 @@ export function toSrgb(c){
   return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1/2.4) - 0.055;
 }
 
+// La portée RGBM des nouvelles cuissons, lue sur js/lightmap-rgbm.js par sa GLOBALE : un import
+// casserait tout build allégé (test/esm-modules.test.mjs), ce module étant retirable.
+function bakeRgbmRange(){ return (typeof RGBM_RANGE_BAKE === 'number') ? RGBM_RANGE_BAKE : 16; }
+
 export async function exportLightmapInAsset(data, res, name, options){
   const o = options || {};
   // ORDRE : débruitage, PUIS coutures, PUIS dilatation. Chacun dépend du précédent.
@@ -882,7 +956,7 @@ export async function exportLightmapInAsset(data, res, name, options){
   //     propage le bruit d'un îlot à son voisin ;
   //   — la dilatation étale vers le vide et remplit l'alpha : elle vient en dernier, sinon
   //     les deux autres prendraient ses texels inventés pour des mesures.
-  if(o.denoise !== false) denoiseBilateral(data, res, 2, 0.15);
+  if(o.denoise !== false) denoiseBilateral(data, res, 2, 0.25, {relative: true});
   if(o.seams && o.seams.length) connectSeams(data, res, o.seams);
   dilate(data, res, 4);
   // HDR : le RGBM range l'irradiance sur une portée de 64 au lieu de 1, dans le même PNG
@@ -890,7 +964,7 @@ export async function exportLightmapInAsset(data, res, name, options){
   // bits juste en dessous — les deux encodages doivent produire la MÊME orientation, sinon
   // changer d'encodage déplacerait l'éclairage.
   if(o.rgbm){
-    const bytes = encodeLightmapRgbm(data, res);
+    const bytes = encodeLightmapRgbm(data, res, bakeRgbmRange());
     const cv2 = document.createElement('canvas');
     cv2.width = res; cv2.height = res;
     cv2.getContext('2d').putImageData(new ImageData(bytes, res, res), 0, 0);
@@ -902,9 +976,10 @@ export async function exportLightmapInAsset(data, res, name, options){
     if(old){
       forgetCacheRgbm(old);        // sinon la cuisson « ne changerait rien » à l'écran
       old.rgbm = true;
+      old.rgbmRange = bakeRgbmRange();   // portée de CET encodage, relue au décodage
       return replaceContentAssetTexture(old, fichier2);
     }
-    return createAssetTexture(fichier2, {name:name + '.png', cuite:true, rgbm:true});
+    return createAssetTexture(fichier2, {name:name + '.png', cuite:true, rgbm:true, rgbmRange:bakeRgbmRange()});
   }
 
   // RETOURNEMENT VERTICAL, et il n'est pas cosmétique.
@@ -954,6 +1029,7 @@ export async function exportLightmapInAsset(data, res, name, options){
     // encore à décoder du RGBM dans une image qui n'en contient plus.
     forgetCacheRgbm(ancienne);
     ancienne.rgbm = false;
+    delete ancienne.rgbmRange;
     return replaceContentAssetTexture(ancienne, file);
   }
   return createAssetTexture(file, {name:name + '.png', cuite:true});
@@ -1000,7 +1076,7 @@ export function modalBakeLightmap(){
     + '<tr><td>Douceur des ombres</td><td><input type="number" id="lm-smooth" min="0" max="2" '
       + 'step="0.05" value="' + r.smooth + '" style="width:100%"></td></tr>'
     + '<tr><td>Hautes lumières (HDR)</td><td><label><input type="checkbox" id="lm-rgbm"'
-      + (r.rgbm ? ' checked' : '') + '> encodage RGBM — portée 64 au lieu de 1</label></td></tr>'
+      + (r.rgbm ? ' checked' : '') + '> encodage RGBM — portée 256 au lieu de 1</label></td></tr>'
     + '<tr><td>Débruitage</td><td><label><input type="checkbox" id="lm-denoise"'
       + (r.denoise ? ' checked' : '') + '> filtre bilatéral, préserve les bords d\'ombre</label></td></tr>'
     + '</table>'
@@ -1088,9 +1164,16 @@ export function assetsMaterialsOf(mesh){
 export function assignLightmapToMaterials(meshes, asset){
   const vus = new Set();
   let orphelins = 0;
+  let parMaillage = 0;
   meshes.forEach(function(mesh){
     const r = assetsMaterialsOf(mesh);
-    orphelins += r.withoutAsset;
+    // CAUSE DU DÉFAUT CORRIGÉ EN v1.10.5 : les emplacements au matériau DU FICHIER (glTF
+    // « embedded ») n'ont pas d'asset où écrire `lightmapAsset` — ils étaient seulement comptés,
+    // et la lightmap n'allait nulle part. Le maillage la porte maintenant lui-même.
+    if(r.withoutAsset){
+      mesh.userData.lightmapOverride = asset.id;
+      parMaillage += applyLightmapOverrides(mesh, applyLightmap);
+    }
     r.ids.forEach(function(id){
       if(vus.has(id)) return;
       vus.add(id);
@@ -1106,12 +1189,12 @@ export function assignLightmapToMaterials(meshes, asset){
   // il n'y a rien où écrire `lightmapAsset`. Ces surfaces sont cuites mais resteront sans
   // éclairage précalculé, au milieu de voisines qui en ont — ça se voit, et il vaut mieux
   // l'annoncer que de laisser chercher.
-  if(orphelins){
+  if(orphelins){   // plus atteint : gardé pour un appelant qui forcerait `orphelins`
     setStatus(orphelins + ' emplacement(s) de matériau viennent du fichier de modèle et non '
       + 'du projet : ces surfaces ne recevront pas la lightmap. Affectez-leur un matériau du '
       + 'projet pour qu\'elles la reçoivent.', 9000);
   }
-  return {materials:vus.size, orphelins:orphelins};
+  return {materials:vus.size, perMesh:parMaillage, orphelins:orphelins};
 }
 
 // ---------- 7. Effacer la cuisson ----------
@@ -1144,7 +1227,17 @@ export function bakedDataOfScene(){
       if(textures.indexOf(t) === -1) textures.push(t);
     });
   });
-  return {meshes: atlased, materials: materials, textures: textures};
+  // Les maillages qui portent eux-mêmes une lightmap cuite (emplacements au matériau du fichier).
+  const overridden = [];
+  meshes.forEach(function(mesh){
+    const lm = mesh.userData.lightmapOverride;
+    if(!lm) return;
+    const t = assets.find(function(x){ return x.id === lm && x.kind === 'texture'; });
+    if(t && !t.cuite) return;
+    overridden.push(mesh);
+    if(t && textures.indexOf(t) === -1) textures.push(t);
+  });
+  return {meshes: atlased, materials: materials, textures: textures, overridden: overridden};
 }
 
 /**
@@ -1157,11 +1250,13 @@ export function clearLightmaps(opts){
   opts = opts || {};
   if(lightmapBakeState.active) throw new Error('une cuisson est en cours');
   const found = bakedDataOfScene();
-  const report = {meshes: found.meshes.length, materials: found.materials.length, textures: [], kept: 0};
-  if(!found.meshes.length && !found.materials.length) return report;
+  const report = {meshes: found.meshes.length, materials: found.materials.length + found.overridden.length,
+                  textures: [], kept: 0};
+  if(!found.meshes.length && !found.materials.length && !found.overridden.length) return report;
   if(typeof opts.record === 'function') opts.record();
   // 1. Les UV : la géométrie retrouve son jeu d'origine. Le nœud oublie l'atlas relu du fichier.
   found.meshes.forEach(function(m){ clearTransformedAtlas(m.geometry); });
+  found.overridden.forEach(clearLightmapOverride);   // matériaux d'origine rendus au maillage
   objects.forEach(function(o){ delete o.userData.lightmapAtlas; });
   // 2. Les matériaux, RECONSTRUITS sans lightmap (applyMaterialEverywhere) : jamais un `null`
   // écrit sur un matériau vivant, que WebGPU déréférencerait à l'image suivante.
@@ -1176,14 +1271,39 @@ export function clearLightmaps(opts){
   assets.forEach(function(x){
     if(x.kind === 'material' && x.props && x.props.lightmapAsset) stillUsed.add(x.props.lightmapAsset);
   });
+  objects.forEach(function(o){
+    o.traverse(function(x){ if(x.userData.lightmapOverride) stillUsed.add(x.userData.lightmapOverride); });
+  });
   found.textures.forEach(function(t){
     if(stillUsed.has(t.id)){ report.kept++; return; }
-    forgetCacheRgbm(t);   // le décodage RGBM gardé en cache ne doit pas survivre à l'asset
+    forgetCacheRgbm(t, {release: true});   // le décodage RGBM ne survit pas à l'asset (libéré en différé)
     removeAssetAndFile(t);
     report.textures.push(t.name);
   });
   updateProject();
   return report;
+}
+
+/**
+ * Le bilan d'une cuisson pour le copilote / MCP (v1.11.0) : lampes par mode, maillages dépliés
+ * automatiquement, et l'avertissement qui manquait — une lampe MIXTE (le mode par défaut) ne cuit
+ * que son rebond, son direct reste en temps réel : qui voulait un halo cuit doit la passer en
+ * « baked ». Pur : `report` est `lightmapBakeState.lastReport`.
+ */
+export function describeBakeReport(report){
+  if(!report) return '';
+  const byMode = {baked: [], mixed: [], realtime: []};
+  (report.lamps || []).forEach(function(l){ (byMode[l.mode] || (byMode[l.mode] = [])).push(l.name || '(sans nom)'); });
+  const list = function(a){ return a.length ? a.length + ' (' + a.slice(0, 6).join(', ') + (a.length > 6 ? '…' : '') + ')' : '0'; };
+  let out = '. Lampes — cuites : ' + list(byMode.baked) + ' ; mixtes : ' + list(byMode.mixed)
+    + ' ; temps réel (hors cuisson) : ' + list(byMode.realtime);
+  if(report.autoUnwrapped) out += '. ' + report.autoUnwrapped + ' maillage(s) dépliés automatiquement (UV absentes ou superposées)';
+  if(report.warnings) out += '. ' + report.warnings + ' maillage(s) au dépliage douteux (voir la console)';
+  if(byMode.mixed.length){
+    out += '. ATTENTION : les lampes mixtes gardent leur éclairage direct en temps réel — la lightmap '
+      + 'n\'en contient que le rebond. Pour cuire leur halo, configure_light mode « baked ».';
+  }
+  return out;
 }
 
 /** La phrase de bilan d'un effacement, pour la barre d'état et le copilote. */

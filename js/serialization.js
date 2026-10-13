@@ -14,8 +14,8 @@ import { setStatus, updateHierarchy } from './hierarchy.js';
 import { histo, restoreState, stateCurrent } from './history.js';
 import { applyImportModel } from './import-settings.js';
 import { removeHelper } from './inspector.js';
-import { collectAtlasLightmap, reapplyAtlasLightmap } from './lightmap-atlas.js';
-import { MATERIAL_DEFAULT, applyMaterialOn, invert01, previewMaterial, smoothingFromRoughness } from './materials.js';
+import { applyLightmapOverrides, collectAtlasLightmap, reapplyAtlasLightmap } from './lightmap-atlas.js';
+import { MATERIAL_DEFAULT, applyLightmap, applyMaterialOn, invert01, previewMaterial, smoothingFromRoughness } from './materials.js';
 import { applyNodeMixin } from './node.js';
 import { counter, createFromCreatable, createHelperFor, isSceneObject, listMats, objects } from './objects.js';
 import { phys, stopSimulation } from './physics.js';
@@ -388,6 +388,9 @@ export function rebuildTree(listData, assetsById, withHelpers){
     // par `applyComponents` ne fait rien.
     if(Array.isArray(d.components) && d.components.length) applyComponents(o, d.components);
     syncComponents(o);
+    // Lightmap cuite portée par le MAILLAGE (emplacements au matériau du fichier, v1.10.5) :
+    // APRÈS matériau et composants, qui remplacent les matériaux — js/lightmap-atlas.js.
+    if(d.lightmapAtlas) applyLightmapOverrides(o, applyLightmap);
     // Les écarts des nœuds de l'instance, APRÈS les composants de sa racine.
     if(d.modelNodes && typeof applyModelOverrides === 'function'){
       applyModelOverrides(o, d.modelNodes, function(n, list){
@@ -494,6 +497,8 @@ export async function assetsSerialized(){
         // plus à chaque fois — ou pire, écraserait une lightmap importée.
         cuite:!!a.cuite,
         rgbm:!!a.rgbm,
+        // Portée RGBM de l'encodage (v1.11.0) ; absente = ancien PNG encodé en 8.
+        rgbmRange:(a.rgbm && a.rgbmRange) ? a.rgbmRange : undefined,
         files:[await fileInB64(a.file, a.file.name)]});
     } else if(a.kind === 'model'){
       const fs = [];
@@ -653,6 +658,7 @@ export function diskAssetManifest(){
       // manifeste d'une texture ordinaire ne change pas d'un octet.
       if(a.kind === 'texture' && a.cuite) d.cuite = true;
       if(a.kind === 'texture' && a.rgbm) d.rgbm = true;
+      if(a.kind === 'texture' && a.rgbm && a.rgbmRange) d.rgbmRange = a.rgbmRange;
       dAssets.push(d);
     } else if(a.kind === 'model'){
       const names = (a.paquet || []).map(function(f){ return f.name; });
@@ -1926,7 +1932,7 @@ export function unloadedTextureAsset(da, why){
     texture.needsUpdate = true;
   }
   return {id: da.id, kind: 'texture', name: da.name, folder: da.folder || '',
-          paramsImport: da.paramsImport || null, cuite: !!da.cuite, rgbm: !!da.rgbm,
+          paramsImport: da.paramsImport || null, cuite: !!da.cuite, rgbm: !!da.rgbm, rgbmRange: da.rgbmRange || undefined,
           preview: null, file: null, texture: texture, imageSource: null,
           dimensionsSource: texture ? [16, 16] : null,
           unloaded: true, loadError: why || '', descriptor: da};
@@ -2101,7 +2107,7 @@ export async function rebuildAssetsFromDescriptors(das, resolveFile){
     try{
       const f = await withRetry(function(){ return resolveFile(da.files[0], da); }, {attempts: 2});
       assetsById[da.id] = adopt(createAssetTexture(f, {name:da.name, paramsImport:da.paramsImport,
-                                                 cuite:!!da.cuite, rgbm:!!da.rgbm, noRefresh:true}), da);
+                                                 cuite:!!da.cuite, rgbm:!!da.rgbm, rgbmRange:da.rgbmRange, noRefresh:true}), da);
     } catch(e){
       const why = (e && e.message) || String(e);
       console.error('Texture « ' + da.name + ' » non chargée :', e);

@@ -683,7 +683,10 @@ CopilotTools.register({
     + 'la scène, appliqués dans l\'éditeur et le jeu). L\'ambiance hémisphérique (ciel/sol) : configure_environment. '
     + 'mode : ce que la cuisson de lightmaps (bake_lightmaps) fait de la lampe — realtime (ignorée, éclaire en '
     + 'temps réel), mixed (rebond cuit, direct en temps réel ; défaut), baked (tout cuit, n\'éclaire plus en temps '
-    + 'réel, même avant la cuisson). Recuire après avoir changé un mode.',
+    + 'réel, même avant la cuisson). Recuire après avoir changé un mode. ATTENTION : une lampe mixed ne met '
+    + 'dans la lightmap que son rebond — pour un halo cuit autour d’une lampe, mode baked. '
+    + 'castShadows : projeter ou non une ombre (défaut : spot et directionnelle oui, ponctuelle non ; une seule '
+    + 'ombre locale ponctuelle/spot à la fois, la première créée parmi les lampes allumées).',
   schema: {type: 'object', properties: {
     name: {type: 'string', description: 'nom de l\'objet lumière'},
     mode: {type: 'string', enum: ['realtime', 'mixed', 'baked'], description: 'mode de cuisson, comme le Mode d\'une lumière Unity'},
@@ -691,6 +694,7 @@ CopilotTools.register({
     intensity: {type: 'number'}, range: {type: 'number'},
     angle: {type: 'number', description: 'spot : demi-angle en degrés'},
     penumbra: {type: 'number', description: 'spot : douceur du bord, 0 à 1'},
+    castShadows: {description: 'projette une ombre (booléen) ; "auto" = défaut du type'},
     shadowMapSize: {type: 'number', description: 'directionnelle : résolution de la carte d\'ombre (256 à 8192 ; 0 = celle du projet)'},
     shadowExtent: {type: 'number', description: 'directionnelle : demi-largeur de la boîte d\'ombre en unités (0 = automatique, suit la portée du projet)'},
     shadowBias: {description: 'directionnelle : biais de profondeur (nombre, négatif, ex. -0.0005 ; "auto" = automatique)'}
@@ -722,6 +726,11 @@ CopilotTools.register({
       if(!c) throw new Error('« ' + a.name + ' » n\'a pas de composant Light');
       c.mode = a.mode;
     }
+    if(a.castShadows !== undefined){
+      if(!c) throw new Error('« ' + a.name + ' » n’a pas de composant Light');
+      if(a.castShadows !== 'auto' && typeof a.castShadows !== 'boolean') throw new Error('castShadows : true, false ou "auto"');
+      c.castShadows = (a.castShadows === 'auto') ? undefined : a.castShadows;
+    }
     const shadow = ShadowFit.toolFields(a);
     let shadowText = '';
     if(Object.keys(shadow).length){
@@ -738,7 +747,8 @@ CopilotTools.register({
     }
     buildInspector();
     return 'lumière « ' + o.name + ' » : #' + l.color.getHexString() + ', intensité ' + l.intensity
-      + (c ? ', mode ' + lightModeOf(c.data) : '') + shadowText;
+      + (c ? ', mode ' + lightModeOf(c.data) : '') + ', ombre ' + (l.userData.shadowWanted === false ? 'non' : 'oui') + shadowText
+      + ((c && lightModeOf(c.data) === 'mixed') ? ' (mode mixed : seul le rebond est cuit — baked pour cuire le direct)' : '');
   }
 });
 

@@ -7,6 +7,7 @@ import { syncInspector } from './inspector.js';
 import { listMats, objects } from './objects.js';
 import { project } from './project.js';
 import { selection, selectionMulti } from './selection.js';
+import { createLightCache } from './runtime-caches.js';
 import { ShadowFit } from './shadow-fit.js';
 import { Icons } from './ui/icon.js';
 import { ppu2dOfProject, snapCameraOnPixel, viewGizmo } from './view-gizmo.js';
@@ -442,6 +443,21 @@ export const UP_SHADOW = new THREE.Vector3(0, 1, 0);
 // hors champ dont l'ombre tombe sur la scène). Sans elle, ces projeteurs sont coupés par le
 // plan proche et leur ombre disparaît d'un coup quand on tourne la caméra.
 export const MARGIN_SHADOW = 60;
+const _shadowLocal = new THREE.Vector3();
+// CACHE DES LUMIÈRES (js/runtime-caches.js) : plus de `scene.traverse` complet à chaque image.
+// L'éditeur ajoute et retire des objets par trop de chemins pour les intercepter tous : la liste
+// est refaite toutes les 30 images (une lumière posée a son ombre recadrée en moins d'une
+// demi-seconde) ; une lumière retirée entre-temps est ignorée (`parent` nul).
+const _shadowLights = createLightCache(30);
+// INVALIDATION EXPLICITE (v1.11.0) en plus du rafraîchissement périodique : ajout/retrait d'objet
+// (objects.js), pose/retrait d'un composant Light — donc changement de sous-type et rechargement
+// de scène, qui passent par lui. Sans elle, une lumière supprimée pouvait garder jusqu'à 30 images
+// la seule place d'ombre locale.
+export function invalidateLightCache(){ _shadowLights.invalidate(); }
+globalThis.invalidateLightCache = invalidateLightCache;
+// La sphère visible ne dépend que de la caméra : recalculée seulement si ses matrices changent.
+const _shadowFitWorld = new THREE.Matrix4(), _shadowFitProj = new THREE.Matrix4();
+const _shadowFit = {camera: null, distance: -1, radius: 0};
 
 /**
  * Les huit coins du frustum visible, en monde, tronqué à la portée des ombres.
@@ -482,14 +498,20 @@ export function updateShadows(camera){
   if(typeof ShadowFit === 'undefined' || !camera) return;
   const distance = (project.settings
     && project.settings.shadowDistance) || 60;
-  const corners = frustumCornersOf(camera, distance);
-  const sphere = ShadowFit.frustumSphere(corners);
-  _shadowCenter.set(sphere.center.x, sphere.center.y, sphere.center.z);
+  const sphere = _shadowFit;
+  if(sphere.camera !== camera || sphere.distance !== distance
+     || !_shadowFitWorld.equals(camera.matrixWorld) || !_shadowFitProj.equals(camera.projectionMatrix)){
+    sphere.camera = camera; sphere.distance = distance;
+    _shadowFitWorld.copy(camera.matrixWorld); _shadowFitProj.copy(camera.projectionMatrix);
+    const fitted = ShadowFit.frustumSphere(frustumCornersOf(camera, distance));
+    _shadowCenter.set(fitted.center.x, fitted.center.y, fitted.center.z);
+    sphere.radius = fitted.radius;
+  }
 
-  const shadowLocals = [];   // lumières ponctuelles/spots : budget d'ombres, voir ShadowFit.budgetLocalShadows
-  scene.traverse(function(l){
-    if(l.isPointLight || l.isSpotLight){ shadowLocals.push(l); return; }
-    if(!l.isDirectionalLight || !l.castShadow || !l.shadow || !l.shadow.camera) return;
+  const lights = _shadowLights.get(scene);   // ponctuelles/spots : budget d'ombres, voir ShadowFit.budgetLocalShadows
+  for(let li = 0; li < lights.directional.length; li++){
+    const l = lights.directional[li];
+    if(!l.parent || !l.castShadow || !l.shadow || !l.shadow.camera) continue;
     // Réglages imposés par le composant Light (configure_light), sinon automatiques.
     const st = ShadowFit.lightSettings(l.userData.shadowSettings,
       (project.settings && project.settings.shadowMapSize) || 2048, sphere.radius);
@@ -499,7 +521,10 @@ export function updateShadows(camera){
     // effet — trois.js garde la texture qu'il a déjà, à l'ancienne taille.
     if(l.shadow.mapSize.x !== wanted){
       l.shadow.mapSize.set(wanted, wanted);
-      if(l.shadow.map){ l.shadow.map.dispose(); l.shadow.map = null; }
+      // WebGL seulement : en WebGPU, le ShadowNode garde SA référence à la carte et la redimensionne
+      // lui-même d'après mapSize à chaque rendu — la jeter le laisse dessiner dans une texture
+      // détruite (« Destroyed texture ShadowDepthTexture used in a submit », à chaque image).
+      if(l.shadow.map && l.shadow.map.isWebGLRenderTarget){ l.shadow.map.dispose(); l.shadow.map = null; }
     }
     const radius = st.radius;
     const texel = st.texel;
@@ -525,7 +550,7 @@ export function updateShadows(camera){
     // ce vecteur. Le résultat est identique et rien ne se déplace à l'écran.
     _shadowView.lookAt(_shadowLightPos, _shadowTargetPos, UP_SHADOW);
     _shadowInvView.copy(_shadowView).invert();
-    const local = _shadowCenter.clone().applyMatrix4(_shadowInvView);
+    const local = _shadowLocal.copy(_shadowCenter).applyMatrix4(_shadowInvView);
 
     // Le calage sur la grille des texels se fait ICI, dans ce repère : c'est le décalage de la
     // boîte qu'il faut quantifier. Sans lui, la carte glisse d'une fraction de texel à chaque
@@ -548,8 +573,8 @@ export function updateShadows(camera){
     cam.updateProjectionMatrix();
     l.shadow.normalBias = st.normalBias;
     l.shadow.bias = st.bias;
-  });
-  ShadowFit.budgetLocalShadows(shadowLocals, ShadowFit.MAX_LOCAL_SHADOWS);
+  }
+  ShadowFit.budgetLocalShadows(lights.locals, ShadowFit.MAX_LOCAL_SHADOWS);
 }
 if (typeof globalThis !== 'undefined') globalThis.updateShadows = updateShadows;
 

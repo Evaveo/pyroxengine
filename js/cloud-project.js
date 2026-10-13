@@ -177,6 +177,11 @@ export function cloudApi(base = ''){
     // Création d'un projet hébergé VIDE (cloud/back/controleurs/projets.js:creer). Le corps
     // attendu est `{ nom }` ; l'organisation par défaut du compte est choisie côté serveur.
     // Un refus de plan (402) garde le message du serveur, déjà en français.
+    // Les projets hébergés visibles par le compte (organisation par défaut). Clés du serveur en
+    // français (`projets`, `nom`, `maj_le`) : c'est son format, voir createProject ci-dessous.
+    async listProjects(){
+      return (await json(await fetch(url('/api/projets'), { credentials: 'include' }))).projets || [];
+    },
     async createProject(name){
       return json(await fetch(url('/api/projets'), {
         method: 'POST', credentials: 'include',

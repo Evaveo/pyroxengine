@@ -33,6 +33,7 @@ import { emptyPalette } from './tile-palette.js';
 import { closeModal, openModal } from './ui.js';
 import { openEditorPostProfile } from './ui/panels-postprofile.js';
 import { camCurrent, coordsMouse, loop, mouse, raycaster } from './viewport.js';
+import { releaseLater } from './gpu-release.js';
 
 export const assets = [];
 export let assetId = 0;
@@ -166,16 +167,25 @@ export function previewObject3D(object, opts){
   // texture qui n'existe que dans le contexte GL du renderer PRINCIPAL. Ce renderer de vignette
   // ne la connaît pas : il tente de la téléverser comme six images, qui n'existent pas, et lève
   // « texSubImage2D : Overload resolution failed » (constaté à chaque create_prefab). On retire
-  // le temps du rendu toute envMap issue d'une cible de rendu, puis on la remet.
-  const envStripped = [];
+  // le temps du rendu toute envMap issue d'une cible de rendu.
+  //
+  // SUR DES COPIES (v1.11.0) : écrire `envMap = null` puis la remettre sur les matériaux PARTAGÉS
+  // de la scène cassait l'observateur de nœuds WebGPU du renderer principal (même piège que
+  // v1.10.8). Le clone d'objet est à nous : on lui donne des copies de matériaux sans envMap.
+  const copies = new Map();
   clone.traverse(function(x){
     if(!x.material) return;
-    (Array.isArray(x.material) ? x.material : [x.material]).forEach(function(m){
-      if(m && m.envMap && m.envMap.isRenderTargetTexture){ envStripped.push([m, m.envMap]); m.envMap = null; }
+    const multi = Array.isArray(x.material);
+    const out = (multi ? x.material : [x.material]).map(function(m){
+      if(!(m && m.envMap && m.envMap.isRenderTargetTexture)) return m;
+      let c = copies.get(m);
+      if(!c){ c = m.clone(); c.envMap = null; copies.set(m, c); }
+      return c;
     });
+    x.material = multi ? out : out[0];
   });
   try { rPreview.render(sPreview, cPreview); }
-  finally { envStripped.forEach(function(p){ p[0].envMap = p[1]; }); }
+  finally { copies.forEach(function(c){ releaseLater(c); }); }
   const url = rPreview.domElement.toDataURL('image/png');
   sPreview.remove(clone);
   return url;
@@ -1713,7 +1723,9 @@ export function createAssetTexture(file, opts){
              cuite:!!(opts && opts.cuite),
              // Marque « encodee en RGBM » : elle change le CHEMIN de decodage, pas seulement
              // l'apparence. Persistee avec l'asset (js/serialization.js).
-             rgbm:!!(opts && opts.rgbm)};
+             rgbm:!!(opts && opts.rgbm),
+             // Portée de l'encodage RGBM (js/lightmap-rgbm.js) : absente = 8, ancien format.
+             rgbmRange:(opts && opts.rgbm && opts.rgbmRange) ? opts.rgbmRange : undefined};
   // L'image arrive de façon asynchrone : c'est seulement à ce moment que la réduction
   // « taille max » peut être calculée, et que la résolution est connue.
   if(isHdrFileName(file.name)) loadHdrIntoAsset(a, file);

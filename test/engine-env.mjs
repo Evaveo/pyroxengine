@@ -723,7 +723,11 @@ export function creerContexte(fileNames){
    'js/asset-search.js', 'js/hierarchy-range.js',
    // js/environment-map.js — ciel, reflets et HDRI, PARTAGÉ et sans import : probes.js,
    // environment.js et lightmap-bake.js en tirent la clé de pipeline et le fond de ciel.
-   'js/environment-map.js']
+   'js/environment-map.js',
+   // js/gpu-release.js et js/lightmap-unwrap.js (v1.11.0) — libération GPU différée et dépliage
+   // de lightmap : purs, sans import ; probes.js, lightmap-bake.js, assets.js et lightmap-atlas.js
+   // les appellent sans garde.
+   'js/gpu-release.js', 'js/lightmap-unwrap.js']
     .filter((relatif) => fileNames.indexOf(relatif) === -1)
     .forEach((relatif) => {
       vm.runInContext(deEsm(readFileSync(path.join(racineMoteur, relatif), 'utf8')),

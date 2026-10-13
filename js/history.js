@@ -320,7 +320,12 @@ export function restoreFieldsAssets(photos){
     if(!a) return;                         // asset disparu depuis : rien à remettre
     let change = false;
     Object.keys(p.fields).forEach(function(k){
-      const avant = JSON.stringify(a[k]), apres = JSON.stringify(p.fields[k]);
+      // La valeur VIVANTE passe par la même copie que la photo avant comparaison : un champ qui
+      // contient des poignées (`raw` et ses Vector3, `animationsBrutes` et ses AnimationClip) est
+      // photographié amputé de ces poignées. Comparé tel quel à la valeur vivante, il paraissait
+      // changé à chaque annulation et était écrasé par sa photo incomplète — `a.raw = {}`, puis
+      // applyImportModel plantait sur `a.raw.scale`, et les clips d'un modèle disparaissaient.
+      const avant = JSON.stringify(clonePlainData(a[k], [])), apres = JSON.stringify(p.fields[k]);
       if(avant === apres) return;
       // RE-CLONÉ à l'écriture : sans ça, l'asset et la photo partageraient le même objet, et la
       // mutation suivante réécrirait l'instantané qu'on vient de restore. Un rétablissement

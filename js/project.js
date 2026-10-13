@@ -874,17 +874,24 @@ export async function createFolderProject(){
   }
 
   let result;
+  // Le dossier est choisi : la suite (scan, reconstruction des assets) peut durer plusieurs
+  // secondes sur un gros projet — même écran de chargement que depuis le Hub.
+  showLoadingOverlay('Ouverture de « ' + handle.name + ' »…');
   try {
-    result = await loadProjectFromFolder(handle, idSessionEditor);
-  } catch(e){
-    setStatus('Erreur lors du chargement du projet : ' + e.message, 6000);
-    return;
-  }
-  if(result.warningLock){
-    setStatus('⚠ Ce dossier semble déjà ouvert dans un autre onglet.', 5000);
-  }
+    try {
+      result = await loadProjectFromFolder(handle, idSessionEditor);
+    } catch(e){
+      setStatus('Erreur lors du chargement du projet : ' + e.message, 6000);
+      return;
+    }
+    if(result.warningLock){
+      setStatus('⚠ Ce dossier semble déjà ouvert dans un autre onglet.', 5000);
+    }
 
-  await finalizeOpeningProjectFolder(handle, result);
+    await finalizeOpeningProjectFolder(handle, result);
+  } finally {
+    hideLoadingOverlay();
+  }
   try { await registerProjectRecent(handle); }
   catch(e){ console.warn('Impossible d\'enregistrer le projet récent :', e); }
   setStatus('Dossier de projet ouvert : ' + handle.name, 2000);
@@ -1057,5 +1064,16 @@ export async function openCloudProjectFromUrl(){
     project.cloud = null;
     setStatus("Impossible d'ouvrir le projet hébergé : " + e.message, 8000);
     return false;
+  } finally {
+    // Ouvert par le <script> synchrone d'editor.html dès qu'il voit ?projet=N.
+    hideLoadingOverlay();
   }
+}
+
+// L'écran de chargement d'editor.html. Absent hors de cette page (tests, harnais) : ne rien faire.
+export function showLoadingOverlay(message){
+  if(globalThis.showHubLoadingOverlay) globalThis.showHubLoadingOverlay(message);
+}
+export function hideLoadingOverlay(){
+  if(globalThis.hideHubLoadingOverlay) globalThis.hideHubLoadingOverlay();
 }

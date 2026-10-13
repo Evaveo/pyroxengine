@@ -18,6 +18,7 @@ import { applyNodeMixin } from './node.js';
 import { isSceneObject, listMats } from './objects.js';
 import { LAYER_HELPERS, renderer, scene } from './scene.js';
 import { selection } from './selection.js';
+import { releaseLater } from './gpu-release.js';
 
 // Une sonde se reconnaît à son SAC (`userData.probe`, posé par le composant Reflection et retiré
 // avec lui), pas au tag `userData.type === 'probe'`. Le tag n'est posé que sur un nœud nu
@@ -73,7 +74,7 @@ export function makeProbe(){
 export function disposeProbe(o){
   const c = engineProbes.cuites.get(o);
   if(!c) return;
-  if(c.rt) c.rt.dispose();
+  if(c.rt) releaseLater(c.rt);
   engineProbes.cuites.delete(o);
 }
 
@@ -97,12 +98,12 @@ export function keySky(e){
 // après le backend. Elle attend la cuisson suivante.
 export function disposeDomeBake(){
   if(!domeBake) return;
-  domeBake.dispose();
+  releaseLater(domeBake);   // différé (js/gpu-release.js) : peut-être encore `background` d'un rendu en vol
   domeBake = null;
 }
 
 export function disposeSky(){
-  if(engineProbes.sky && engineProbes.sky.rt) engineProbes.sky.rt.dispose();
+  if(engineProbes.sky && engineProbes.sky.rt) releaseLater(engineProbes.sky.rt);
   engineProbes.sky = null;
   disposeDomeBake();
 }
@@ -124,7 +125,7 @@ export function bakeSky(key){
     const type = isHdrTexture(fond) ? THREE.HalfFloatType : THREE.UnsignedByteType;
     let c = engineProbes.sky;
     // La cible seule, pas disposeSky() : elle libérerait aussi le fond qu'on vient de poser.
-    if(c && c.rt && c.rt.texture.type !== type){ c.rt.dispose(); engineProbes.sky = null; c = null; }
+    if(c && c.rt && c.rt.texture.type !== type){ releaseLater(c.rt); engineProbes.sky = null; c = null; }
     if(!c || !c.rt){
       const rt = createTargetCube(SKY_RESOLUTION, type);
       c = {rt: rt, cam: new THREE.CubeCamera(0.1, 400, rt), key: null};
@@ -212,7 +213,7 @@ export function bakeProbe(o){
   const res = Math.max(16, Math.min(512, s.resolution | 0 || 128));
   let c = engineProbes.cuites.get(o);
   if(!c || !c.rt || c.rt.width !== res){
-    if(c && c.rt) c.rt.dispose();
+    if(c && c.rt) releaseLater(c.rt);
     c = {rt: createTargetCube(res), color: null};
     c.cam = new THREE.CubeCamera(0.1, 800, c.rt);
     // voit tous les calques de PROJET (0-30, comme un objet peut être sur n'importe lequel
@@ -351,7 +352,7 @@ export function probeMoreNear(o, probes){
 
 // libère tous les cubemaps (changement de scène, undo : les objets sont recréés)
 export function disposeAllProbes(){
-  engineProbes.cuites.forEach(function(c){ if(c.rt) c.rt.dispose(); });
+  engineProbes.cuites.forEach(function(c){ if(c.rt) releaseLater(c.rt); });
   engineProbes.cuites.clear();
 }
 

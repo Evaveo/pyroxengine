@@ -126,5 +126,5 @@ test('un projet-dossier garde `cuite` et `rgbm` de ses textures (le manifeste le
   assert.match(corps, /if\(a\.kind === 'texture' && a\.cuite\) d\.cuite = true;/);
   assert.match(corps, /if\(a\.kind === 'texture' && a\.rgbm\) d\.rgbm = true;/);
   // Et la relecture les reprend bien depuis le descripteur — l'autre moitié du chemin.
-  assert.match(src, /cuite:!!da\.cuite, rgbm:!!da\.rgbm, noRefresh:true/);
+  assert.match(src, /cuite:!!da\.cuite, rgbm:!!da\.rgbm, rgbmRange:da\.rgbmRange, noRefresh:true/);
 });

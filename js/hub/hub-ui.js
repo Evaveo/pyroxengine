@@ -6,6 +6,7 @@
 import { createCloudProjectPending, createProjectFromTemplate, openExistingProject } from './hub-create.js';
 import { isLoggedIn, probeSession } from '../cloud-session.js';
 import { HubTemplates } from './hub-templates.js';
+import { cloudApi } from '../cloud-project.js';
 import { listProjectsRecents, openProjectRecent } from '../recents.js';
 
 export const elRecents = document.getElementById('hub-recents');
@@ -17,6 +18,10 @@ export const elOpen = document.getElementById('hub-open');
 export const elBusy = document.getElementById('hub-busy');
 
 export let templateSelected = 'empty';
+
+// UNE seule sonde de session pour toute la page : le bouton « Créer sur le cloud » et la
+// section « Jeux cloud » lisent le même résultat, ils ne peuvent pas se contredire.
+const sessionProbe = probeSession();
 
 export function showHubError(message){
   elError.textContent = message;
@@ -161,7 +166,7 @@ elCreate.addEventListener('click', async function(){
 // serveur cloud (éditeur lancé seul), la sonde échoue en silence et il reste caché.
 export const elCreateCloud = document.getElementById('hub-create-cloud');
 if(elCreateCloud){
-  probeSession().then(function(){ elCreateCloud.hidden = !isLoggedIn(); });
+  sessionProbe.then(function(){ elCreateCloud.hidden = !isLoggedIn(); });
   elCreateCloud.addEventListener('click', function(){
     showHubError('');
     const name = prompt('Nom du projet hébergé :', 'Mon projet');
@@ -174,12 +179,52 @@ if(elCreateCloud){
   });
 }
 
+// ---------- Jeux cloud ----------
+// Les projets hébergés du compte connecté. Un clic part sur editor.html?projet=N, qui ouvre
+// le projet derrière son écran de chargement (editor.html:hub-loading-overlay).
+export const elCloudSection = document.getElementById('hub-section-cloud');
+export const elCloud = document.getElementById('hub-cloud');
+export async function renderCloudProjects(){
+  if(!elCloudSection) return;
+  await sessionProbe;
+  if(!isLoggedIn()){ elCloudSection.hidden = true; return; }
+  elCloudSection.hidden = false;
+  let projects;
+  try {
+    projects = await cloudApi('').listProjects();
+  } catch(e){
+    elCloud.innerHTML = '<p class="hub-empty">Impossible de lire les jeux cloud : ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
+  if(!projects.length){
+    elCloud.innerHTML = '<p class="hub-empty">Aucun jeu hébergé sur ce compte.</p>';
+    return;
+  }
+  elCloud.innerHTML = '';
+  projects.forEach(function(p){
+    const name = p['nom'] || ('Projet ' + p.id);  // clé du serveur, en français
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'hub-recent-card';
+    const date = p.maj_le ? new Date(p.maj_le).toLocaleString('fr-FR') : '';
+    card.innerHTML = '<i class="ph-fill ph-cloud" aria-hidden="true"></i>'
+      + '<span class="hub-recent-name">' + escapeHtml(name) + '</span>'
+      + (date ? '<span class="hub-recent-date">Modifié le ' + escapeHtml(date) + '</span>' : '');
+    card.addEventListener('click', function(){
+      setHubBusy(true, 'Ouverture de « ' + name + ' »…');
+      location.href = 'editor.html?projet=' + encodeURIComponent(p.id);
+    });
+    elCloud.appendChild(card);
+  });
+}
+
 if(elSkip){
   elSkip.addEventListener('click', function(){ location.href = 'editor.html'; });
 }
 
 renderRecents();
 renderTemplates();
+renderCloudProjects();
 
 
 // EXPOSÉ EN GLOBALE, à dessein. Ces symboles sont appelés depuis des fichiers

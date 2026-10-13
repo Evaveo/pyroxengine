@@ -1774,7 +1774,7 @@ PAGE_RICH_TEXT,
   + '<p>Un build tout embarqué porte <b>2,48 Mo</b> de code avant compression et '
   + '<b>' + TAGS_BUILD_FULL + ' balises de script</b>. <b>17 modules</b> en sont retirables, '
   + '<b>449 Ko</b> en tout : c\'est le <b>plafond</b>, et il ne dépend d\'aucune scène. Un platformer '
-  + '2D en atteint <b>341 Ko</b> et descend à <b>83 balises</b>.</p>'
+  + '2D en atteint <b>341 Ko</b> et descend à <b>86 balises</b>.</p>'
   + '<p class="help-trap"><b>Ce que vous gagnerez dépend de votre scène, pas du moteur.</b> Le '
   + 'chiffre que vous lirez à l\'export sera le vôtre : un jeu 3D avec des animations garde quatre '
   + 'modules qu\'un jeu 2D retire, et l\'inverse. C\'est pourquoi le message d\'export les '

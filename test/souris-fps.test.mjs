@@ -56,7 +56,9 @@ test('LE DEPLACEMENT EST REMIS A ZERO a la end de chaque image', () => {
       m[0] + ' : les deltas ne sont jamais consommés');
     // et au MÊME endroit que les boutons, la seule remise à zéro par image qui existait déjà :
     // deux endroits différents finiraient par ne plus être appelés tous les deux.
-    const iBoutons = s.indexOf('buttonsPrev = new Set(mouseGame.buttons);');
+    // Deux écritures admises : un nouvel ensemble, ou le MÊME vidé et rempli (jeu publié, sans allocation).
+    const iBoutons = Math.max(s.indexOf('buttonsPrev = new Set(mouseGame.buttons);'),
+      s.indexOf('buttonsPrev.clear(); mouseGame.buttons.forEach(function(b){ buttonsPrev.add(b); });'));
     const iDeltas = s.indexOf('mouseLook.dx = 0; mouseLook.dy = 0;');
     assert.ok(iBoutons >= 0 && iDeltas > iBoutons && (iDeltas - iBoutons) < 500,
       m[0] + ' : la remise à zéro des deltas n\'est pas dans la end d\'image des entrées');

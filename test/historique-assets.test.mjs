@@ -243,6 +243,28 @@ test('ON NE REAPPLIQUE QUE CE QUI A BOUGE', () => {
   assert.equal(c.assets[1].color, 3355443);
 });
 
+test('UNE POIGNEE VIVANTE DANS UN CHAMP (raw, animationsBrutes) n est pas ecrasee par sa photo', () => {
+  // Un modèle porte `raw = {scale: Vector3, position: Vector3}` et `animationsBrutes` (des
+  // AnimationClip). La photo, faute de savoir copier ces instances, retient `raw = {}` et
+  // `animationsBrutes = [null]`. Comparer cette photo à la valeur VIVANTE les déclarait différentes
+  // à chaque annulation : `a.raw = {}`, puis applyImportModel plantait sur `a.raw.scale.x`
+  // (« Restauration — champs des assets »), et les clips du modèle étaient effacés.
+  class Vec { constructor(x){ this.x = x; this.y = x; this.z = x; } }
+  class Clip { constructor(n){ this.name = n; } }
+  const c = contexte();
+  const raw = {scale: new Vec(1), position: new Vec(0)}, clips = [new Clip('Marche')];
+  c.assets.push(asset('m1', 'model', {name: 'Heros', raw: raw, animationsBrutes: clips}));
+  const avant = c.stateCurrent();
+
+  c.assets[0].name = 'Heros2';
+  c.restoreFieldsAssets(avant.fieldsAssets);
+
+  assert.equal(c.assets[0].name, 'Heros');
+  assert.equal(c.assets[0].raw, raw, 'raw remplacé par sa photo incomplète');
+  assert.equal(c.assets[0].raw.scale.x, 1);
+  assert.equal(c.assets[0].animationsBrutes, clips, 'les clips du modèle ont été effacés');
+});
+
 test('UN ASSET DISPARU DEPUIS la photo ne fait pas lever la restauration', () => {
   // Annuler peut ramener un état où un asset n'existe plus : sa photo n'a alors plus de cible.
   const c = contexte();

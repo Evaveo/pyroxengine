@@ -155,9 +155,25 @@ export function ensureGame(o){
 // l'un des deux en silence.
 
 export const LIGHT_DEFAULT = {
-  subType: 'point', color: 0xffffff, intensity: 1, range: 0, angle: Math.PI / 4, penumbra: 0,
+  subType: 'point', color: 0xffd9a0, intensity: 1.25, range: 28, angle: Math.PI / 4, penumbra: 0,
   mode: 'mixed'
 };
+
+// DÉFAUTS PAR SOUS-TYPE (v1.11.0), alignés sur makeLight() (js/objects.js) : un sac partiel —
+// `{subType:'spot'}` posé par un script, le copilote ou un +Component — recevait les défauts
+// d'une ponctuelle blanche (intensité 1, portée 0, angle 45°) et ne rendait pas comme le même
+// spot créé depuis le menu. `LIGHT_DEFAULT` reste celui de la ponctuelle.
+export const LIGHT_DEFAULTS_BY_TYPE = {
+  point: LIGHT_DEFAULT,
+  spot: Object.assign({}, LIGHT_DEFAULT, {subType: 'spot', intensity: 1.6, range: 30,
+    angle: 30 * Math.PI / 180, penumbra: 0.3}),
+  directional: Object.assign({}, LIGHT_DEFAULT, {subType: 'directional', intensity: 0.8, range: 0})
+};
+
+/** Les défauts d'un sous-type de lumière (inconnu : ponctuelle). */
+export function lightDefaultFor(subType){
+  return LIGHT_DEFAULTS_BY_TYPE[subType] || LIGHT_DEFAULT;
+}
 
 // LE MODE D'UNE LUMIÈRE (v1.7.0) — le « Mode » du composant Light d'Unity : ce que la cuisson
 // de lightmaps fait de cette lampe, et si elle éclaire encore en temps réel.
@@ -204,12 +220,15 @@ export function bakeLightRole(mode, phase){
   return false;
 }
 
-export function ensureLight(o){
+// `subTypeHint` : le sous-type des données qui vont être fusionnées (Light.onAdd), pour que les
+// défauts posés soient ceux de CE type et pas ceux d'une ponctuelle.
+export function ensureLight(o, subTypeHint){
   if(!o.userData.lum) o.userData.lum = {};
   const s = o.userData.lum;
-  Object.keys(LIGHT_DEFAULT).forEach(function(k){
+  const def = lightDefaultFor(s.subType || subTypeHint);
+  Object.keys(def).forEach(function(k){
     if(s[k] !== undefined) return;
-    s[k] = LIGHT_DEFAULT[k];
+    s[k] = def[k];
   });
   return s;
 }

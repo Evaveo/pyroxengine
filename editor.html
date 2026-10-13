@@ -60,8 +60,17 @@
   // puisse la refermer une fois le vrai projet ouvert — dans un `finally`, succès ou erreur.
   (function(){
     var overlay = document.getElementById('hub-loading-overlay');
-    if(sessionStorage.getItem('hubPendingProjectName')) overlay.hidden = false;
+    var text = document.getElementById('hub-loading-text');
+    // Un projet HÉBERGÉ (?projet=N, depuis le site ou la section « Jeux cloud » du Hub) passe
+    // lui aussi par l'écran de chargement : sans lui, on voyait la scène de démo le temps du
+    // téléchargement, sans rien qui dise qu'un projet arrivait.
+    if(sessionStorage.getItem('hubPendingProjectName') || /[?&]projet=[0-9]+/.test(location.search)) overlay.hidden = false;
     window.hideHubLoadingOverlay = function(){ overlay.hidden = true; };
+    // Rouverte par l'éditeur lui-même (Fichier > Ouvrir un dossier de projet, projets récents).
+    window.showHubLoadingOverlay = function(message){
+      text.textContent = message || 'Ouverture du projet…';
+      overlay.hidden = false;
+    };
   })();
 </script>
 <div id="app">
@@ -394,6 +403,7 @@
 <script type="module" src="js/ui/panels-postprofile.js"></script>
 <script type="module" src="js/editor-overlay.js"></script>
 <script type="module" src="js/grid-floor.js"></script>
+<script type="module" src="js/lightmap-unwrap.js"></script>
 <script type="module" src="js/lightmap-atlas.js"></script>
 <script type="module" src="js/script-trust.js"></script>
 <script type="module" src="js/script-scope.js"></script>
@@ -480,6 +490,7 @@
 <script type="module" src="js/locale.js"></script>
 <script type="module" src="js/gamepad-input.js"></script>
 <script type="module" src="js/touch-input.js"></script>
+<script type="module" src="js/runtime-caches.js"></script>
 <script type="module" src="js/components/component-synth.js"></script>
 <script type="module" src="js/components/component-touch-controls.js"></script>
 <script type="module" src="js/brush-tilemap.js"></script>
@@ -532,6 +543,7 @@
 <!-- AVANT viewport.js, et pas ailleurs : la loop de rendu lit `cuissonLightmap`, qui
      est une const. Chargé après, l'accès tomberait dans sa zone morte temporelle et
      interromprait viewport.js en entier — le même piège que scene.js en r185. -->
+<script type="module" src="js/gpu-release.js"></script>
 <script type="module" src="js/lightmap-rgbm.js"></script>
 <script type="module" src="js/lightmap-bake.js"></script>
 <script type="module" src="js/systems/tilemap-system.js"></script>

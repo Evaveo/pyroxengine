@@ -26,7 +26,7 @@ import { bakeAllProbes } from './probes.js';
 import { phys, toggleSimulation } from './physics.js';
 import { profiler, toggleProfiler } from './profiler.js';
 import { loadProjectFromFolder } from './project-folder.js';
-import { addScene, createFolderProject, finalizeOpeningProjectFolder, idSessionEditor, newProject, project } from './project.js';
+import { addScene, createFolderProject, finalizeOpeningProjectFolder, hideLoadingOverlay, idSessionEditor, newProject, project, showLoadingOverlay } from './project.js';
 import { listProjectsRecents, openProjectRecent } from './recents.js';
 import { filters, setModeGizmo, tc, viewEl } from './scene.js';
 import { openLastWindowCode } from './scripts.js';
@@ -212,8 +212,12 @@ export async function showProjectsRecents(){
   if(Number.isNaN(index) || !recents[index]) return;
   try {
     const handle = await openProjectRecent(recents[index]);
-    const result = await loadProjectFromFolder(handle, idSessionEditor);
-    await finalizeOpeningProjectFolder(handle, result);
+    showLoadingOverlay('Ouverture de « ' + handle.name + ' »…');
+    let result;
+    try {
+      result = await loadProjectFromFolder(handle, idSessionEditor);
+      await finalizeOpeningProjectFolder(handle, result);
+    } finally { hideLoadingOverlay(); }
     if(result.warningLock) setStatus('⚠ Ce dossier semble déjà ouvert dans un autre onglet.', 5000);
     else setStatus('Projet ouvert : ' + handle.name, 2000);
   } catch(e){ setStatus(e.message, 5000); }

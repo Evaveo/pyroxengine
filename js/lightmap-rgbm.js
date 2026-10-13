@@ -10,7 +10,7 @@
 // entre « lumineux » et « éblouissant » disparaît.
 //
 // LA SOLUTION. RGBM range une valeur HDR dans quatre octets : les trois premiers gardent la
-// couleur, le quatrième un MULTIPLICATEUR commun. La portée pass ainsi de 1 à PORTÉE² (64
+// couleur, le quatrième un MULTIPLICATEUR commun. La portée pass ainsi de 1 à PORTÉE² (256
 // ici), au prix de la précision sur les valeurs moyennes.
 //
 // La racine carrée avant division n'est pas décorative : elle répartit la précision des 8 bits
@@ -24,7 +24,22 @@
 // `NodeMaterial.fromMaterial` indisponible dans ce bundle). On décode donc UNE FOIS au
 // chargement, vers une texture demi-flottante que three échantillonne normalement.
 
-export const RGBM_RANGE = 8;   // portée linéaire = PORTÉE² = 64
+import { releaseLater } from './gpu-release.js';
+
+// PORTÉE PORTÉE PAR L'ASSET (v1.11.0). Une portée de 8 (64 en linéaire) écrêtait le cœur d'une
+// lampe ponctuelle cuite : le halo localisé sortait en plateau. Les nouvelles cuissons encodent
+// en RGBM_RANGE_BAKE (16, soit 256 en linéaire) et l'écrivent dans `asset.rgbmRange` ; un asset
+// sans ce champ est un ancien PNG encodé en 8, et c'est ce que RGBM_RANGE garde comme défaut de
+// décodage. Encoder et décoder avec deux portées différentes ne lève rien : l'éclairage est
+// simplement faux d'un facteur constant — d'où le champ, et jamais une constante changée.
+export const RGBM_RANGE = 8;          // portée des PNG d'avant v1.11.0 (défaut au décodage)
+export const RGBM_RANGE_BAKE = 16;    // portée des nouvelles cuissons : 256 en linéaire
+
+/** La portée à utiliser pour décoder un asset RGBM. */
+export function rgbmRangeOf(asset){
+  const r = asset && +asset.rgbmRange;
+  return (r > 0 && isFinite(r)) ? r : RGBM_RANGE;
+}
 
 // Linéarea → RGBM, dans l'ordre d'une ImageData (ligne 0 en haut).
 //
@@ -32,15 +47,16 @@ export const RGBM_RANGE = 8;   // portée linéaire = PORTÉE² = 64
 // on retourne donc les lignes, exactement comme le fait la sortie 8 bits classique. Les deux
 // encodages doivent produire la MÊME orientation, sinon changer d'encodage déplacerait
 // l'éclairage.
-export function encodeLightmapRgbm(data, res){
+export function encodeLightmapRgbm(data, res, range){
+  const R = (range > 0) ? range : RGBM_RANGE;
   const out = new Uint8ClampedArray(res * res * 4);
   for(let y = 0; y < res; y++){
     const src = y * res, dst = (res - 1 - y) * res;
     for(let x = 0; x < res; x++){
       const i = (src + x) * 4, j = (dst + x) * 4;
-      const r = Math.sqrt(Math.max(0, data[i]))     / RGBM_RANGE;
-      const g = Math.sqrt(Math.max(0, data[i + 1])) / RGBM_RANGE;
-      const b = Math.sqrt(Math.max(0, data[i + 2])) / RGBM_RANGE;
+      const r = Math.sqrt(Math.max(0, data[i]))     / R;
+      const g = Math.sqrt(Math.max(0, data[i + 1])) / R;
+      const b = Math.sqrt(Math.max(0, data[i + 2])) / R;
       // Le texel noir est traité À PART, explicitement.
       //
       // Et il faut le dire : AUCUN test ne peut distinguer cette branche de son absence. Sans
@@ -69,7 +85,8 @@ export function encodeLightmapRgbm(data, res){
 // échantillonnent au même endroit, il faut donc rendre ici le retournement que l'encodage a
 // appliqué. Se tromper là-dessus ne lève aucune erreur : l'éclairage se décale, et sur une
 // scène symétrique ça ne se voit même pas.
-export function decodeLightmapRgbm(bytes, width, height){
+export function decodeLightmapRgbm(bytes, width, height, range){
+  const R = (range > 0) ? range : RGBM_RANGE;
   const out = new Uint16Array(width * height * 4);
   const half = THREE.DataUtils.toHalfFloat;
   const un = half(1);
@@ -77,7 +94,7 @@ export function decodeLightmapRgbm(bytes, width, height){
     const src = y * width, dst = (height - 1 - y) * width;
     for(let x = 0; x < width; x++){
       const i = (src + x) * 4, j = (dst + x) * 4;
-      const m = (bytes[i + 3] / 255) * RGBM_RANGE;
+      const m = (bytes[i + 3] / 255) * R;
       // Symétrique de l'encodage : on remultiplie, puis on défait la racine par un carré.
       const r = (bytes[i]     / 255) * m;
       const g = (bytes[i + 1] / 255) * m;
@@ -114,10 +131,21 @@ export function pixelsAssetTexture(asset){
 // Le hidden n'est pas une optimisation de confort : sans lui, chaque reconstruction de matériau
 // — et il y en a une à chaque modification — relancerait un décodage CPU de toute l'image.
 export function textureLightmapRgbm(asset){
-  if(asset.__texRgbm) return asset.__texRgbm;
+  const prev = asset.__texRgbm || null;
+  if(prev && !asset.__texRgbmStale) return prev;
   const img = pixelsAssetTexture(asset);
-  if(!img) return null;
-  const data = decodeLightmapRgbm(img.data, img.width, img.height);
+  // Image pas encore décodée après un remplacement : l'ancienne texture reste valable, et
+  // surtout reste BRANCHÉE — rendre null ferait écrire `lightMap = null` sur un matériau vivant.
+  if(!img) return prev;
+  const data = decodeLightmapRgbm(img.data, img.width, img.height, rgbmRangeOf(asset));
+  asset.__texRgbmStale = false;
+  // MÊME OBJET quand la taille ne change pas (v1.11.0) : les matériaux qui la lisent n'ont rien
+  // à rebrancher, et rien n'est détruit sous une soumission WebGPU en vol.
+  if(prev && prev.image && prev.image.width === img.width && prev.image.height === img.height){
+    prev.image.data = data;
+    prev.needsUpdate = true;
+    return prev;
+  }
   const tex = new THREE.DataTexture(data, img.width, img.height,
                                     THREE.RGBAFormat, THREE.HalfFloatType);
   // Espace LINÉAIRE, et c'est une différence de fond avec une lightmap importée. Celle-ci est
@@ -131,16 +159,29 @@ export function textureLightmapRgbm(asset){
   tex.generateMipmaps = false;
   tex.needsUpdate = true;
   asset.__texRgbm = tex;
+  // Taille changée : l'ancienne part, mais PLUS TARD — des matériaux pas encore reconstruits
+  // la lisent peut-être encore pendant quelques images.
+  if(prev) releaseLater(prev, 30);
   return tex;
 }
 
-// À appeler quand le contenu de l'asset change (nouvelle cuisson) : sinon le hidden rendrait
+// À appeler quand le contenu de l'asset change (nouvelle cuisson) : sinon le cache rendrait
 // l'ancienne image, et l'utilisateur verrait sa cuisson « ne rien changer ».
-export function forgetCacheRgbm(asset){
-  if(asset && asset.__texRgbm){
-    asset.__texRgbm.dispose();
+//
+// JAMAIS de dispose() sur place (v1.11.0) : la texture est encore le `lightMap` de matériaux
+// vivants, et la détruire avant qu'ils soient rebranchés (remplacement asynchrone de l'image)
+// faisait soumettre une texture détruite en WebGPU. On la marque PÉRIMÉE : le prochain
+// textureLightmapRgbm() la remplit en place. `opts.release` (asset supprimé) la libère, en
+// différé, une fois les matériaux reconstruits sans elle.
+export function forgetCacheRgbm(asset, opts){
+  if(!asset || !asset.__texRgbm) return;
+  if(opts && opts.release){
+    releaseLater(asset.__texRgbm);
     asset.__texRgbm = null;
+    asset.__texRgbmStale = false;
+    return;
   }
+  asset.__texRgbmStale = true;
 }
 
 
@@ -151,3 +192,5 @@ export function forgetCacheRgbm(asset){
 globalThis.encodeLightmapRgbm = encodeLightmapRgbm;
 globalThis.forgetCacheRgbm = forgetCacheRgbm;
 globalThis.textureLightmapRgbm = textureLightmapRgbm;
+globalThis.rgbmRangeOf = rgbmRangeOf;
+globalThis.RGBM_RANGE_BAKE = RGBM_RANGE_BAKE;

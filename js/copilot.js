@@ -30,7 +30,7 @@ import { mountMcpSettings } from './mcp-link.js';
 import { refreshSpritesOfLAsset } from './import-settings.js';
 import { buildInspector, deleteRoot, duplicateRoot, syncInspector } from './inspector.js';
 import { applyVisibilityLayers } from './layers.js';
-import { bakeLightmap, clearLightmaps, describeClearLightmaps, lightmapBakeState, settingsLightmap } from './lightmap-bake.js';
+import { bakeLightmap, clearLightmaps, describeBakeReport, describeClearLightmaps, lightmapBakeState, settingsLightmap } from './lightmap-bake.js';
 import { describeMaterialForAI, propMaterialByKey, validatePropMaterial } from './material-props.js';
 import { applyMaterialEverywhere, attachMaterialAsset, createAssetMaterial, roughnessFromSmoothing } from './materials.js';
 import { TYPE_NODE_DEFAULT, createFromCreatable, createObject, createSceneNode, escapeHtml, markLayersDirty, objects, register } from './objects.js';
@@ -1270,8 +1270,11 @@ export const COMMANDS = [
     description: 'Cuit les lightmaps (éclairage précalculé — irradiance directe et rebonds) de '
       + 'toute la scène, ou d\'objets précis. COÛTEUX : plusieurs secondes à quelques minutes '
       + 'selon résolution et nombre d\'images. Les matériaux concernés reçoivent '
-      + 'automatiquement l\'asset produit (lightmapAsset). Un objet sans second game d\'UV '
-      + '(dépliage de lightmap) reçoit un avertissement mais n\'empêche pas la cuisson.',
+      + 'automatiquement l\'asset produit (lightmapAsset). Un objet sans dépliage de lightmap valable '
+      + '(pas d\'UV, UV carrelées ou superposées) est DÉPLIÉ AUTOMATIQUEMENT (une carte par triangle). '
+      + 'Seules les lampes en mode « baked » (cuite) ou « mixed » (mixte, défaut) entrent dans la '
+      + 'cuisson : une lampe mixte garde son direct en temps réel et ne cuit que son rebond — pour un '
+      + 'halo cuit, configure_light mode « baked ». Le ciel reste en temps réel (bakeSky pour le cuire).',
     schema: {type: 'object', properties: {
       objects: {type: 'array', items: {type: 'string'},
         description: 'objets à cuire (racines) ; toute la scène si omis. Les objets non listés '
@@ -1281,7 +1284,9 @@ export const COMMANDS = [
       bounces: {type: 'number', description: 'rebonds de lumière indirecte, 0 à 3 (défaut 1) ; '
         + 'chaque rebond au-delà du premier vaut l\'albédo au carré'},
       smooth: {type: 'number', description: 'douceur des ombres, gigue des lampes en unités monde (défaut 0.35, 0 = ombres dures)'},
-      rgbm: {type: 'boolean', description: 'encodage HDR, portée 64 au lieu de 1 (défaut vrai)'},
+      rgbm: {type: 'boolean', description: 'encodage HDR, portée 256 au lieu de 1 (défaut vrai)'},
+      bakeSky: {type: 'boolean', description: 'cuire aussi l\'ambiance du ciel dans la lightmap (défaut faux : '
+        + 'le ciel reste en temps réel ; vrai le compte deux fois tant que les sondes restent actives)'},
       denoise: {type: 'boolean', description: 'filtre bilatéral, préserve les bords d\'ombre (défaut vrai)'},
       name: {type: 'string', description: 'name de l\'asset lightmap produit (défaut « Lightmap »)'}
     }, additionalProperties: false},
@@ -1302,14 +1307,15 @@ export const COMMANDS = [
       updateProject();
       let asset;
       try {
-        asset = await bakeLightmap(Object.assign({selection: racines, name: a.name}, settings));
+        asset = await bakeLightmap(Object.assign({selection: racines, name: a.name, bakeSky: !!a.bakeSky}, settings));
       } catch(e){
         throw new Error('cuisson interrompue : ' + e.message);
       }
       if(!asset) throw new Error('aucun maillage à cuire — vérifiez la sélection et que les '
         + 'objets visés portent bien un dépliage de lightmap');
       return 'lightmap « ' + asset.name + ' » cuite : ' + settings.resolution + '×' + settings.resolution
-        + ', ' + settings.bounces + ' rebond(s), ' + settings.images + ' images';
+        + ', ' + settings.bounces + ' rebond(s), ' + settings.images + ' images'
+        + describeBakeReport(lightmapBakeState.lastReport);
     }
   },
   {

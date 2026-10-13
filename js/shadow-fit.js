@@ -288,10 +288,23 @@ export const ShadowFit = (function(){
    */
   // `lights` : les lumières locales relevées par le parcours de scène que l'appelant fait DÉJÀ
   // (un second parcours par image coûterait sur les grandes scènes).
+  //
+  // HORS BUDGET (v1.11.0) : une lumière ÉTEINTE dans l'arbre — elle-même ou un parent invisible,
+  // composant désactivé ou mode « baked » (Light.applyVisibility la rend invisible) — n'éclaire
+  // rien en temps réel. Elle prenait pourtant l'unique place d'ombre locale, et la torche visible
+  // d'à côté restait sans ombre. Elle perd son castShadow (seulement s'il était vrai : aucune
+  // écriture, donc aucune recompilation, tant que rien ne change) et ne consomme pas de place.
+  function litInTree(l){
+    for(let o = l; o; o = o.parent) if(o.visible === false) return false;
+    return true;
+  }
   function budgetLocalShadows(lights, max){
-    const local = (lights || []).filter(function(l){
+    const local = [];
+    (lights || []).forEach(function(l){
       if(l.userData.shadowWanted === undefined) l.userData.shadowWanted = !!l.castShadow;
-      return l.userData.shadowWanted;
+      if(!l.userData.shadowWanted) return;
+      if(!litInTree(l)){ if(l.castShadow) l.castShadow = false; return; }
+      local.push(l);
     });
     local.sort(function(a, b){ return a.id - b.id; });
     local.forEach(function(l, i){
@@ -304,7 +317,9 @@ export const ShadowFit = (function(){
           nearNdcZ: nearNdcZ,
           radiusFromCorners: radiusFromCorners,
           frustumSphere: frustumSphere, snapToTexel: snapToTexel,
-          budgetLocalShadows: budgetLocalShadows, MAX_LOCAL_SHADOWS: 4};
+          // UNE seule ombre locale : une ponctuelle rend 6 cartes (cube) par image, un spot une —
+          // au-delà, le coût GPU domine le jeu publié sur les machines modestes.
+          budgetLocalShadows: budgetLocalShadows, MAX_LOCAL_SHADOWS: 1};
 })();
 
 if (typeof globalThis !== 'undefined') globalThis.ShadowFit = ShadowFit;

@@ -101,6 +101,7 @@ export const BUILD_MODULES = [
   {src: 'js/components/component-physics-2d.js'},
 
   // Les modules PURS partagés avec l'éditeur.
+  {src: 'js/lightmap-unwrap.js'},
   {src: 'js/lightmap-atlas.js'},
   {src: 'js/script-scope.js'},
   {src: 'js/script-library.js'},
@@ -109,6 +110,7 @@ export const BUILD_MODULES = [
   {src: 'js/dev-guards.js'},
   {src: 'js/load-retry.js'},
   {src: 'js/lightmap-rgbm.js'},
+  {src: 'js/gpu-release.js'},
   {src: 'js/retargeting.js'},
   {src: 'js/anim-markers.js'},
   {src: 'js/anim-blend.js'},
@@ -136,6 +138,7 @@ export const BUILD_MODULES = [
   {src: 'js/locale.js'},
   {src: 'js/gamepad-input.js'},
   {src: 'js/touch-input.js'},
+  {src: 'js/runtime-caches.js'},
   {src: 'js/render-scale.js'},
   {src: 'js/post-volume-blend.js'},
   {src: 'js/post-profile.js'}
@@ -284,6 +287,7 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     // ne tournait JAMAIS dans un jeu exporté : ombres justes dans l'aperçu ▶ Jouer
     // (game-preview.html le chargeait, lui) et cassées dans le ZIP, sans un seul message.
     // Voir docs/REVUE_2026-09-10.md § 1.1.
+    + '<script type="module" src="lightmap-unwrap.js"><\/script>\n'
     + '<script type="module" src="lightmap-atlas.js"><\/script>\n'
     + '<script type="module" src="script-scope.js"><\/script>\n'
     + '<script type="module" src="script-library.js"><\/script>\n'
@@ -291,6 +295,7 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     + '<script type="module" src="shadow-fit.js"><\/script>\n'
     + '<script type="module" src="dev-guards.js"><\/script>\n'
     + '<script type="module" src="load-retry.js"><\/script>\n'
+    + '<script type="module" src="gpu-release.js"><\/script>\n'
     + emb('lightmap-rgbm.js')
     + emb('retargeting.js')
     + emb('humanoid-avatar.js')
@@ -341,6 +346,7 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     + '<script type="module" src="locale.js"><\/script>\n'
     + '<script type="module" src="gamepad-input.js"><\/script>\n'
     + '<script type="module" src="touch-input.js"><\/script>\n'
+    + '<script type="module" src="runtime-caches.js"><\/script>\n'
     + '<script type="module" src="render-scale.js"><\/script>\n'
     + '<script type="module" src="components/component-synth.js"><\/script>\n'
     + '<script type="module" src="components/component-touch-controls.js"><\/script>\n'
