@@ -58,6 +58,9 @@ export function serializeObject(o){
     visible: visibleIntent(o),
     ombreProjetee: (o.castShadow !== undefined) ? o.castShadow : true,
     ombreRecue: (o.receiveShadow !== undefined) ? o.receiveShadow : true,
+    // « Statique » (js/static-batching.js, v1.13.0) : écrit seulement quand il est vrai. Absent
+    // vaut faux — aucun projet plus ancien n'a donc besoin de migration.
+    static: (o.userData.static === true) ? true : undefined,
     // Un parent COMPTE dès qu'il est un NŒUD, et un nœud se reconnaît à son tableau de
     // composants (applyNodeMixin). La condition interrogeait `userData.type`, que la racine du
     // monde 2D n'avait pas : le lien de parenté de chaque objet 2D était écrit `null`, et ils
@@ -291,6 +294,7 @@ export function rebuildTree(listData, assetsById, withHelpers){
     o.scale.fromArray(d.ech);
     o.castShadow = (d.ombreProjetee !== undefined) ? d.ombreProjetee : true;
     o.receiveShadow = (d.ombreRecue !== undefined) ? d.ombreRecue : true;
+    if(d.static === true) o.userData.static = true;   // absent = faux (js/static-batching.js)
     if(d.visible === false) o.visible = false;
     // Un sac que le fichier NOMME déjà par un composant (`d.components`) porte la valeur à
     // jour ; le sac à plat vient forcément d'un fichier plus ancien que lui, et le recopier ici
@@ -2143,6 +2147,8 @@ export async function rebuildAssetsFromDescriptors(das, resolveFile){
       const blobs = {};
       files.forEach(function(f){ blobs[f.name] = URL.createObjectURL(f); });
       const manager = new THREE.LoadingManager();
+      // Ralenti au repos (js/render-throttle.js) : chaque fichier arrivé rend la cadence pleine.
+      manager.onProgress = function(){ if(typeof globalThis.requestRender === 'function') globalThis.requestRender(); };
       manager.setURLModifier(function(url){
         const nameF = decodeURIComponent(url.replace(/^.*[\\/]/, '').split('?')[0]);
         return blobs[nameF] || url;

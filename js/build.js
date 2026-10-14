@@ -103,6 +103,7 @@ export const BUILD_MODULES = [
   // Les modules PURS partagés avec l'éditeur.
   {src: 'js/lightmap-unwrap.js'},
   {src: 'js/lightmap-atlas.js'},
+  {src: 'js/static-batching.js'},
   {src: 'js/script-scope.js'},
   {src: 'js/script-library.js'},
   {src: 'js/camera-overlays.js'},
@@ -162,6 +163,24 @@ if (typeof globalThis !== 'undefined'){
 // que les 3 Ko de asset-compression.js. La décision se prend sur les OCTETS des fichiers
 // (extensionsUsed du glTF), jamais sur leur nom : un .glb « non compressé » qui l'est
 // quand même ferait disparaître ses maillages dans le jeu publié.
+/** Les `count` premiers octets d'une chaîne base64 (tout si elle est plus courte). */
+export function base64Prefix(b64, count){
+  const chars = (count === Infinity) ? b64.length : Math.min(b64.length, Math.ceil(count / 3) * 4);
+  const bin = atob(b64.slice(0, chars));
+  const n = Math.min(bin.length, count);
+  const u8 = new Uint8Array(n);
+  for(let i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+/** En-tête (20 octets) + bloc JSON d'un .glb en base64 : tout ce que lit extensionsOfGlb. */
+export function glbHeadBytes(b64){
+  const head = base64Prefix(b64, 20);
+  if(head.length < 20) return head;
+  const lengthJson = new DataView(head.buffer).getUint32(12, true);
+  return base64Prefix(b64, 20 + lengthJson);
+}
+
 export function decodersNeeded(data){
   const besoins = new Set();
   (data.assets || []).forEach(function(a){
@@ -171,10 +190,12 @@ export function decodersNeeded(data){
       // f.b64 est une donnees URL produite par FileReader.readAsDataURL
       const virgule = String(f.b64 || '').indexOf(',');
       if(virgule === -1) return;
-      const bin = atob(String(f.b64).slice(virgule + 1));
-      const u8 = new Uint8Array(bin.length);
-      for(let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      const content = /\.glb$/i.test(f.name) ? u8 : new TextDecoder().decode(u8);
+      const b64 = String(f.b64).slice(virgule + 1);
+      // Un .glb ne dit ses extensions que dans son EN-TÊTE et son bloc JSON : on ne décode que
+      // ce préfixe, pas les mégaoctets de géométrie qui suivent (le build décodait tout, à chaque
+      // export, pour lire quelques centaines d'octets).
+      const content = /\.glb$/i.test(f.name) ? glbHeadBytes(b64)
+        : new TextDecoder().decode(base64Prefix(b64, Infinity));
       compressionsOfModel(f.name, content).forEach(function(e){ besoins.add(e); });
     });
   });
@@ -289,6 +310,7 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     // Voir docs/REVUE_2026-09-10.md § 1.1.
     + '<script type="module" src="lightmap-unwrap.js"><\/script>\n'
     + '<script type="module" src="lightmap-atlas.js"><\/script>\n'
+    + '<script type="module" src="static-batching.js"><\/script>\n'
     + '<script type="module" src="script-scope.js"><\/script>\n'
     + '<script type="module" src="script-library.js"><\/script>\n'
     + '<script type="module" src="camera-overlays.js"><\/script>\n'

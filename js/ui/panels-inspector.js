@@ -18,6 +18,7 @@ import { markLayersDirty } from '../objects.js';
 import { applyAtPrefab, assetPrefabOf, createVariantPrefab, instanceModified, renderInstanceUnique, resetInstance } from '../prefabs.js';
 import { project } from '../project.js';
 import { resolveLayer } from '../scripts.js';
+import { setStaticFlag } from '../static-batching.js';
 import { countOverrides, indexScene, openSceneSource, populateSubScene, renderUniqueSubScene, resetSubScene, traversesSubScene } from '../subscenes.js';
 
 export const PANEL_IDENTITY = {
@@ -47,6 +48,37 @@ export const PANEL_IDENTITY = {
         // Le bit `Object3D.layers` ne se resynchronise plus par balayage de la scene a chaque
         // image : il faut donc SIGNALER le noeud (voir markLayersDirty, js/objects.js).
         markLayersDirty(o);
+      } }
+  ]},
+  // « Statique » (js/static-batching.js, v1.13.0) — le Static d'Unity. Ne change RIEN dans
+  // l'éditeur ; le jeu publié partage les matériaux, fond les maillages et fige les matrices, et
+  // la cuisson de lightmap ne cuit plus que les statiques dès qu'il y en a un. Multi-sélection
+  // comme le tag et le calque ; l'undo est posé par le socle.
+  //
+  // « Appliquer aux enfants » est un BOUTON et non une question posée au cochage : sur une
+  // multi-sélection, une question par objet serait insupportable, et un cochage qui modifie en
+  // silence toute une branche surprendrait. Le bouton ne s'active que s'il a quelque chose à faire.
+  { id: 'static', title: '', fields: [
+    { ids: ['f-static'], label: 'Statique', type: 'checkbox',
+      help: 'L\'objet ne bougera pas dans le jeu publié : matériaux partagés, maillages fusionnés, '
+        + 'aucun calcul par image, et seuls les objets Statiques sont cuits dans la lightmap.',
+      get: function(o){ return o.userData.static === true; },
+      set: function(o, v){ setStaticFlag(o, !!v, false); } },
+    { type: 'action', ids: ['btn-static-children'], label: 'Appliquer aux enfants',
+      help: 'Donne à tous les descendants la même valeur de Statique que cet objet',
+      enabled: function(o){
+        let differs = false;
+        o.traverse(function(x){
+          if(x !== o && x.userData && Array.isArray(x.userData.components)
+             && x.userData.modelNode === undefined
+             && (x.userData.static === true) !== (o.userData.static === true)) differs = true;
+        });
+        return differs;
+      },
+      run: function(o, targets){
+        let n = 0;
+        (targets || [o]).forEach(function(t){ n += setStaticFlag(t, t.userData.static === true, true); });
+        setStatus(n + ' objet(s) enfant(s) mis à jour', 2500);
       } }
   ]}]
 };

@@ -321,3 +321,99 @@ test('un jeu sans niveau de detail embarque quand meme le regroupement', () => {
   assert.equal(module.besoin(avecLod), true,
     'un objet porteur d une distance de disparition exige le module, quel que soit leur nombre');
 });
+
+// ---------- 4. Ce que coûte une sélection à l'arrêt ----------
+
+/** Une allée de N cubes, plus un groupe dont `nGroupe` cubes regroupables descendent. */
+function scenePolitique(n, nGroupe){
+  const ctx = creerContexte(['js/editor-batching.js']);
+  const T = ctx.THREE;
+  const scene = new T.Scene(), objects = [];
+  const mk = (x) => {
+    const m = new T.Mesh(new T.BoxGeometry(1, 1, 1), new T.MeshStandardMaterial({color: 0x334455}));
+    m.position.set(x, 0, 0); m.userData.game = {layer: 0};
+    return m;
+  };
+  for(let i = 0; i < n; i++){ const m = mk(i); scene.add(m); objects.push(m); }
+  const group = new T.Group();
+  scene.add(group);
+  for(let i = 0; i < nGroupe; i++){ const m = mk(100 + i); group.add(m); objects.push(m); }
+  scene.updateMatrixWorld(true);
+  // On compte les resynchronisations en enveloppant la globale.
+  vm.runInContext('var __syncs = 0; var __upd = updateInstances;'
+    + ' updateInstances = function(){ __syncs++; return __upd(); };', ctx);
+  return { ctx, scene, objects, group, syncs: () => vm.runInContext('__syncs', ctx) };
+}
+
+test('une feuille selectionnee au repos ne resynchronise plus les lots a chaque image', () => {
+  const { ctx, scene, objects, syncs } = scenePolitique(12, 0);
+  const t = Date.now() + 10000;
+  ctx.updateEditorBatching(scene, objects, [objects[0]], t);   // reconstruction
+  // Une image de plus : la sélection posée sur les lots neufs resynchronise UNE fois (un objet
+  // qui revient dans son lot doit y revenir à sa pose actuelle), puis plus rien.
+  ctx.updateEditorBatching(scene, objects, [objects[0]], t);
+  const avant = syncs();
+  for(let i = 0; i < 5; i++) ctx.updateEditorBatching(scene, objects, [objects[0]], t + i);
+  assert.equal(syncs(), avant, 'une feuille selectionnee est hors lot : rien a resynchroniser');
+  ctx.updateEditorBatching(scene, objects, [objects[0]], t + 10, true);
+  assert.equal(syncs(), avant + 1, 'le gizmo qui tire (moving) resynchronise');
+});
+
+test('un groupe selectionne dont des sources regroupees descendent resynchronise, et le deplacer se voit', () => {
+  const { ctx, scene, objects, group, syncs } = scenePolitique(4, 6);
+  const t = Date.now() + 10000;
+  ctx.updateEditorBatching(scene, objects, [group], t);
+  const avant = syncs();
+  ctx.updateEditorBatching(scene, objects, [group], t + 1);
+  assert.equal(syncs(), avant + 1, 'descendants regroupes : la selection peut les deplacer');
+  // Réglage à l'inspecteur longtemps après le pushHistory : `dirty` est retombé.
+  group.position.x += 50;
+  ctx.updateEditorBatching(scene, objects, [group], t + 2);
+  const lot = vm.runInContext('engineInstances.lots', ctx).find((l) => l.sources.includes(objects[5]));
+  const m = new ctx.THREE.Matrix4(); lot.mesh.getMatrixAt(lot.sources.indexOf(objects[5]), m);
+  const p = new ctx.THREE.Vector3().setFromMatrixPosition(m);
+  assert.equal(Math.round(p.x), 151, 'l instance du descendant doit suivre le groupe');
+});
+
+test('une mutation (pushHistory -> dirty) resynchronise meme sans selection', () => {
+  const { ctx, scene, objects, syncs } = scenePolitique(8, 0);
+  const t = Date.now() + 10000;
+  ctx.updateEditorBatching(scene, objects, [], t);
+  const avant = syncs();
+  ctx.markBatchingDirty();
+  ctx.updateEditorBatching(scene, objects, [], Date.now() + 1);
+  assert.equal(syncs(), avant + 1);
+});
+
+test('setBatchingEdited : selection inchangee = sortie rapide, surlignage et changement repris', () => {
+  const { ctx, scene, objects } = scenePolitique(10, 0);
+  const t = Date.now() + 10000;
+  ctx.updateEditorBatching(scene, objects, [], t);   // tout est regroupé
+  ctx.setBatchingEdited([objects[1], objects[2]]);
+  assert.equal(objects[1].visible, true);
+  // Le surlignage (js/selection.js) ajoute au registre : il doit être remis au lot.
+  vm.runInContext('detachFromBatch', ctx)(objects[3], true);
+  ctx.setBatchingEdited([objects[1], objects[2]]);
+  assert.equal(objects[3].visible, false, 'le surligne doit retourner dans son lot');
+  assert.equal(objects[1].visible, true);
+  // Même longueur, autre identité.
+  ctx.setBatchingEdited([objects[1], objects[4]]);
+  assert.equal(objects[2].visible, false);
+  assert.equal(objects[4].visible, true);
+  assert.deepEqual(vm.runInContext('detachedFromBatch()', ctx).sort((a, b) => a.id - b.id),
+    [objects[1], objects[4]].sort((a, b) => a.id - b.id));
+});
+
+test('un objet deplace hors historique puis deselectionne revient dans son lot a sa nouvelle pose', () => {
+  const { ctx, scene, objects } = scenePolitique(12, 0);
+  const t = Date.now() + 10000;
+  ctx.updateEditorBatching(scene, objects, [], t);
+  ctx.updateEditorBatching(scene, objects, [objects[3]], t + 1);
+  objects[3].position.x = 77; objects[3].updateMatrixWorld();
+  ctx.updateEditorBatching(scene, objects, [objects[3]], t + 2, true);
+  ctx.updateEditorBatching(scene, objects, [], t + 3);   // désélection, sans pushHistory
+  const lot = vm.runInContext('engineInstances.lots', ctx).find((l) => l.sources.includes(objects[3]));
+  const m = new ctx.THREE.Matrix4(); lot.mesh.getMatrixAt(lot.sources.indexOf(objects[3]), m);
+  assert.equal(Math.round(new ctx.THREE.Vector3().setFromMatrixPosition(m).x), 77,
+    'l instance doit reprendre la pose actuelle de l objet');
+});

@@ -83,3 +83,17 @@ test('§ 5.15 — fflate ne part plus dans le jeu publié', () => {
   assert.ok(!/vendor\/fflate\.js/.test(read('js/build.js').split('export const BUILD_MODULES')[1].split('];')[0]));
   assert.ok(!/fflate/.test(read('build-test/index.html')));
 });
+
+test('gizmo — le glisser resynchronise l inspecteur a 10 Hz, la fin du glisser en entier', () => {
+  const s = read('js/scene.js');
+  const oc = s.slice(s.indexOf("tc.addEventListener('objectChange'"), s.indexOf('export const gizmo ='));
+  assert.ok(!/\bsyncInspector\(\)/.test(oc), 'objectChange ne doit plus refaire tous les panneaux');
+  assert.equal((oc.match(/syncInspectorThrottled\(\)/g) || []).length, 2);
+  const dc = s.slice(s.indexOf("tc.addEventListener('dragging-changed'"), s.indexOf("tc.addEventListener('objectChange'"));
+  assert.ok(/syncInspector\(\);/.test(dc), 'la fin du glisser fait une synchronisation complete');
+});
+
+test('apercu camera — la taille du cadre n est ecrite que quand elle change', () => {
+  assert.ok(/if\(pw !== _previewW \|\| ph !== _previewH\)/.test(read('js/viewport.js')));
+  assert.ok(/!!tc\.dragging\)/.test(read('js/viewport.js')), 'le gizmo qui tire doit resynchroniser les lots');
+});

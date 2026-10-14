@@ -33,13 +33,14 @@ import { buildRigidBody, canHaveRigidBody } from './rigid-body.js';
 import { ShadowFit } from './shadow-fit.js';
 import { System } from './systems.js';
 import { PluginHost } from './plugin-host.js';
-import { primitiveGeometry } from './primitive-geometry.js';
+import { primitiveGeometry, sharedKindOf } from './primitive-geometry.js';
 import { buildExtraPrimitive } from './primitives-extra.js';
 import { makeSynthApi } from './synth.js';
 import { makeSteamApi, readSave, removeSave, writeSave } from './steam-bridge.js';
 import { combineAxis, syncTouchControls, touchAxis } from './touch-input.js';
-import { createLightCache, createNameIndex, createUIDocResolver, worldHasMovingBody } from './runtime-caches.js';
+import { createLightCache, createNameIndex, createUIDocResolver, worldHasMovingBody, createAnimatorTargetCache } from './runtime-caches.js';
 import { releaseLater } from './gpu-release.js';
+import { buildStaticScene, refreshStaticVisibility, staticBlocked, undoStaticScene } from './static-batching.js';
 import { renderSetupFor } from './render-scale.js';
 
 // LA CONSOLE DU JEU REMONTE À L'ÉDITEUR. En mode Lecture, ce runtime tourne dans une iframe de
@@ -382,16 +383,11 @@ function rtMachineOf(obj){
   return (a && a.kind === 'animator' && a.machine) || null;
 }
 
+// Appelée à chaque image par Animator : la cible trouvée est gardée et revalidée (js/runtime-caches.js)
+// au lieu d'un parcours complet du sous-arbre.
+const _rtAnimatorTarget = createAnimatorTargetCache(function(o){ return rtClips(o); });
 function rtTargetAnimator(obj){
-  const nameVoulu = ((obj.userData.animator || {}).target || '').trim();
-  let trouve = null;
-  if(nameVoulu){
-    obj.traverse(function(o){ if(!trouve && o.name === nameVoulu) trouve = o; });
-    return trouve;
-  }
-  if(rtClips(obj).length) return obj;
-  obj.traverse(function(o){ if(!trouve && o !== obj && rtClips(o).length) trouve = o; });
-  return trouve || obj;
+  return _rtAnimatorTarget(obj, ((obj.userData.animator || {}).target || '').trim());
 }
 
 function rtPlayerAnimatorOf(obj){
@@ -1318,11 +1314,13 @@ function rtPostStateIsNoop(p){
     && p.temperature === 0 && p.vignette === 0 && p.grain === 0;
 }
 
+const _rtPostCamPos = new THREE.Vector3(), _rtPostCamXYZ = {x: 0, y: 0, z: 0};
 function rtCurrentPostState(cam){
   const volumes = rtResolvePostVolumesForBlend();
   if(volumes.length){
-    const camPos = cam.getWorldPosition(new THREE.Vector3());
-    const merged = blendPostVolumes(volumes, {x:camPos.x, y:camPos.y, z:camPos.z});
+    const camPos = cam.getWorldPosition(_rtPostCamPos);   // tampon : appelé à chaque image
+    _rtPostCamXYZ.x = camPos.x; _rtPostCamXYZ.y = camPos.y; _rtPostCamXYZ.z = camPos.z;
+    const merged = blendPostVolumes(volumes, _rtPostCamXYZ);
     if(merged){
       const p = rtPostStateToLegacyFormat(merged);
       if(!rtPostStateIsNoop(p)) return p;
@@ -1917,12 +1915,16 @@ function rtEmitIn(sys, n){
   }
 }
 
+// objet → système : plus de recherche linéaire par émetteur et par image. Tenu en phase avec
+// game.particles (retrait dans rtUpdateParticles, remise à zéro au changement de scène).
+let _rtSystemByObj = new WeakMap();
 function rtSystemOf(o){
-  let sys = game.particles.find(function(s){ return s.obj === o; });
+  let sys = _rtSystemByObj.get(o);
   if(!sys && o.getComponent && o.getComponent('Particles')){
     if(!o.userData.part) o.userData.part = JSON.parse(JSON.stringify(PART_DEFAULT));
     sys = rtCreateSystem(o);
     game.particles.push(sys);
+    _rtSystemByObj.set(o, sys);
   }
   return sys || null;
 }
@@ -1938,8 +1940,9 @@ function rtUpdateParticles(dt){
     if(!isSceneObject(game.particles[i].obj)){
       const s = game.particles[i];
       if(s.objet3d.parent) s.objet3d.parent.remove(s.objet3d);
-      s.geo.dispose();
-      s.objet3d.material.dispose();
+      releaseLater(s.geo);   // différé, comme le reste de la scène (v1.10.8)
+      releaseLater(s.objet3d.material);
+      if(_rtSystemByObj.get(s.obj) === s) _rtSystemByObj.delete(s.obj);
       game.particles.splice(i, 1);
     }
   }
@@ -2502,202 +2505,253 @@ function errorCompression(err, name, content){
   return e;
 }
 
+// Charge UN asset et décrit ses entrées (put / later), sans toucher `assetsById` : voir loadAssets.
+async function loadOneAsset(da, put, later){
+  if(da.kind === 'texture'){
+    let url = null, tex = null;
+    try {
+      const blob = await b64InBlob(da.files[0]);
+      url = URL.createObjectURL(blob);
+      tex = await loadTextureFile(blob, da.files[0].name, url);   // HDRI (.hdr/.exr) comprise
+    } catch(errTex){
+      // L'ASSET RESTE dans la table, avec un damier : sans lui, `api.create`, les sprites et
+      // les tilemaps qui le citent tombaient sur null, et la tilemap restait `_dirty` pour
+      // toujours en attendant une image qui ne viendrait pas (BUGS_MOTEUR n° 19).
+      warnMissingTexture(da.name, errTex);
+      put(da.id, {kind:'texture', name:da.name, texture:placeholderTextureRuntime(),
+                           url:null, paramsImport:da.paramsImport || null, unloaded:true,
+                           dimensionsSource:[16, 16]});
+      return;
+    }
+    configureTextureRuntime(tex, da.paramsImport);
+    // `url` est conservée pour l'interface de jeu : un élément d'UI est du
+    // DOM, il lui faut une URL d'image, pas une THREE.Texture.
+    put(da.id, {kind:'texture', name:da.name, texture:tex, url:url,
+                          paramsImport:da.paramsImport || null, rgbm:!!da.rgbm, rgbmRange:da.rgbmRange});
+  }
+  else if(da.kind === 'model'){
+    const files = [];
+    for(const fe of da.files){
+      files.push({name:fe.name, blob:await b64InBlob(fe)});
+    }
+    const blobs = {};
+    files.forEach(function(f){ blobs[f.name] = URL.createObjectURL(f.blob); });
+    const manager = new THREE.LoadingManager();
+    manager.setURLModifier(function(url){
+      const nameF = decodeURIComponent(url.replace(/^.*[\\/]/, '').split('?')[0]);
+      return blobs[nameF] || url;
+    });
+    let root;
+    let unite = 1;                       // glTF : mètres par spec
+    // Un modèle à la fois de `shareBlobs` à la fin du parse : voir rtSerialModel.
+    await rtSerialModel(async function(){
+      // Miroir exact de js/assets.js : mêmes décodeurs, même fichier
+      // (js/asset-compression.js, recopié dans le build par js/build.js).
+      if(compressionAvailable()) shareBlobs(blobs);
+      const loaderGltf = function(){
+        const l = new THREE.GLTFLoader(manager);
+        // Sans les décodeurs, un glTF NON compressé se charge très bien : on ne refuse
+        // que ce qui en a réellement besoin, et l'échec est nommé plus bas.
+        if(compressionAvailable()) bindDecoders(l, renderer);
+        return l;
+      };
+      const principal = files.find(function(f){ return /\.(glb|gltf|fbx)$/i.test(f.name); });
+      if(/\.fbx$/i.test(principal.name)){
+        const buf = await principal.blob.arrayBuffer();
+        const u = unitFbx(new Uint8Array(buf));
+        unite = (u === null) ? 0.01 : u;   // sans info : centimètres (défaut Maya)
+        root = new THREE.FBXLoader(manager).parse(buf, '');
+      } else if(/\.glb$/i.test(principal.name)){
+        const buf = await principal.blob.arrayBuffer();
+        const g = await new Promise(function(res, rej){
+          loaderGltf().parse(buf, '', res, function(err){
+            rej(errorCompression(err, principal.name, buf));
+          });
+        });
+        root = g.scene;
+        root.animations = g.animations || [];   // les clips ne sont pas sur .scene
+      } else {
+        const txt = await principal.blob.text();
+        const g = await new Promise(function(res, rej){
+          loaderGltf().parse(txt, '', res, function(err){
+            rej(errorCompression(err, principal.name, txt));
+          });
+        });
+        root = g.scene;
+        root.animations = g.animations || [];
+      }
+    });
+    // APRÈS normalizeModel, pas avant : les réglages de hiérarchie trient et replient
+    // l'arbre, donc changent l'ordre de parcours — l'index d'un emplacement ne veut rien
+    // dire tant que l'arbre n'a pas sa forme définitive.
+    normalizeModel(root, da.paramsImport, unite);
+    // matériaux du fichier, indexés dans l'ordre de parcours : base des
+    // emplacements remplaçables par un matériau du projet
+    const matBruts = [];
+    root.traverse(function(o){
+      if(o.isMesh) matBruts.push(Array.isArray(o.material)
+        ? o.material.slice() : (o.material ? [o.material] : []));
+    });
+    put(da.id, {kind:'model', name:da.name, template:root,
+                          matBruts:matBruts, paramsImport:da.paramsImport || null,
+                          markers:da.markers || null});
+    // Les clips du modèle (onglet Animation) : chacun est exposé comme un asset
+    // `animation`, exactement comme dans l'éditeur (`clipAssetOfModel`, js/anim-asset.js).
+    // Un export d'avant la v0.159 n'a pas de `clips` : ses assets autonomes sont dans la
+    // liste, et restent la seule source.
+    const clipsModel = (da.paramsImport && da.paramsImport.importAnimation !== false
+      && Array.isArray(da.paramsImport.clips)) ? da.paramsImport.clips : [];
+    // Différé comme `put` : « déjà présent » se juge dans l'ordre du fichier.
+    later(function(){
+      clipsModel.forEach(function(c){
+        if(c && c.id && !assetsById[c.id]) assetsById[c.id] = clipAssetOfModel(da.id, c, '');
+      });
+    });
+  }
+  else if(da.kind === 'prefab'){
+    put(da.id, {kind:'prefab', name:da.name, tree:da.tree || []});
+  }
+  else if(da.kind === 'material'){
+    // `id` recopié dans l'entrée : `applyMaterialRuntime` en marque l'objet
+    // (userData.materialId), comme l'éditeur — c'est la clé de regroupement des
+    // instances (js/render-perf.js). La table est indexée PAR id, mais les valeurs ne le
+    // portaient pas : `a.id` y valait undefined.
+    put(da.id, {id:da.id, kind:'material', name:da.name, props:da.props || {},
+      shaderId:da.shaderId || null, valuesParams:da.valuesParams || {}});
+  }
+  else if(da.kind === 'graphShader'){
+    // `properties` (le blackboard) fait partie du shader autant que ses nœuds : sans lui,
+    // un materiau du jeu exporté ne retrouve pas les propriétés qu'il surcharge.
+    put(da.id, {kind:'graphShader', name:da.name, target:da.target || 'lit',
+      properties:da.properties || [],
+      nodes:da.nodes || [], links:da.links || [], outputs:da.outputs || {}});
+  }
+  else if(da.kind === 'audio'){
+    const blob = await b64InBlob(da.files[0]);
+    const buf = await blob.arrayBuffer();
+    const buffer = await new Promise(function(res, rej){
+      listenerAudio.context.decodeAudioData(buf, res, rej);
+    });
+    put(da.id, {kind:'audio', name:da.name, buffer:buffer});
+  }
+  // Un bruitage se CALCULE depuis sa recette, par le même js/chip-synth.js que l'éditeur : le
+  // build n'embarque aucun octet audio pour lui, et le joueur entend ce que l'auteur a réglé.
+  else if(da.kind === 'sfx'){
+    put(da.id, {kind:'sfx', name:da.name, recipe:da.recipe || {},
+                         buffer:sfxBuffer(listenerAudio.context, da.recipe || {})});
+  }
+  else if(da.kind === 'musicLoop'){
+    put(da.id, {kind:'musicLoop', name:da.name, recipe:da.recipe || {},
+                         buffer:loopBuffer(listenerAudio.context, da.recipe || {})});
+  }
+  else if(da.kind === 'documentUI'){
+    put(da.id, {kind:'documentUI', name:da.name, html:da.html || ''});
+  }
+  else if(da.kind === 'sheetStyle'){
+    put(da.id, {kind:'sheetStyle', name:da.name, css:da.css || ''});
+  }
+  else if(da.kind === 'animator'){
+    put(da.id, {kind:'animator', name:da.name, machine:da.machine || {}});
+  }
+  else if(da.kind === 'animation'){
+    put(da.id, Object.assign({kind:'animation', name:da.name}, da.anim || {}));
+  }
+  else if(da.kind === 'sprite'){
+    put(da.id, Object.assign({kind:'sprite', name:da.name}, da.sprite || {}));
+  }
+  // LA PALETTE D'UNE TILEMAP. Sans cette branche, `paletteOfTilemap` ne trouvait rien dans le
+  // jeu publié : la map ne dessinait AUCUNE tuile, et `collidingBands`, privé des réglages
+  // par tuile, rendait tout solide — les pics et la déco devenaient des murs. Dans l'éditeur
+  // tout était juste, le défaut n'existait qu'au ▶ Jouer (mesuré en montant jeux/MossyRun).
+  else if(da.kind === 'tilePalette'){
+    const p = da.palette || {};
+    put(da.id, {kind:'tilePalette', name:da.name,
+      palette: {cellSize: p.cellSize || 0.5, tiles: (p.tiles || []).map(function(t){
+        return {name: t.name || 'Tuile', spriteId: t.spriteId || null,
+                autotile: !!t.autotile, blob: !!t.blob, collision: t.collision || 'none',
+                region: Math.max(0, Math.floor(Number(t.region) || 0))};
+      })}});
+  }
+  // Les profils de post-traitement : sans cette branche, PostVolume.profile ne trouvait
+  // rien dans le jeu publié (assetsById vide de ce genre) et AUCUN profil ne s appliquait.
+  else if(da.kind === 'postProfile'){
+    put(da.id, {kind:'postProfile', name:da.name,
+                         effects: ensurePostProfileDefaults(da.effects)});
+  }
+  // LES ASSETS SCRIPT ENTRENT DANS LA TABLE. Le commentaire d'avant disait vrai à l'époque
+  // (« ils ne servent qu'à l'édition ») : chaque composant Script portait une COPIE du code,
+  // donc la scène publiée se suffisait. Depuis que le composant ne porte plus que `scriptId`,
+  // le jeu publié doit résoudre la référence comme l'éditeur — même format des deux côtés,
+  // et pas de code inline recréé au build.
+  else if(da.kind === 'script'){
+    put(da.id, {kind:'script', name:da.name, code:da.code || ''});
+  }
+}
+
+// CHARGEMENT EN PARALLÈLE, BORNÉ. Les assets se chargeaient un par un : chaque `await` (fetch,
+// décodage d'image, parse glTF, décodage audio) attendait le précédent, et le temps de chargement
+// était la SOMME de tous. Au plus RT_LOAD_POOL à la fois (pas tous : un hébergement qui limite
+// le débit répondrait 429, que withRetry absorbe mais en attendant).
+//
+// L'ORDRE RESTE CELUI DU FICHIER. Chaque asset ne fait que PRÉPARER ses entrées (`put`, `later`) ;
+// elles entrent dans `assetsById` à la fin, dans l'ordre de `D.assets` — c'est lui que lisent les
+// passes suivantes (emplacements des modèles, prefabs) et la règle « un clip de modèle ne remplace
+// pas un asset animation déjà présent ».
+//
+// LES MODÈLES, EUX, SE PARSENT UN PAR UN (rtSerialModel). `shareBlobs` (js/asset-compression.js)
+// est un registre GLOBAL indexé par nom de fichier nu, lu par le KTX2Loader unique : deux modèles
+// en vol qui embarquent chacun un `texture.ktx2` se serviraient la texture l'un de l'autre. Le
+// téléchargement de leurs octets reste parallèle ; seul le parse est sérialisé.
+const RT_LOAD_POOL = 4;
+let rtModelQueue = Promise.resolve();
+function rtSerialModel(fn){
+  const r = rtModelQueue.then(fn);
+  rtModelQueue = r.catch(function(){});
+  return r;
+}
+
+async function rtRunPool(count, size, worker){
+  let next = 0;
+  async function lane(){ while(next < count){ const k = next++; await worker(k); } }
+  const lanes = [];
+  for(let l = 0; l < Math.min(size, count); l++) lanes.push(lane());
+  await Promise.all(lanes);
+}
+
 async function loadAssets(){
   const das = D.assets || [];
-  let n = 0;
-  for(const da of das){
-    n++;
-    progress('Chargement des assets… ' + n + '/' + das.length + ' (' + da.name + ')');
-    try{
-      if(da.kind === 'texture'){
-        let url = null, tex = null;
-        try {
-          const blob = await b64InBlob(da.files[0]);
-          url = URL.createObjectURL(blob);
-          tex = await loadTextureFile(blob, da.files[0].name, url);   // HDRI (.hdr/.exr) comprise
-        } catch(errTex){
-          // L'ASSET RESTE dans la table, avec un damier : sans lui, `api.create`, les sprites et
-          // les tilemaps qui le citent tombaient sur null, et la tilemap restait `_dirty` pour
-          // toujours en attendant une image qui ne viendrait pas (BUGS_MOTEUR n° 19).
-          warnMissingTexture(da.name, errTex);
-          assetsById[da.id] = {kind:'texture', name:da.name, texture:placeholderTextureRuntime(),
-                               url:null, paramsImport:da.paramsImport || null, unloaded:true,
-                               dimensionsSource:[16, 16]};
-          continue;
-        }
-        configureTextureRuntime(tex, da.paramsImport);
-        // `url` est conservée pour l'interface de jeu : un élément d'UI est du
-        // DOM, il lui faut une URL d'image, pas une THREE.Texture.
-        assetsById[da.id] = {kind:'texture', name:da.name, texture:tex, url:url,
-                              paramsImport:da.paramsImport || null, rgbm:!!da.rgbm, rgbmRange:da.rgbmRange};
-      }
-      else if(da.kind === 'model'){
-        const files = [];
-        for(const fe of da.files){
-          files.push({name:fe.name, blob:await b64InBlob(fe)});
-        }
-        const blobs = {};
-        files.forEach(function(f){ blobs[f.name] = URL.createObjectURL(f.blob); });
-        const manager = new THREE.LoadingManager();
-        manager.setURLModifier(function(url){
-          const nameF = decodeURIComponent(url.replace(/^.*[\\/]/, '').split('?')[0]);
-          return blobs[nameF] || url;
-        });
-        // Miroir exact de js/assets.js : mêmes décodeurs, même fichier
-        // (js/asset-compression.js, recopié dans le build par js/build.js).
-        if(compressionAvailable()) shareBlobs(blobs);
-        const loaderGltf = function(){
-          const l = new THREE.GLTFLoader(manager);
-          // Sans les décodeurs, un glTF NON compressé se charge très bien : on ne refuse
-          // que ce qui en a réellement besoin, et l'échec est nommé plus bas.
-          if(compressionAvailable()) bindDecoders(l, renderer);
-          return l;
-        };
-        const principal = files.find(function(f){ return /\.(glb|gltf|fbx)$/i.test(f.name); });
-        let root;
-        let unite = 1;                       // glTF : mètres par spec
-        if(/\.fbx$/i.test(principal.name)){
-          const buf = await principal.blob.arrayBuffer();
-          const u = unitFbx(new Uint8Array(buf));
-          unite = (u === null) ? 0.01 : u;   // sans info : centimètres (défaut Maya)
-          root = new THREE.FBXLoader(manager).parse(buf, '');
-        } else if(/\.glb$/i.test(principal.name)){
-          const buf = await principal.blob.arrayBuffer();
-          const g = await new Promise(function(res, rej){
-            loaderGltf().parse(buf, '', res, function(err){
-              rej(errorCompression(err, principal.name, buf));
-            });
-          });
-          root = g.scene;
-          root.animations = g.animations || [];   // les clips ne sont pas sur .scene
-        } else {
-          const txt = await principal.blob.text();
-          const g = await new Promise(function(res, rej){
-            loaderGltf().parse(txt, '', res, function(err){
-              rej(errorCompression(err, principal.name, txt));
-            });
-          });
-          root = g.scene;
-          root.animations = g.animations || [];
-        }
-        // APRÈS normalizeModel, pas avant : les réglages de hiérarchie trient et replient
-        // l'arbre, donc changent l'ordre de parcours — l'index d'un emplacement ne veut rien
-        // dire tant que l'arbre n'a pas sa forme définitive.
-        normalizeModel(root, da.paramsImport, unite);
-        // matériaux du fichier, indexés dans l'ordre de parcours : base des
-        // emplacements remplaçables par un matériau du projet
-        const matBruts = [];
-        root.traverse(function(o){
-          if(o.isMesh) matBruts.push(Array.isArray(o.material)
-            ? o.material.slice() : (o.material ? [o.material] : []));
-        });
-        assetsById[da.id] = {kind:'model', name:da.name, template:root,
-                              matBruts:matBruts, paramsImport:da.paramsImport || null,
-                              markers:da.markers || null};
-        // Les clips du modèle (onglet Animation) : chacun est exposé comme un asset
-        // `animation`, exactement comme dans l'éditeur (`clipAssetOfModel`, js/anim-asset.js).
-        // Un export d'avant la v0.159 n'a pas de `clips` : ses assets autonomes sont dans la
-        // liste, et restent la seule source.
-        const clipsModel = (da.paramsImport && da.paramsImport.importAnimation !== false
-          && Array.isArray(da.paramsImport.clips)) ? da.paramsImport.clips : [];
-        clipsModel.forEach(function(c){
-          if(c && c.id && !assetsById[c.id]) assetsById[c.id] = clipAssetOfModel(da.id, c, '');
-        });
-      }
-      else if(da.kind === 'prefab'){
-        assetsById[da.id] = {kind:'prefab', name:da.name, tree:da.tree || []};
-      }
-      else if(da.kind === 'material'){
-        // `id` recopié dans l'entrée : `applyMaterialRuntime` en marque l'objet
-        // (userData.materialId), comme l'éditeur — c'est la clé de regroupement des
-        // instances (js/render-perf.js). La table est indexée PAR id, mais les valeurs ne le
-        // portaient pas : `a.id` y valait undefined.
-        assetsById[da.id] = {id:da.id, kind:'material', name:da.name, props:da.props || {},
-          shaderId:da.shaderId || null, valuesParams:da.valuesParams || {}};
-      }
-      else if(da.kind === 'graphShader'){
-        // `properties` (le blackboard) fait partie du shader autant que ses nœuds : sans lui,
-        // un materiau du jeu exporté ne retrouve pas les propriétés qu'il surcharge.
-        assetsById[da.id] = {kind:'graphShader', name:da.name, target:da.target || 'lit',
-          properties:da.properties || [],
-          nodes:da.nodes || [], links:da.links || [], outputs:da.outputs || {}};
-      }
-      else if(da.kind === 'audio'){
-        const blob = await b64InBlob(da.files[0]);
-        const buf = await blob.arrayBuffer();
-        const buffer = await new Promise(function(res, rej){
-          listenerAudio.context.decodeAudioData(buf, res, rej);
-        });
-        assetsById[da.id] = {kind:'audio', name:da.name, buffer:buffer};
-      }
-      // Un bruitage se CALCULE depuis sa recette, par le même js/chip-synth.js que l'éditeur : le
-      // build n'embarque aucun octet audio pour lui, et le joueur entend ce que l'auteur a réglé.
-      else if(da.kind === 'sfx'){
-        assetsById[da.id] = {kind:'sfx', name:da.name, recipe:da.recipe || {},
-                             buffer:sfxBuffer(listenerAudio.context, da.recipe || {})};
-      }
-      else if(da.kind === 'musicLoop'){
-        assetsById[da.id] = {kind:'musicLoop', name:da.name, recipe:da.recipe || {},
-                             buffer:loopBuffer(listenerAudio.context, da.recipe || {})};
-      }
-      else if(da.kind === 'documentUI'){
-        assetsById[da.id] = {kind:'documentUI', name:da.name, html:da.html || ''};
-      }
-      else if(da.kind === 'sheetStyle'){
-        assetsById[da.id] = {kind:'sheetStyle', name:da.name, css:da.css || ''};
-      }
-      else if(da.kind === 'animator'){
-        assetsById[da.id] = {kind:'animator', name:da.name, machine:da.machine || {}};
-      }
-      else if(da.kind === 'animation'){
-        assetsById[da.id] = Object.assign({kind:'animation', name:da.name}, da.anim || {});
-      }
-      else if(da.kind === 'sprite'){
-        assetsById[da.id] = Object.assign({kind:'sprite', name:da.name}, da.sprite || {});
-      }
-      // LA PALETTE D'UNE TILEMAP. Sans cette branche, `paletteOfTilemap` ne trouvait rien dans le
-      // jeu publié : la map ne dessinait AUCUNE tuile, et `collidingBands`, privé des réglages
-      // par tuile, rendait tout solide — les pics et la déco devenaient des murs. Dans l'éditeur
-      // tout était juste, le défaut n'existait qu'au ▶ Jouer (mesuré en montant jeux/MossyRun).
-      else if(da.kind === 'tilePalette'){
-        const p = da.palette || {};
-        assetsById[da.id] = {kind:'tilePalette', name:da.name,
-          palette: {cellSize: p.cellSize || 0.5, tiles: (p.tiles || []).map(function(t){
-            return {name: t.name || 'Tuile', spriteId: t.spriteId || null,
-                    autotile: !!t.autotile, blob: !!t.blob, collision: t.collision || 'none',
-                    region: Math.max(0, Math.floor(Number(t.region) || 0))};
-          })}};
-      }
-      // Les profils de post-traitement : sans cette branche, PostVolume.profile ne trouvait
-      // rien dans le jeu publié (assetsById vide de ce genre) et AUCUN profil ne s appliquait.
-      else if(da.kind === 'postProfile'){
-        assetsById[da.id] = {kind:'postProfile', name:da.name,
-                             effects: ensurePostProfileDefaults(da.effects)};
-      }
-      // LES ASSETS SCRIPT ENTRENT DANS LA TABLE. Le commentaire d'avant disait vrai à l'époque
-      // (« ils ne servent qu'à l'édition ») : chaque composant Script portait une COPIE du code,
-      // donc la scène publiée se suffisait. Depuis que le composant ne porte plus que `scriptId`,
-      // le jeu publié doit résoudre la référence comme l'éditeur — même format des deux côtés,
-      // et pas de code inline recréé au build.
-      else if(da.kind === 'script'){
-        assetsById[da.id] = {kind:'script', name:da.name, code:da.code || ''};
-      }
-    } catch(err){
-      console.warn('[runtime] asset « ' + da.name + ' » ignoré :', err);
-      // Un décodeur missing fait disparaître un modèle entier : ça ne peut pas rester
-      // dans la console. On le dit à l'écran, en nommant le fichier à embarquer.
-      if(!compressionAvailable()){
-        // Le module absent est une cause à part entière, et la plus probable quand TOUS
-        // les modèles compressés échouent d'un coup. Le dire, plutôt que de laisser
-        // croire à un fichier corrompu.
-        showError('« ' + da.name + ' » n’a pas pu être chargé, et asset-compression.js '
-          + 'n’est pas dans ce build : un modèle Draco, meshopt ou KTX2 ne peut pas être lu.');
-      } else {
-        const missing = decodersMissing(err && err.compressions);
-        if(missing.length) showError('« ' + da.name + ' » : ' + messageDecodersMissing(missing));
-      }
+  const pending = new Array(das.length);   // par index : {steps, err}
+  let done = 0;
+  await rtRunPool(das.length, RT_LOAD_POOL, async function(idx){
+    const da = das[idx];
+    const steps = [];
+    const put = function(id, entry){ steps.push(function(){ assetsById[id] = entry; }); };
+    const later = function(fn){ steps.push(fn); };
+    pending[idx] = {steps: steps, err: null};
+    try { await loadOneAsset(da, put, later); }
+    catch(err){ pending[idx].err = err; }
+    done++;
+    progress('Chargement des assets… ' + done + '/' + das.length + ' (' + da.name + ')');
+  });
+  pending.forEach(function(r, idx){
+    const da = das[idx];
+    r.steps.forEach(function(f){ f(); });
+    if(!r.err) return;
+    const err = r.err;
+    console.warn('[runtime] asset « ' + da.name + ' » ignoré :', err);
+    // Un décodeur missing fait disparaître un modèle entier : ça ne peut pas rester
+    // dans la console. On le dit à l'écran, en nommant le fichier à embarquer.
+    if(!compressionAvailable()){
+      // Le module absent est une cause à part entière, et la plus probable quand TOUS
+      // les modèles compressés échouent d'un coup. Le dire, plutôt que de laisser
+      // croire à un fichier corrompu.
+      showError('« ' + da.name + ' » n’a pas pu être chargé, et asset-compression.js '
+        + 'n’est pas dans ce build : un modèle Draco, meshopt ou KTX2 ne peut pas être lu.');
+    } else {
+      const missing = decodersMissing(err && err.compressions);
+      if(missing.length) showError('« ' + da.name + ' » : ' + messageDecodersMissing(missing));
     }
-  }
+  });
   // emplacements de matériaux des modèles : après les assets matériaux, et avant les
   // templates de prefabs / les scènes qui clonent les modèles
   Object.keys(assetsById).forEach(function(id){
@@ -3135,6 +3189,7 @@ function buildList(list){
     o.castShadow = (d.ombreProjetee !== undefined) ? d.ombreProjetee : true;
     o.receiveShadow = (d.ombreRecue !== undefined) ? d.ombreRecue : true;
     if(d.detail) o.userData.detail = JSON.parse(JSON.stringify(d.detail));
+    if(d.static === true) o.userData.static = true;   // miroir de rebuildTree (js/static-batching.js)
     if(d.visible === false) o.visible = false;
     // Même règle que l'éditeur (js/serialization.js, rebuildTree) : un sac que le fichier NOMME
     // déjà par un composant ne doit pas être recopié à plat, sous peine que le jeu publié et
@@ -3535,15 +3590,8 @@ function rtExposuresOf(source){
   if(!e){ e = rtParseExposures(source); _rtExposuresBySource.set(source, e); }
   return e;
 }
-let _rtNameIndex = null, _rtNameIndexTime = -1;
-function rtObjectByName(name){
-  if(_rtNameIndexTime !== game.time || !_rtNameIndex){
-    _rtNameIndex = new Map();
-    game.objects.forEach(function(x){ if(!_rtNameIndex.has(x.name)) _rtNameIndex.set(x.name, x); });
-    _rtNameIndexTime = game.time;
-  }
-  return _rtNameIndex.get(name) || null;
-}
+// L'index de api.find (_rtFind) : refait à chaque image avant, et figé pendant la pause.
+function rtObjectByName(name){ return _rtFind.find(name); }
 
 function rtValuesExposed(o, i){
   const result = {};
@@ -3663,7 +3711,7 @@ function buildApi(o, i, frame){
     distance:function(a, b){
       return (a || o).getWorldPosition(_apiVecA).distanceTo((b || o).getWorldPosition(_apiVecB));
     },
-    lookAt:function(target){ if(target) o.lookAt(target.getWorldPosition(new THREE.Vector3())); },
+    lookAt:function(target){ if(target && !staticBlocked(o)) o.lookAt(target.getWorldPosition(new THREE.Vector3())); },
     // Miroir de `api.create` (js/scripts.js). Une PLANCHE count comme un asset engendrable : sans
     // ça, un jeu 2D publié ne peut faire apparaître ni projectile, ni ramassage, ni ennemi.
     create:function(nameAsset, position){
@@ -3746,7 +3794,8 @@ function buildApi(o, i, frame){
     setActive:function(target, active){
       if(!target) return;
       target.userData.activeVoulu = (active !== false);
-      target.visible = (active !== false);
+      target.visible = (active !== false) && !target.userData.inStaticMerge;
+      refreshStaticVisibility(target);
     },
     isActive:function(target){ return isActiveInHierarchy(target || o); },
     // Miroir exact de js/scripts.js : un script écrit dans l'éditeur doit
@@ -3785,6 +3834,7 @@ function buildApi(o, i, frame){
     },
     setPosition:function(target, p){
       const c = target || o;
+      if(staticBlocked(c)) return c;
       const l = game.links.find(function(x){ return x.obj === c; });
       if(l){
         l.body.position.set(p.x, p.y, p.z);
@@ -3940,8 +3990,8 @@ function buildApi(o, i, frame){
       const but = rtNavPos(target);
       return but ? rtNavFilePath(o.getWorldPosition(new THREE.Vector3()), but) : null;
     },
-    moveTo:function(target, speed){ return rtNavAdvance(o, target, speed, frame.dt); },
-    patrol:function(points, speed){ rtNavPatrol(o, points, speed, frame.dt); },
+    moveTo:function(target, speed){ if(staticBlocked(o)) return false; return rtNavAdvance(o, target, speed, frame.dt); },
+    patrol:function(points, speed){ if(!staticBlocked(o)) rtNavPatrol(o, points, speed, frame.dt); },
     playSound:function(name, volume, bus){ return rtPlaySound(name, volume, bus); },
     // Miroir exact de js/scripts.js : la même fonction (js/audio-bus.js), pas une copie.
     audioBus:function(name){
@@ -4286,6 +4336,7 @@ function runScripts(dt, dtReel){
     // removeSceneObject désindexe aussi les composants du Noeud : un objet détruit par
     // api.destroy() restait sinon dans le Registry, et les Systèmes continuaient de le
     // simuler jusqu'au changement de scène.
+    refreshStaticVisibility(target, true);   // ses plages dans un maillage Statique fusionné
     target.traverse(function(x){ removeSceneObject(x); rtDetachBody(x); });
     if(target.parent) target.parent.remove(target);
   });
@@ -4387,7 +4438,17 @@ function evtInit(){
   });
 }
 
-const _ebA = new THREE.Box3(), _ebB = new THREE.Box3();
+// Boîtes de l'appel en cours, réutilisées d'une image à l'autre (aucune allocation en régime établi).
+const _ebBoxes = new Map(), _ebPool = [];
+function evtBoxOf(o){
+  let b = _ebBoxes.get(o);
+  if(!b){
+    b = _ebPool[_ebBoxes.size] || (_ebPool[_ebBoxes.size] = new THREE.Box3());
+    b.setFromObject(o);
+    _ebBoxes.set(o, b);
+  }
+  return b;
+}
 function evtRun(){
   if(!evtRt.demarres){
     evtRt.demarres = true;
@@ -4407,27 +4468,35 @@ function evtRun(){
   if(!porteurs.length) return;
 
   const byTag = indexByTag();
-
+  // Boîtes calculées UNE fois par appel (porteur et cibles), et non une fois par paire. Toute
+  // action déclenchée les invalide : elle a pu déplacer ou créer quelque chose, et l'ordre
+  // d'avant (boîte relue après chaque action) est ainsi conservé à l'identique.
+  _ebBoxes.clear();
   porteurs.forEach(function(o){
     const evs = o.userData.events;
+    let boxA = null;
     for(let ei = 0; ei < evs.length; ei++){
       const ev = evs[ei];
       if(ev.when !== 'entreeTrigger' && ev.when !== 'sortieTrigger') continue;
       const targets = byTag.get((ev.param || 'joueur').trim());
       if(!targets || !targets.length) continue;
-      _ebA.setFromObject(o);
-      if(_ebA.isEmpty()) continue;
+      if(!boxA) boxA = evtBoxOf(o);
+      if(boxA.isEmpty()) continue;
+      // états par porteur → événement → cible (ids) : plus de clé texte fabriquée par paire.
+      let byEvent = evtRt.states.get(o.id);
+      if(!byEvent){ byEvent = new Map(); evtRt.states.set(o.id, byEvent); }
+      let states = byEvent.get(ei);
+      if(!states){ states = new Map(); byEvent.set(ei, states); }
       for(let k = 0; k < targets.length; k++){
         const autre = targets[k];
         if(autre === o) continue;
-        const key = o.id + ':' + ei + ':' + autre.id;
-        _ebB.setFromObject(autre);
-        const dedans = !_ebB.isEmpty() && _ebA.intersectsBox(_ebB);
-        const avant = evtRt.states.get(key) || false;
+        const boxB = evtBoxOf(autre);
+        const dedans = !boxB.isEmpty() && boxA.intersectsBox(boxB);
+        const avant = states.get(autre.id) || false;
         if(dedans !== avant){
-          evtRt.states.set(key, dedans);
-          if(dedans && ev.when === 'entreeTrigger') evtActions(o, ev.actions, 0);
-          if(!dedans && ev.when === 'sortieTrigger') evtActions(o, ev.actions, 0);
+          states.set(autre.id, dedans);
+          const fire = (dedans && ev.when === 'entreeTrigger') || (!dedans && ev.when === 'sortieTrigger');
+          if(fire){ evtActions(o, ev.actions, 0); _ebBoxes.clear(); boxA = evtBoxOf(o); }
         }
       }
     }
@@ -4454,20 +4523,49 @@ renderer.domElement.addEventListener('pointerdown', function(e){
 
 // ---------- construction / changement de scène ----------
 /**
- * Libère les ressources GPU propres à une scène : matériaux des maillages, cartes d'ombre des
- * lumières. PAS les géométries ni les textures : elles appartiennent aux assets (gabarits de
- * modèles, formes partagées de js/primitive-geometry.js, textures d'asset) et resservent à la scène
- * suivante. Un matériau partagé avec un gabarit est seulement ré-envoyé au GPU s'il resert —
- * `dispose` libère le programme et les tampons, l'objet three reste utilisable.
+ * Libère les ressources GPU propres à une scène : matériaux, CLONES de textures et géométries
+ * propres des maillages, cartes d'ombre des lumières — toujours en différé (releaseLater, v1.10.8).
+ * JAMAIS ce qui ressert à la scène suivante, et qu'on PROTÈGE explicitement
+ * (rtProtectedResources) : textures d'asset (et leur décodage RGBM), formes partagées de
+ * js/primitive-geometry.js, géométries ET matériaux des gabarits de modèles et de prefabs
+ * (clone() les partage avec chaque instance). textureMaterialRuntime clone la texture d'asset
+ * par matériau : ces clones-là sont à la scène, et fuyaient à chaque changement de niveau.
  */
+const RT_TEXTURE_KEYS = ['map', 'normalMap', 'bumpMap', 'displacementMap', 'roughnessMap',
+  'metalnessMap', 'aoMap', 'emissiveMap', 'lightMap', 'alphaMap'];
+function rtProtectedResources(){
+  const keep = new Set();
+  function keepMaterial(m){
+    if(!m || keep.has(m)) return;
+    keep.add(m);
+    RT_TEXTURE_KEYS.forEach(function(k){ if(m[k]) keep.add(m[k]); });
+  }
+  Object.keys(assetsById).forEach(function(id){
+    const a = assetsById[id];
+    if(!a) return;
+    if(a.texture) keep.add(a.texture);
+    if(a.__texRgbm) keep.add(a.__texRgbm);
+    if(a.template && a.template.isTexture) keep.add(a.template);
+    if(a.template && typeof a.template.traverse === 'function') a.template.traverse(function(o){
+      if(o.geometry) keep.add(o.geometry);
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(keepMaterial);
+    });
+  });
+  return keep;
+}
 function rtDisposeScene(scene){
   if(!scene) return;
+  const keep = rtProtectedResources();
   const vus = new Set();
+  function release(r){ if(r && !vus.has(r) && !keep.has(r)){ vus.add(r); releaseLater(r); } }
   scene.traverse(function(o){
     if(o.isLight && o.shadow && o.shadow.map){ releaseLater(o.shadow.map); if(o.shadow.map.isWebGLRenderTarget) o.shadow.map = null; }   // différé : image en vol, ShadowNode WebGPU (v1.10.9)
     if(!o.isMesh && !o.isPoints && !o.isLine && !o.isSprite) return;
+    if(o.geometry && !sharedKindOf(o.geometry)) release(o.geometry);
     (Array.isArray(o.material) ? o.material : [o.material]).forEach(function(m){
-      if(m && !vus.has(m) && typeof m.dispose === 'function'){ vus.add(m); releaseLater(m); }
+      if(!m || typeof m.dispose !== 'function' || keep.has(m)) return;
+      RT_TEXTURE_KEYS.forEach(function(k){ if(m[k] && m[k].isTexture) release(m[k]); });
+      release(m);
     });
   });
 }
@@ -4476,15 +4574,16 @@ function loadSceneGame(index){
   stopAudioScene();
   game.particles.forEach(function(s){
     if(s.objet3d.parent) s.objet3d.parent.remove(s.objet3d);
-    s.geo.dispose();
-    s.objet3d.material.dispose();
+    releaseLater(s.geo);   // différé, comme le reste de la scène (v1.10.8)
+    releaseLater(s.objet3d.material);
   });
-  game.particles = [];
+  game.particles = []; _rtSystemByObj = new WeakMap();
   rtNavReset();
   // LA SCÈNE QU'ON QUITTE REND SA MÉMOIRE GPU. Elle était remplacée sans être libérée : matériaux,
   // ciel en texture et cartes d'ombre restaient sur la carte graphique, et la mémoire montait à
   // chaque changement de niveau — le ramasse-miettes JS ne libère pas la mémoire GPU (revue du
   // 2026-09-29, § 5.6 ; docs/BONNES_PRATIQUES.md).
+  undoStaticScene(game.staticScene); game.staticScene = null;   // Statique : géométries fusionnées
   rtDisposeScene(game.scene);   // le ciel encore `background` de l'ancienne scène : libéré en différé
   if(game.skyTexture){ releaseLater(game.skyTexture.userData.flat); releaseLater(game.skyTexture); game.skyTexture = null; }
   const sc = D.scenes[index];
@@ -4535,8 +4634,6 @@ game.sun.castShadow = false;
   // implémentations auraient fini par répondre différemment.
   // Appelé ici, après la construction complète de la scène : regrouper plus tôt figerait
   // des matrices que la reconstruction n'a pas encore posées.
-  if(typeof collectDetail === 'function') collectDetail(game.objects);
-  if(typeof instantiateStatic === 'function') instantiateStatic(game.scene, game.objects);
 
   // Copie conforme de la reconstruction des pistes de l'éditeur (`restoreState`,
   // js/history.js). `dp.os` était IGNORÉ ici : une piste d'os publiée appliquait ses clés
@@ -4556,6 +4653,12 @@ game.sun.castShadow = false;
     // l'objet — même règle que l'éditeur.
     return p.obj && p.keys.length && (!p.boneAttendu || p.os);
   });
+  // Les objets « Statique » (js/static-batching.js) : partage des matériaux, fusion, gel. APRÈS les
+  // pistes (un objet animé n'est pas figé), AVANT les lots d'instances, qui ignorent les fondus.
+  game.staticScene = buildStaticScene(game.scene, game.objects, {isAnimated: objectAnimated,
+    assetOf: function(x){ const id = x.userData.materialId || (x.userData.modelNode !== undefined && !x.userData.materialSlots && x.parent && x.parent.userData.materialId); return (id && assetsById[id]) || null; }});
+  if(typeof collectDetail === 'function') collectDetail(game.objects);
+  if(typeof instantiateStatic === 'function') instantiateStatic(game.scene, game.objects);
   game.duration = data.duration || 5;
   game.loop = data.loop !== false;
   game.t = 0;
@@ -4751,7 +4854,8 @@ function loop(){
     // Un monde fait SEULEMENT de corps statiques n'a rien à résoudre : ni mouvement, ni contact
     // (deux statiques ne se testent pas). Dès qu'un corps dynamique ou cinématique existe, on
     // simule comme avant — les déclencheurs entre cinématiques ont besoin du pas.
-    if(game.links.length || game.kinematic.length || worldHasMovingBody(game.world, CANNON.Body.STATIC)) game.world.step(1/60, dt, 3);
+    // dtGame, pas dt : en pause le monde reçoit zéro (voir plus haut) — la 3D tournait encore.
+    if(dtGame > 0 && (game.links.length || game.kinematic.length || worldHasMovingBody(game.world, CANNON.Body.STATIC))) game.world.step(1/60, dtGame, 3);
     applyPhysics();
   }
   rtSyncCameraMain();
@@ -4771,6 +4875,9 @@ function loop(){
   //
   // Il se fait donc ici, avant le choix — exactement comme du côté éditeur, et c'est ce qui
   // garantit que les deux sorties montrent la même image.
+  // La caméra (et ses parents) d'abord : sa matrixWorld n'était remise à jour que par le rendu, et
+  // le recadrage lisait donc la pose de l'image PRÉCÉDENTE. Quelques nœuds, pas une passe de scène.
+  if(game.cam) game.cam.updateWorldMatrix(true, false);
   if(typeof rtUpdateShadows === 'function') rtUpdateShadows(game.cam);
 
   // En session XR, pas de post-traitement : le pipeline de postfx.js ne connaît qu'une vue, le
@@ -4788,7 +4895,12 @@ function loop(){
   } else {
     renderer.render(game.scene, game.cam);
   }
-  renderCameraOverlays(renderer, game.scene, game.cam, Registry.activeNodes('Camera'));   // mini-cartes, vues secondaires
+  // Mini-cartes, vues secondaires : chaque vue est un renderer.render, donc une passe de matrices
+  // de toute la scène. Rien ne bouge entre le rendu principal (qui vient de la faire) et elles.
+  const autoMatrices = game.scene.matrixWorldAutoUpdate;
+  game.scene.matrixWorldAutoUpdate = false;
+  try{ renderCameraOverlays(renderer, game.scene, game.cam, Registry.activeNodes('Camera')); }
+  finally{ game.scene.matrixWorldAutoUpdate = autoMatrices; }
 }
 
 // ---------- plein écran ----------
@@ -4831,6 +4943,20 @@ function redrawUIGame(){
 }
 
 // ---------- démarrage ----------
+const RT_WARMUP_MAX_MS = 8000;
+async function rtWarmShaders(){
+  if(!game.scene || !game.cam || typeof renderer.compileAsync !== 'function') return;
+  progress('Préparation des shaders…');
+  try {
+    await Promise.race([
+      renderer.compileAsync(game.scene, game.cam),
+      new Promise(function(res){ setTimeout(res, RT_WARMUP_MAX_MS); })
+    ]);
+  } catch(e){
+    console.warn('[runtime] précompilation des shaders ignorée :', e && e.message ? e.message : e);
+  }
+}
+
 (async function(){
   try{
     document.title = DS.name || D.projectName || 'Jeu';
@@ -4865,6 +4991,11 @@ function redrawUIGame(){
     const startIdx = DS.startScene ? D.scenes.findIndex(function(sc){ return sc && sc.name === DS.startScene; }) : -1;
     loadSceneGame(startIdx >= 0 ? startIdx : Math.min(D.current || 0, D.scenes.length - 1));
     resize();
+    // PRÉCOMPILATION DES SHADERS sous le voile de chargement : sans elle, chaque matériau compile
+    // son pipeline à sa première image, et la première seconde de jeu saccade. Jamais bloquante :
+    // un échec ou un renderer sans compileAsync laisse simplement la compilation à la volée, et
+    // le délai est plafonné (un pilote lent ne doit pas retenir le démarrage).
+    await rtWarmShaders();
     $('rj-loading').style.display = 'none';
     if(XR_WANTED) renderer.setAnimationLoop(loop); else loop();
     window.__gameReady = true; // attendu par play_and_measure : __stateGame existe bien avant

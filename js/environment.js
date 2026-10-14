@@ -98,6 +98,8 @@ export function refreshSkyOfAsset(a){
 export let skyBackground = null;
 
 export function applyEnvironment(fresh){
+  // Ciel, brouillard, exposition changent l'image : cadence pleine (js/render-throttle.js).
+  if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
   if(fresh) env = Object.assign(JSON.parse(JSON.stringify(ENV_DEFAULT)),
                                   JSON.parse(JSON.stringify(fresh)));
   // le ciel est le fond de la caméra, pas un objet de la scène : rien à ajouter dans

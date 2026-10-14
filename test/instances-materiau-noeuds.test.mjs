@@ -70,6 +70,6 @@ test('le jeu publié marque userData.materialId, comme l éditeur', () => {
   const body = src.slice(i, src.indexOf('\nfunction ', i + 10));
   assert.match(body, /userData\.materialId\s*=/,
     'le runtime doit marquer l objet avec l id de son matériau, comme applyMaterialOn');
-  assert.match(src, /assetsById\[da\.id\] = \{id:da\.id, kind:'material'/,
+  assert.match(src, /(assetsById\[da\.id\] = |put\(da\.id, )\{id:da\.id, kind:'material'/,
     'l entrée matériau de assetsById doit porter son id, sinon la marque vaut undefined');
 });

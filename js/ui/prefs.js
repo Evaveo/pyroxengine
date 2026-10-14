@@ -244,6 +244,12 @@ definePrefEntry({ key: 'gizmos.iconFade', label: 'Fondu des icônes (mètres)', 
 // Navigation et manipulation.
 definePrefEntry({ key: 'nav.speed', label: 'Vitesse de navigation', type: 'number',
   category: 'Navigation', min: 0.1, max: 10, step: 0.1, default: 1 });
+// Ralenti du rendu au repos (js/render-throttle.js) : préférence de machine — elle règle ce que
+// coûte l'éditeur sur CET ordinateur, jamais ce que contient le projet.
+definePrefEntry({ key: 'viewport.idleThrottle', label: 'Ralentir la vue au repos', type: 'checkbox',
+  category: 'Navigation', default: true,
+  help: 'Sans activité depuis deux secondes, la vue Scène ne se redessine plus que dix fois par '
+      + 'seconde. Toute action rend aussitôt la cadence pleine.' });
 definePrefEntry({ key: 'gizmo.step', label: 'Pas du gizmo (unités)', type: 'number',
   category: 'Navigation', min: 0, max: 10, step: 0.05, default: 0,
   help: 'Zéro = déplacement continu. Une valeur aimante le déplacement sur une grille.' });

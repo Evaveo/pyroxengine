@@ -98,11 +98,73 @@ export function updateHierarchy(){
     });
   })(scene, 0);
   hierBody.innerHTML = html || '<div class="none">aucun objet ne correspond au filtre</div>';
+  snapshotHierarchyStructure(filter);
   // La hiérarchie se redessine à chaque ajout, suppression, reparentage et chargement de
   // scène — c'est-à-dire exactement quand les bornes de la scène changent. Recadrer l'ombre
   // ici évite un drapeau « à recalculer » qu'il faudrait poser à six endroits, et dont le
   // septième appelant serait oublié.
   if(typeof refitShadows === 'function') refitShadows();
+}
+
+// ---------- Chemin « sélection seule » ----------
+// Un simple clic de sélection reconstruisait tout l'arbre (innerHTML de chaque ligne) ET
+// redemandait une passe complète des calques — pour ne changer que deux classes. Ce chemin-ci
+// bascule `.sel` / `.multi` sur les lignes EXISTANTES et ne touche à rien d'autre : ni calques,
+// ni ombres, ni position de défilement (les lignes ne bougent pas).
+//
+// IL NE SERT QU'AUX CHANGEMENTS DE SÉLECTION PURS (js/selection.js). Et il se méfie : bien des
+// appelants créent, suppriment ou reparentent un objet puis le sélectionnent, en comptant sur
+// la reconstruction de `select()` pour faire apparaître la ligne. On relève donc à chaque
+// reconstruction un instantané de la structure (objets, parents, noms, visibilité, filtre) ; s'il ne
+// correspond plus, ou si un objet sélectionné n'a pas de ligne, on retombe sur la reconstruction
+// complète. Comparer quatre valeurs par objet coûte infiniment moins que le innerHTML.
+let builtStructure = null;
+
+function snapshotHierarchyStructure(filter){
+  builtStructure = {
+    filter: filter,
+    objects: objects.slice(),
+    parents: objects.map(function(o){ return o.parent; }),
+    names: objects.map(function(o){ return o.name; }),
+    visible: objects.map(function(o){ return visibleIntent(o); })
+  };
+}
+
+/** La structure affichée est-elle encore celle de la scène ? (sinon : reconstruction complète) */
+export function hierarchyStructureCurrent(){
+  const b = builtStructure;
+  if(!b || !objects.length) return false;
+  if(b.filter !== (hierFilter.value || '').trim().toLowerCase()) return false;
+  if(b.objects.length !== objects.length) return false;
+  for(let i = 0; i < objects.length; i++){
+    const o = objects[i];
+    if(b.objects[i] !== o || b.parents[i] !== o.parent || b.names[i] !== o.name
+       || b.visible[i] !== visibleIntent(o)) return false;
+  }
+  return true;
+}
+
+/**
+ * Rafraîchit la hiérarchie après un changement de SÉLECTION seulement. Retombe sur
+ * `updateHierarchy()` dès que la structure a pu changer ou qu'un objet sélectionné n'a pas
+ * de ligne (replié sous un parent, ou ligne pas encore construite).
+ */
+export function updateHierarchySelection(){
+  if(!hierarchyStructureCurrent()){ updateHierarchy(); return; }
+  const rows = new Map();
+  Array.prototype.forEach.call(hierBody.querySelectorAll('.node[data-id]'), function(n){
+    rows.set(parseInt(n.dataset.id, 10), n);
+  });
+  const sel = allSelection();
+  for(let i = 0; i < sel.length; i++){
+    if(!rows.has(sel[i].id)){ updateHierarchy(); return; }
+  }
+  rows.forEach(function(n, id){
+    const isSel = !!selection && selection.id === id;
+    const isMulti = selectionMulti.some(function(o){ return o.id === id; });
+    if(n.classList.contains('sel') !== isSel) n.classList.toggle('sel');
+    if(n.classList.contains('multi') !== isMulti) n.classList.toggle('multi');
+  });
 }
 
 export function objFromNode(el){

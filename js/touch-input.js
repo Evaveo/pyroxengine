@@ -186,7 +186,10 @@ export function syncTouchControls(host, nodes, ctx){
     if(MOUNT.root) unmount();
     return false;
   }
-  const signature = JSON.stringify(cfg);
+  // La configuration DÉDUITE est un objet mis en cache et jamais modifié (autoTouchConfigCached) :
+  // sa signature se calcule une fois. Celle d'un COMPOSANT, non — `c.data` peut être modifié sur
+  // place par un script, et seule la sérialisation à chaque image le voit.
+  const signature = (cfg === AUTO_CACHE.cfg) ? autoSignature(cfg) : JSON.stringify(cfg);
   if(MOUNT.root && MOUNT.host === host && MOUNT.signature === signature) return true;
   unmount();
   buildOverlay(host, cfg, ctx || {});
@@ -236,10 +239,16 @@ export function autoTouchConfig(inputs){
 }
 
 // Déduite une fois par table d'entrées : syncTouchControls tourne à chaque image.
-const AUTO_CACHE = {inputs: null, cfg: null};
+const AUTO_CACHE = {inputs: null, cfg: null, signature: null};
 function autoTouchConfigCached(inputs){
-  if(AUTO_CACHE.inputs !== inputs){ AUTO_CACHE.inputs = inputs; AUTO_CACHE.cfg = autoTouchConfig(inputs); }
+  if(AUTO_CACHE.inputs !== inputs){
+    AUTO_CACHE.inputs = inputs; AUTO_CACHE.cfg = autoTouchConfig(inputs); AUTO_CACHE.signature = null;
+  }
   return AUTO_CACHE.cfg;
+}
+function autoSignature(cfg){
+  if(AUTO_CACHE.signature === null) AUTO_CACHE.signature = JSON.stringify(cfg);
+  return AUTO_CACHE.signature;
 }
 
 function el(tag, cls, style){

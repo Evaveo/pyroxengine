@@ -461,7 +461,14 @@ export function syncInspectorThrottled(){
     return;
   }
   if(!_syncTimer){
-    _syncTimer = setTimeout(function(){ _syncTimer = null; _syncDernier = Date.now(); syncInspector(); }, 100);
+    _syncTimer = setTimeout(function(){
+      _syncTimer = null;
+      // MÊME HORLOGE que la comparaison plus haut : `Date.now()` ici (epoch) contre
+      // `performance.now()` là-haut rendait l'écart toujours négatif — plus jamais de
+      // synchronisation immédiate, seulement le minuteur.
+      _syncDernier = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+      syncInspector();
+    }, 100);
   }
 }
 

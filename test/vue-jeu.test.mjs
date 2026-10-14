@@ -108,7 +108,9 @@ test('garde : la boucle rend la vue Jeu par le registre, AVANT la vue Scène, m�
   assert.ok(src.indexOf("if(!sceneShown && !extraViewsActive()) return;") !== -1,
     'onglet Jeu devant la vue Scène : la boucle doit continuer de tourner');
   const a = src.indexOf('renderExtraViews({dt: dt}, System.isolate);');
-  const b = src.indexOf('if(sceneShown) renderSceneView(w, h);');
+  // La vue Scène passe par le ralenti au repos (js/render-throttle.js) : son rendu reste APRÈS
+  // celui de la vue Jeu, seule la condition a grandi.
+  const b = src.indexOf('if(sceneShown && shouldRenderFrame(performance.now(), loopBusy())) renderSceneView(w, h);');
   assert.ok(a !== -1 && b > a);
 });
 

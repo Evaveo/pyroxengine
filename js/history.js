@@ -197,6 +197,8 @@ export function interactionOpen(){ return _interaction !== null; }
 export class ReadOnlySceneError extends Error {}
 
 export function pushHistory(opts){
+  // Toute mutation de scène passe ici : la vue reprend sa cadence pleine (js/render-throttle.js).
+  if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
   // VERROU DE SCÈNE (projet hébergé) — le refus vit ICI, et nulle part ailleurs.
   // La convention du dépôt veut que pushHistory() soit appelé AVANT toute mutation de scène :
   // c'est donc le seul point qui les voie toutes, et le seul où refuser garantisse que rien n'a
@@ -381,6 +383,7 @@ function restoreStep(label, work){
 }
 
 export function restoreState(state){
+  if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
   histo.gel = true;
   // LA SCÈNE ENTIÈRE EST REMPLACÉE : les lots pointent sur des objets qui n'existeront plus.
   // On les défait TOUT DE SUITE plutôt que de marquer « à refaire » — le démontage ci-dessous

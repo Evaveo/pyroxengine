@@ -80,15 +80,77 @@ export function markBatchingDirty(){
 export function setBatchingEdited(list){
   if(typeof detachedFromBatch !== 'function') return;
   const wanted = (list || []).filter(Boolean);
+  // SORTIE RAPIDE : appelée à chaque image, et la sélection ne change presque jamais d'une
+  // image à l'autre. Si la sélection est la même (longueur + identité, dans l'ordre), qu'aucun
+  // lot n'a été refait, et que le registre a gardé la taille qu'on lui a laissée, il n'y a rien
+  // à faire. La taille suffit : le seul autre chemin qui touche au registre (le surlignage,
+  // js/selection.js) ne fait qu'AJOUTER — un ajout change la taille ; une reconstruction le vide
+  // et change `builds`.
+  const reg = detachedFromBatch();
+  if(sameList(wanted, _lastWanted) && reg.length === _lastRegistrySize
+     && editorBatching.builds === _lastBuilds){
+    editorBatching.detached = wanted;
+    return;
+  }
   // LE REGISTRE FAIT FOI, pas la liste de l'appel précédent : un objet peut avoir été détaché
   // par un autre chemin (le surlignage d'une ligne de l'inspecteur, js/selection.js), et il
   // faut le remettre dans son lot quand la souris s'en va. Sans ça, chaque survol sortait un
   // objet du regroupement définitivement — invisible à l'écran, et le gain s'érode.
-  detachedFromBatch().forEach(function(o){
-    if(wanted.indexOf(o) === -1) detachFromBatch(o, false);
+  // Un Set : `indexOf` dans la boucle faisait du O(n²) sur une grosse sélection.
+  const wantedSet = new Set(wanted);
+  reg.forEach(function(o){
+    if(!wantedSet.has(o)) detachFromBatch(o, false);
   });
   wanted.forEach(function(o){ detachFromBatch(o, true); });
   editorBatching.detached = wanted;
+  _lastWanted = wanted.slice();
+  _lastRegistrySize = detachedFromBatch().length;
+  _lastBuilds = editorBatching.builds;
+  _batchedUnderSelection = null;   // à recalculer : la sélection a changé
+  // Un objet qui REVIENT dans son lot doit y revenir à sa pose actuelle : il a pu bouger pendant
+  // qu'il était sélectionné sans passer par pushHistory (copilote, script, chargement). Une
+  // resynchronisation par changement de sélection — rare, donc gratuite.
+  _selectionChanged = true;
+}
+
+// L'état de la dernière synchronisation complète (voir la sortie rapide ci-dessus).
+let _lastWanted = [], _lastRegistrySize = -1, _lastBuilds = -1;
+// La sélection a-t-elle des descendants regroupés ? `null` = inconnu, à recalculer.
+let _batchedUnderSelection = null, _batchedBuilds = -1;
+// La sélection a changé depuis la dernière resynchronisation (voir setBatchingEdited).
+let _selectionChanged = false;
+
+function sameList(a, b){
+  if(a.length !== b.length) return false;
+  for(let i = 0; i < a.length; i++) if(a[i] !== b[i]) return false;
+  return true;
+}
+
+/**
+ * Une source regroupée (et encore dans son lot) descend-elle d'un objet sélectionné ? C'est le
+ * seul cas où la sélection, à elle seule, peut déplacer une instance : l'objet sélectionné
+ * lui-même est sorti de son lot, il se dessine seul. Mis en cache jusqu'au prochain changement
+ * de sélection ou de lots.
+ */
+function selectionHasBatchedDescendant(edited){
+  if(_batchedUnderSelection !== null && _batchedBuilds === editorBatching.builds)
+    return _batchedUnderSelection;
+  let found = false;
+  for(let i = 0; i < edited.length && !found; i++){
+    const root = edited[i];
+    if(!root || !root.children) continue;
+    // Parcours à la main (cliquet de dette sur les parcours d arbre, test/cliquets-dette) —
+    // et il s'arrête au premier trouvé.
+    const stack = root.children.slice();
+    while(stack.length && !found){
+      const o = stack.pop();
+      if(o.userData && o.userData.inInstanceBatch) found = true;
+      else if(o.children && o.children.length) for(let k = 0; k < o.children.length; k++) stack.push(o.children[k]);
+    }
+  }
+  _batchedUnderSelection = found;
+  _batchedBuilds = editorBatching.builds;
+  return found;
 }
 
 /** Défait tout : sortie du mode, préférence coupée, changement de projet. */
@@ -140,18 +202,23 @@ export function updateEditorBatching(scene, objects, edited, now, moving){
   // peut bouger, et ces 3,6 ms sont entièrement perdues — c'est l'état dans lequel on regarde
   // son niveau, on tourne la caméra, on cherche un objet.
   //
-  // La condition est EXACTE, pas heuristique. Trois façons, et trois seulement, qu'une source
+  // La condition est EXACTE, pas heuristique. Quatre façons, et quatre seulement, qu'une source
   // regroupée se déplace :
-  //   · une lecture ou une simulation tourne (`moving`) ;
-  //   · le gizmo tire la sélection — ou un groupe dont des sources regroupées descendent — et
-  //     la sélection n'est jamais vide dans ce cas ;
+  //   · une lecture ou une simulation tourne, ou le gizmo tire (`moving` — js/viewport.js y
+  //     passe `tc.dragging`) ;
   //   · une mutation vient d'avoir lieu, et `pushHistory()` l'a signalée en posant `dirty`.
   //     C'est le seul point de passage des 122 sites de mutation de scène, y compris ceux du
-  //     copilote et de l'inspecteur.
-  // Hors de ces trois cas, les matrices du lot sont celles de la dernière reconstruction, et
-  // elles sont justes.
-  const peutBouger = !!moving || editorBatching.dirty
-    || (editorBatching.detached && editorBatching.detached.length > 0);
+  //     copilote et de l'inspecteur ;
+  //   · la sélection a des DESCENDANTS regroupés : un groupe sélectionné qu'on règle à
+  //     l'inspecteur plus de BATCH_DELAY_MS après le `pushHistory()` (glisser un nombre) — les
+  //     lots ont été refaits entre-temps, `dirty` est retombé, et seul ce cas tient encore.
+  // L'ancienne condition (« une sélection existe ») resynchronisait à chaque image dès qu'un
+  // objet était sélectionné, alors qu'un objet sélectionné est HORS de son lot : il se dessine
+  // seul, et sa pose n'a rien à faire dans les matrices du lot.
+  const sel = editorBatching.detached || [];
+  const peutBouger = !!moving || editorBatching.dirty || _selectionChanged
+    || (sel.length > 0 && selectionHasBatchedDescendant(sel));
+  _selectionChanged = false;
   if(peutBouger) updateInstances();
   return summaryInstances();
 }

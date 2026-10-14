@@ -3,7 +3,7 @@ import { DrawMode } from './draw-mode.js';
 import { createEditorCamera } from './editor-camera.js';
 import { createFloorGrid } from './grid-floor.js';
 import { pushHistory } from './history.js';
-import { syncInspector } from './inspector.js';
+import { syncInspector, syncInspectorThrottled } from './inspector.js';
 import { listMats, objects } from './objects.js';
 import { project } from './project.js';
 import { selection, selectionMulti } from './selection.js';
@@ -231,6 +231,8 @@ tc.addEventListener('dragging-changed', function(e){
   }
 });
 tc.addEventListener('objectChange', function(){
+  // Le gizmo déplace la sélection : cadence pleine (ralenti au repos, js/render-throttle.js).
+  if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
   // Un nœud de modèle déplacé au gizmo devient un override (js/model-nodes.js).
   if(typeof markModelNodeEdited === 'function'){
     markModelNodeEdited(targetRealView || selection);
@@ -255,7 +257,7 @@ tc.addEventListener('objectChange', function(){
         s.obj.quaternion.copy(dQuat.clone().multiply(s.quat0));
       });
     }
-    syncInspector();
+    syncInspectorThrottled();
     return;
   }
   if(gizmoGroup && selection){
@@ -271,7 +273,11 @@ tc.addEventListener('objectChange', function(){
       s.obj.scale.set(s.ech0.x * rx, s.ech0.y * ry, s.ech0.z * rz);
     });
   }
-  syncInspector();
+  // PENDANT LE GLISSER, À 10 HZ : la synchronisation complète refait tous les panneaux (Panels.syncAll)
+  // à chaque pointermove. Jamais sauté pour autant — le panneau resterait sur des cibles
+  // périmées (docs/KNOWN_ISSUES.md, setTargets) — et la fin du glisser (`dragging-changed`)
+  // refait une synchronisation complète, immédiate.
+  syncInspectorThrottled();
 });
 
 export const gizmo = {space: 'local'};   // 'local' | 'world' | 'view' — 'view' est simulé, voir plus bas

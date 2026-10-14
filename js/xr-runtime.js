@@ -638,7 +638,7 @@ function presentInWorld(n){
   // personne vient de masquer. Une seule définition de la présence, dans js/render-perf.js —
   // le `typeof` reste parce que ce module est retirable d'un build allégé.
   if(typeof visibleIntent === 'function') return visibleIntent(n);
-  return n.visible !== false || n.userData.inInstanceBatch === true;
+  return n.visible !== false || n.userData.inInstanceBatch === true || n.userData.inStaticMerge === true;
 }
 
 function teleportTargets(){

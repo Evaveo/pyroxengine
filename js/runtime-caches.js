@@ -106,3 +106,38 @@ export function worldHasMovingBody(world, staticType){
   for(let k = 0; k < bodies.length; k++){ if(bodies[k].type !== staticType) return true; }
   return false;
 }
+
+/**
+ * Cible d'un Animator (le nœud qui porte les clips), MÊME RÉSULTAT que le parcours complet du
+ * sous-arbre refait à chaque image : `obj.traverse` du nom voulu, ou du premier descendant à clips.
+ * Le résultat trouvé est gardé par objet et simplement REVALIDÉ (nom inchangé, toujours
+ * descendant de l'objet, porte encore des clips) : quelques remontées de parents au lieu d'un
+ * parcours. Une recherche infructueuse n'est pas gardée — un enfant ajouté plus tard est vu.
+ * Seul cas non couvert, comme pour l'index de noms : un SECOND nœud qualifiant ajouté avant le
+ * premier dans l'ordre de parcours (le premier reste rendu tant qu'il qualifie).
+ */
+export function createAnimatorTargetCache(clipsOf){
+  const cache = new WeakMap();
+  function isDescendant(o, root){
+    for(let p = o; p; p = p.parent) if(p === root) return true;
+    return false;
+  }
+  return function resolve(obj, wantedName){
+    // L'objet lui-même d'abord, comme le parcours d'origine : il a pu recevoir ses clips depuis.
+    if(!wantedName && clipsOf(obj).length) return obj;
+    const hit = cache.get(obj);
+    if(hit && hit.name === wantedName && isDescendant(hit.found, obj)
+       && (wantedName ? hit.found.name === wantedName : (hit.found !== obj && clipsOf(hit.found).length))){
+      return hit.found;
+    }
+    let found = null;
+    if(wantedName){
+      obj.traverse(function(o){ if(!found && o.name === wantedName) found = o; });
+    } else {
+      obj.traverse(function(o){ if(!found && o !== obj && clipsOf(o).length) found = o; });
+    }
+    if(found) cache.set(obj, {name: wantedName, found: found});
+    else cache.delete(obj);
+    return found || (wantedName ? null : obj);
+  };
+}

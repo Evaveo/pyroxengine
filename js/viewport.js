@@ -1,6 +1,6 @@
 // ---------- Interaction viewport ----------
 import { backgroundForCamera, isSkyBackground } from './sky-camera.js';
-import { updateAnimationsModels, updateAnimators } from './anim-models.js';
+import { animModels, previewAnimator, updateAnimationsModels, updateAnimators } from './anim-models.js';
 import { anim, applyAnimation, btnPlayback, togglePlayback, triggerMarkersOfClipShown, updatePlayhead } from './animation.js';
 import { deleteSelectionGraph, refreshStateCurrent, viewAnimatorActive } from './animator-graph.js';
 import { nodeHandled, rootHandled } from './assets.js';
@@ -21,6 +21,8 @@ import { lightmapBakeState } from './lightmap-bake.js';
 import { helpers, itemsCreationContext, objects, openMenuContext, takeLayersDirty } from './objects.js';
 import { phys } from './physics.js';
 import { postActive, postRender } from './postfx.js';
+import { installActivityListeners, renderThrottle, requestRender, shouldRenderFrame } from './render-throttle.js';
+import { Registry } from './component-registry.js';
 import { depthEnd, depthFrame, depthStart } from './profiler.js';
 import { LAYER_HELPERS, ORBIT_PHI_MAX, ORBIT_PHI_MIN, activeCam, camEditor, grid, orbit, previewCam, renderer, scene, setGrid, setModeGizmo, tc, tcVisual, updateCamera, updateShadows, viewEl } from './scene.js';
 import { inputsCurrent, keysGame, stopScripts } from './scripts.js';
@@ -476,9 +478,21 @@ export function resize(){
  * rendu pendant le geste : ça saccadait.)
  */
 let resizePending = false;
-export function requestResize(){ resizePending = true; }
+export function requestResize(){ resizePending = true; requestRender(); }
 
 addEventListener('resize', requestResize);
+// Toute entrée de l'utilisateur, où qu'elle tombe (vue, panneaux, inspecteur), rend la cadence
+// pleine : voir js/render-throttle.js.
+installActivityListeners();
+// Les chargeurs sans gestionnaire propre (textures, HDRI, modèles) passent par le gestionnaire
+// par défaut de three : chaque fichier arrivé rend la cadence pleine. Enveloppé, pas remplacé —
+// `onProgress` peut déjà être posé ailleurs.
+(function(manager){
+  if(!manager || manager.__renderThrottle) return;
+  manager.__renderThrottle = true;
+  const itemEnd = manager.itemEnd;
+  manager.itemEnd = function(url){ itemEnd.call(this, url); requestRender(); };
+})(THREE.DefaultLoadingManager);
 // PAS D'APPEL IMMÉDIAT ICI : `resize()` lit `viewEl`, un `const` de `scene.js`, et ce fichier
 // est dans un cycle d'imports avec lui — même raison que `bindViewportCanvas` ci-dessus. Le
 // premier appel est différé dans `bindViewportCanvas`, appelée par `startup.js`.
@@ -635,11 +649,12 @@ export function loop(){
   // disparaître le décor lointain pendant qu'on le pose serait une régression.
   System.isolate('Regroupement', function(){
     // `anim.playback || phys.active` : les deux seules choses qui déplacent un objet sans
-    // qu'on y touche. Ce dernier argument décide si les lots ont besoin d'être
+    // qu'on y touche — plus `tc.dragging`, le gizmo qui tire la sélection (et avec elle les
+    // sources regroupées qui en descendent). Ce dernier argument décide si les lots ont besoin d'être
     // resynchronisés cette image — voir `updateEditorBatching` pour pourquoi la condition
     // est exacte, et pas prudentielle.
     updateEditorBatching(scene, objects, allSelection(), undefined,
-      anim.playback || phys.active);
+      anim.playback || phys.active || !!tc.dragging);
   });
   depthEnd('instances');
 
@@ -673,12 +688,33 @@ export function loop(){
   // caméra ; la vue Scène les recadre sur la sienne juste après — l'ordre est donc libre de
   // tout effet de bord d'une vue sur l'autre.
   renderExtraViews({dt: dt}, System.isolate);
-  if(sceneShown) renderSceneView(w, h);
+  // RALENTI AU REPOS (js/render-throttle.js) : au-delà de deux secondes sans activité ni
+  // travail continu, la vue Scène n'est plus rendue que ~10 fois par seconde. Tout ce qui
+  // précède a tourné normalement — seuls les ombres et le rendu sont sautés.
+  renderThrottle.enabled = Prefs.get('viewport.idleThrottle') !== false;
+  if(sceneShown && shouldRenderFrame(performance.now(), loopBusy())) renderSceneView(w, h);
   depthEnd('render');
 
   depthFrame(dt);
 }
 
+/**
+ * Un travail CONTINU est-il en cours ? Ce qui change l'image sans qu'aucune entrée ne le
+ * signale : la vue doit alors garder la cadence pleine. Volontairement large (un émetteur de
+ * particules présent suffit) : se tromper dans ce sens coûte des images, dans l'autre, de la
+ * fluidité.
+ */
+export function loopBusy(){
+  if(anim.playback || phys.active || tc.dragging) return true;
+  if(flyFree.active || keysFlyFree.size) return true;
+  if(extraViewsActive()) return true;
+  if(animModels.size || previewAnimator.active) return true;
+  const particles = Registry.byType && Registry.byType.get('Particles');
+  return !!(particles && particles.size);
+}
+
+// La dernière taille écrite sur le cadre de l'aperçu caméra (voir plus bas).
+let _previewW = -1, _previewH = -1;
 /** Le rendu de la vue Scène : caméra d'édition (ou caméra regardée), puis l'aperçu de caméra. */
 export function renderSceneView(w, h){
   // Les ombres suivent la CAMÉRA COURANTE, et se recadrent donc juste avant le rendu — pas
@@ -711,8 +747,13 @@ export function renderSceneView(w, h){
     renderer.setViewport(w - pw - 12, py, pw, ph);
     renderer.render(scene, previewCam);
     renderer.setScissorTest(false);
-    previewFrame.style.width = pw + 'px';
-    previewFrame.style.height = ph + 'px';
+    // Écrire un style à chaque image invalide la mise en page même à valeur égale : on
+    // n'écrit que quand la taille change.
+    if(pw !== _previewW || ph !== _previewH){
+      _previewW = pw; _previewH = ph;
+      previewFrame.style.width = pw + 'px';
+      previewFrame.style.height = ph + 'px';
+    }
   }
 }
 

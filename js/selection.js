@@ -4,7 +4,7 @@ import { updateProject } from './assets.js';
 import { updateBarTilemap } from './brush-tilemap.js';
 import { updateColliderViz } from './collider.js';
 import { ed } from './component-data.js';
-import { isDescendant, setStatus, updateHierarchy } from './hierarchy.js';
+import { isDescendant, setStatus, updateHierarchySelection } from './hierarchy.js';
 import { buildInspector } from './inspector.js';
 import { applyMaskCamera, listMats } from './objects.js';
 import { phys } from './physics.js';
@@ -73,7 +73,9 @@ export function toggleMulti(obj){
     selectionMulti.push(obj);
     setHighlight(obj, true);
   }
-  updateHierarchy();
+  // Changement de sélection PUR : chemin léger, qui retombe sur la reconstruction si la
+  // structure a changé (voir updateHierarchySelection, js/hierarchy.js).
+  updateHierarchySelection();
   setStatus(allSelection().length + ' objet(s) sélectionné(s)', 2000);
 }
 
@@ -103,7 +105,9 @@ export function addMultiInBatch(list){
     selectionMulti.push(o);
     setHighlight(o, true);
   });
-  updateHierarchy();
+  // Changement de sélection PUR : chemin léger, qui retombe sur la reconstruction si la
+  // structure a changé (voir updateHierarchySelection, js/hierarchy.js).
+  updateHierarchySelection();
   if(rejetes.length){
     setStatus(retenus.length + ' objet(s) ajouté(s), ' + rejetes.length
       + ' ignoré(s) (parent/enfant d\'un objet déjà sélectionné)', 3000);
@@ -217,7 +221,9 @@ export function select(obj, keepMulti){
   // autre map ferait paint un index sans planche, donc des cases invisibles — qu'on lirait
   // comme un pinceau qui ne peint pas.
   updateBarTilemap();
-  updateHierarchy();
+  // Changement de sélection PUR : chemin léger, qui retombe sur la reconstruction si la
+  // structure a changé (voir updateHierarchySelection, js/hierarchy.js).
+  updateHierarchySelection();
 }
 
 

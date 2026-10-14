@@ -2080,6 +2080,8 @@ export function importFiles(files, opts){
   const blobs = {};
   list.forEach(function(f){ blobs[f.name] = URL.createObjectURL(f); });
   const manager = new THREE.LoadingManager();
+  // Chaque fichier du modèle arrivé : la vue le montre sans attendre une entrée (js/render-throttle.js).
+  manager.onProgress = function(){ if(typeof globalThis.requestRender === 'function') globalThis.requestRender(); };
   manager.setURLModifier(function(url){
     const nameF = decodeURIComponent(url.replace(/^.*[\\/]/, '').split('?')[0]);
     return blobs[nameF] || url;

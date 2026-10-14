@@ -39,6 +39,7 @@ import { allSelection, selection } from './selection.js';
 import { closeModal, openModal } from './ui.js';
 import { isIconEdit } from './viewport.js';
 import { releaseLater } from './gpu-release.js';
+import { bakeSelectionStatic } from './static-batching.js';
 
 export const LIGHTMAP_RES = 1024;
 // Nombre d'images accumulées. C'est le curseur qualité/temps : la moyenne courante
@@ -540,8 +541,30 @@ export async function bakeLightmap(opts){
   let racines = opts.selection || allSelection();
   if(racines && racines.length && !meshesBakeable(racines).length) racines = null;
   const selectif = !!(racines && racines.length);
-  const meshes = meshesBakeable(racines);
-  if(!meshes.length){ setStatus('Aucun maillage à cuire', 3000); return null; }
+  // LA RÈGLE D'UNITY (v1.13.0) : dès qu'un objet de la scène est « Statique », la cuisson de la
+  // scène entière ne cuit QUE les statiques. Sans aucun statique, tout est cuit, comme avant —
+  // un projet ancien cuit donc exactement pareil. Une cuisson de la sélection cuit ce qu'on a
+  // choisi. Le filtre vit ICI et pas dans meshesBakeable : « Effacer la cuisson » parcourt la
+  // scène par lui et doit retrouver aussi ce qui a été cuit avant qu'un objet devienne statique.
+  const pick = selectif ? {meshes: meshesBakeable(racines), mode: 'selection'}
+    : bakeSelectionStatic(meshesBakeable(null), objects);
+  const meshes = pick.meshes;
+  if(!meshes.length){
+    setStatus(pick.mode === 'static' ? 'Aucun maillage Statique à cuire' : 'Aucun maillage à cuire', 3000);
+    return null;
+  }
+  if(!selectif){
+    const mode = pick.mode;
+    setStatus(mode === 'static'
+      ? 'Cuisson des objets Statiques seulement (' + meshes.length + ' maillage(s)) — les autres ne reçoivent pas de lightmap'
+      : 'Aucun objet Statique : tous les maillages de la scène sont cuits', 5000);
+    if(mode === 'static'){
+      const shared = materialsSharedWithOfNotBaked(meshes);
+      if(shared.length) setStatus('Attention : ' + shared.length + ' objet(s) non Statique(s) partagent un '
+        + 'matériau avec des Statiques (' + shared.slice(0, 3).join(', ') + '…). Ils recevront la '
+        + 'lightmap sans place dans l\'atlas. Donnez-leur un matériau distinct, ou cochez Statique.', 12000);
+    }
+  }
 
   if(selectif){
     const shared = materialsSharedWithOfNotBaked(meshes);
@@ -737,6 +760,8 @@ export async function bakeLightmap(opts){
     releaseLater(rt2);
     releaseLater(material);
     lightmapBakeState.active = false;
+    // Fin de cuisson : la vue montre le résultat sans attendre une entrée (js/render-throttle.js).
+    if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
   }
 
   if(!data) return null;

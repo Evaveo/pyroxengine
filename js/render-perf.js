@@ -55,6 +55,14 @@ export function instantiable(o){
   if(o.children && o.children.length) return false;     // les enfants ne suivraient pas
   if(o.getComponent && (o.getComponent('Reflection') || o.getComponent('Terrain'))) return false;
   if(o.userData.particles || o.userData.subScene) return false;
+  // Un maillage STATIQUE déjà fondu (js/static-batching.js, jeu publié) est dessiné par son
+  // maillage fusionné : l'instancier le dessinerait deux fois.
+  if(o.userData.inStaticMerge) return false;
+  // Un maillage CUIT porte son propre `uv1` d'atlas de lightmap (js/lightmap-atlas.js) : sa
+  // région de l'atlas n'est qu'à lui. Un lot n'a qu'UNE géométrie, celle du premier — tous les
+  // objets cuits d'un même matériau échantillonnaient donc l'éclairage du premier, et la
+  // lightmap visible dans l'éditeur « disparaissait » dans le jeu publié (test/instances-lightmap).
+  if(o.geometry.userData && o.geometry.userData.lightmapAtlas) return false;
   if(o.isSkinnedMesh || (o.geometry.morphAttributes
       && Object.keys(o.geometry.morphAttributes).length)) return false;
   // Gizmos et icônes : n'existent que dans l'éditeur, d'où le test d'existence.
@@ -405,7 +413,7 @@ export function undoInstances(){
  */
 export function visibleIntent(o){
   if(!o) return false;
-  if(o.userData && o.userData.inInstanceBatch) return o.userData.visibleWanted !== false;
+  if(o.userData && (o.userData.inInstanceBatch || o.userData.inStaticMerge)) return o.userData.visibleWanted !== false;
   return o.visible !== false;
 }
 
@@ -423,7 +431,10 @@ export function setVisibleIntent(o, wanted){
   if(o.userData) o.userData.visibleWanted = v;
   // Sur une source regroupée, `visible` reste faux : c'est le lot qui dessine, et
   // `updateInstances` lit `visibleWanted` pour éteindre l'instance.
-  o.visible = (o.userData && o.userData.inInstanceBatch) ? false : v;
+  o.visible = (o.userData && (o.userData.inInstanceBatch || o.userData.inStaticMerge)) ? false : v;
+  // Les sources d'un maillage STATIQUE fusionné (jeu publié) : on écrase leur plage de sommets
+  // (js/static-batching.js), une fois au geste — jamais par image.
+  if(typeof refreshStaticVisibility === 'function') refreshStaticVisibility(o);
 }
 
 /**

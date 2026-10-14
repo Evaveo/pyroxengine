@@ -457,6 +457,31 @@ export const PAGES_WORKFLOWS = [
   + '</ul>';
 }},
 
+{id:'static-objects', part:'workflows', section:'Rendu', title:'Les objets Statiques', level:'both',
+ summary:'Cocher « Statique » sur le décor immobile : moins d\'appels de dessin dans le jeu publié, et une cuisson de lightmap ciblée.',
+ anchors:[
+   {f:'js/ui/panels-inspector.js', c:"{ ids: ['f-static'], label: 'Statique', type: 'checkbox',"},
+   {f:'js/static-batching.js', c:'export const STATIC_CELL_SIZE = 40;'},
+   {f:'js/static-batching.js', c:'export const STATIC_MERGE_MAX_VERTICES = 262144;'},
+   {f:'js/static-batching.js', c:'export function bakeSelectionStatic(meshes, objectsScene){'},
+   {f:'js/static-batching.js', c:'export function staticBlocked(o){'}
+ ],
+ html:function(){ return ''
+  + essentialHelp('<p>La case <b>Statique</b> de l\'inspecteur (sous le nom) dit : « cet objet ne bougera pas dans le jeu publié ». Dans l\'éditeur, elle ne change <b>rien</b> — l\'objet reste sélectionnable et déplaçable. Elle est décochée par défaut.</p>')
+  + '<h3>Ce que le jeu publié en fait</h3>'
+  + arrayHelp(null, [
+      ['<b>Matériaux partagés</b>', 'les objets statiques dont le matériau final est identique (même asset, mêmes réglages, mêmes textures) partagent UNE instance de matériau'],
+      ['<b>Maillages fusionnés</b>', 'les maillages statiques d\'un même matériau sont fondus en un seul maillage par cellule de 40 unités (262 144 sommets au plus) : un appel de dessin au lieu de N, et chaque morceau reste éliminé hors du champ de vision'],
+      ['<b>Aucun calcul par image</b>', 'leurs matrices sont figées une fois pour toutes'],
+      ['<b>Lightmaps</b>', 'dès qu\'un objet de la scène est Statique, la cuisson de la scène entière ne cuit QUE les statiques ; sans aucun statique, tout est cuit comme avant']
+    ])
+  + '<p>Les objets d\'origine restent dans la scène : un script les trouve par nom ou par tag, leurs colliders et déclencheurs fonctionnent. Masquer, activer ou détruire un objet statique par script marche aussi. Le bouton <b>Appliquer aux enfants</b> donne la même valeur à toute la branche, comme dans Unity.</p>'
+  + trapHelp('<b>Un objet Statique ne se modifie pas en jeu.</b> <code>api.setPosition</code>, <code>api.lookAt</code>, <code>api.moveTo</code> et <code>api.patrol</code> sur lui sont ignorés, avec un avertissement dans la console. Écrire directement <code>obj.position</code> ne fait rien de visible (le maillage fusionné ne suit pas), et <code>mesh.material.color.set(…)</code> teinte <b>tous</b> les statiques qui partagent ce matériau. Pour un objet qu\'un script déplace ou recolore : décochez Statique.')
+  + '<h3>Ce qui n\'est jamais fusionné</h3>'
+  + '<p>Le partage et le gel s\'appliquent quand même, mais ces maillages restent dessinés un par un : matériau transparent, à plusieurs emplacements, à nœuds (graphe de shader) ou à carte de déplacement ; niveau de détail ; squelette ou morphing ; 2D, terrain, particules, sonde de reflet ; objet invisible au lancement ; parent d\'un enfant non fusionnable. Un objet Statique porté par un corps physique dynamique, un Animator ou une piste de timeline est ignoré (le moteur le déplace) — la console le dit au chargement. Un prefab créé en cours de partie n\'est jamais fusionné.</p>'
+  + '<ul><li>' + linkHelp('lightmaps', 'Cuire les lightmaps') + '</li></ul>';
+}},
+
 {id:'lightmaps', part:'workflows', section:'Rendu', title:'Cuire les lightmaps', level:'both',
  summary:'Précalculer l\'éclairage d\'un décor immobile dans des lightmaps.',
  anchors:[
@@ -479,6 +504,9 @@ export const PAGES_WORKFLOWS = [
   + 'douces, lumière indirecte, occlusion. Le moteur la lit au lieu de refaire le calcul à '
   + 'chaque image : bien meilleure qualité, pour un coût de rendu presque nul. C\'est réservé à ce qui '
   + 'ne bouge pas, et cela exige des modèles avec un <b>second jeu d\'UV</b>.</p>')
+  + '<p>Dès qu\'un objet de la scène est coché ' + linkHelp('static-objects', 'Statique')
+  + ', la cuisson de la scène entière ne cuit <b>que</b> les objets statiques (comme Unity) ; '
+  + 'sans aucun objet statique, tout est cuit.</p>'
 
   + '<h3>Cuire un décor</h3>'
   + stepsHelp([
@@ -1771,10 +1799,10 @@ PAGE_RICH_TEXT,
   + advancedHelp('Le build est allégé de ce que la scène n\'utilise pas', '<p>Un platformer en sprites n\'embarque pas le moteur de physique 3D ; un jeu 3D n\'embarque pas '
   + 'le solveur 2D, les tuiles ni la caméra 2D. Le message d\'export <b>dit ce qui a été retiré</b> '
   + 'et pourquoi — un allègement silencieux serait impossible à relire le jour où il se trompe.</p>'
-  + '<p>Un build tout embarqué porte <b>2,48 Mo</b> de code avant compression et '
+  + '<p>Un build tout embarqué porte <b>2,63 Mo</b> de code avant compression et '
   + '<b>' + TAGS_BUILD_FULL + ' balises de script</b>. <b>17 modules</b> en sont retirables, '
   + '<b>449 Ko</b> en tout : c\'est le <b>plafond</b>, et il ne dépend d\'aucune scène. Un platformer '
-  + '2D en atteint <b>341 Ko</b> et descend à <b>86 balises</b>.</p>'
+  + '2D en atteint <b>341 Ko</b> et descend à <b>87 balises</b>.</p>'
   + '<p class="help-trap"><b>Ce que vous gagnerez dépend de votre scène, pas du moteur.</b> Le '
   + 'chiffre que vous lirez à l\'export sera le vôtre : un jeu 3D avec des animations garde quatre '
   + 'modules qu\'un jeu 2D retire, et l\'inverse. C\'est pourquoi le message d\'export les '

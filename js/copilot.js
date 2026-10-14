@@ -4,6 +4,7 @@
 // les fonctions existantes — chaque mutation passe par pushHistory()
 // et reste annulable (Ctrl+Z). Clé API stockée en localStorage, jamais dans
 // les projets. Modèle par défaut : claude-sonnet-5 (Opus au choix).
+import { setStaticFlag } from './static-batching.js';
 import { analyzeScene } from './analysis.js';
 import { enforceScriptAssets } from './script-asset-lint.js';
 import { normalizeViewport } from './camera-overlays.js';
@@ -119,6 +120,7 @@ export function copResume(o){
     },
     scale: [arr2(o.scale.x), arr2(o.scale.y), arr2(o.scale.z)],
     visible: visibleIntent(o),
+    static: o.userData.static === true,
     tag: (o.userData.game && o.userData.game.tag) || '',
     parent: (o.parent && o.parent !== scene) ? o.parent.name : null,
     physics: !!(o.userData.phys && o.userData.phys.active),
@@ -220,18 +222,23 @@ export const COMMANDS = [
     name: 'transform',
     description: 'Positionne / tourne (degrés) / met à l\'échelle un objet. Seuls les champs fournis changent. '
       + '`visible` affiche ou masque l\'objet (l\'œil de la Hiérarchie, sauvegardé avec la scène) : '
-      + 'de quoi isoler un problème sans rien supprimer.',
+      + 'de quoi isoler un problème sans rien supprimer. `static` coche « Statique » (décor qui ne '
+      + 'bougera pas dans le jeu publié : matériaux partagés, maillages fusionnés, seul cuit en lightmap) ; '
+      + '`staticChildren` l\'applique aussi aux descendants.',
     schema: {type: 'object', properties: {
       name: {type: 'string'},
       visible: {type: 'boolean', description: 'false masque l\'objet et ses enfants (le rendu seulement : ses scripts continuent, api.setActive les arrête), true le réaffiche'},
       position: {type: 'object', properties: {x:{type:'number'}, y:{type:'number'}, z:{type:'number'}}},
       rotation: {type: 'object', properties: {x:{type:'number'}, y:{type:'number'}, z:{type:'number'}},
         description: 'euler en degrés'},
-      scale: {type: 'object', properties: {x:{type:'number'}, y:{type:'number'}, z:{type:'number'}}}
+      scale: {type: 'object', properties: {x:{type:'number'}, y:{type:'number'}, z:{type:'number'}}},
+      static: {type: 'boolean', description: 'true marque l\'objet Statique (ne bougera pas dans le jeu publié), false le démarque'},
+      staticChildren: {type: 'boolean', description: 'avec static : applique aussi la valeur à tous les descendants'}
     }, required: ['name'], additionalProperties: false},
     exec: function(a){
       const o = copFind(a.name);
       pushHistory();
+      if(typeof a.static === 'boolean') setStaticFlag(o, a.static, a.staticChildren === true);
       if(a.position) o.position.set(
         a.position.x !== undefined ? a.position.x : o.position.x,
         a.position.y !== undefined ? a.position.y : o.position.y,
@@ -2154,6 +2161,9 @@ export async function copRun(name, args, opts){
     logConsole(warned ? 'warn' : 'log', formatTraceLine({name: name, args: args, ms: Date.now() - t0, origin: origin,
       status: warned ? 'warn' : 'ok'}), null);
   }
+  // Une action du copilote peut changer la scène sans entrée de l'utilisateur : la vue
+  // reprend sa cadence pleine (ralenti au repos, js/render-throttle.js).
+  if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
   return res;
 }
 
