@@ -54,7 +54,11 @@ test('ET RECIPROQUEMENT : tout fichier js du mode jeu est embarque par le build'
 
   // Ce que le mode jeu charge SANS que le build en ait besoin. `game-runtime.js` y est sous son
   // nom de source et devient `runtime.js` dans le ZIP : `embeddedInBuild` connaît le renommage.
-  const absents = charges.filter((f) => !embeddedInBuild(f));
+  // SEULE EXCEPTION, et voulue : un outil de l'aperçu, que le joueur ne doit jamais avoir.
+  const PREVIEW_ONLY = {
+    'js/capture-tools.js': 'F8 capture / F9 vidéo pour la fiche catalogue — outil du créateur dans « Jouer »'
+  };
+  const absents = charges.filter((f) => !embeddedInBuild(f) && !PREVIEW_ONLY[f]);
   assert.deepEqual(absents, [],
     'Ces fichiers sont chargés par game-preview.html et le build ne les embarque PAS. Le jeu\n'
     + 'exporté tournera sans eux : soit il plante, soit — bien pire — une garde\n'
