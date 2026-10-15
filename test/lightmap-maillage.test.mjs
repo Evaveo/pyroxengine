@@ -58,3 +58,14 @@ test('les deux moteurs reposent la lightmap du maillage au chargement, la cuisso
   assert.match(read('serialization.js'), /applyLightmapOverrides\(o, applyLightmap\)/);
   assert.match(read('lightmap-bake.js'), /mesh\.userData\.lightmapOverride = asset\.id/);
 });
+
+// v1.13.2 — applyLightmapOverrides ne passe que la lightmap ({lightmapAsset, lightmapUv,
+// lightmapIntensity}) : textureMaterial lisait `p.tiling[0]` sans repli et levait « Cannot read
+// properties of undefined (reading '0') » à l'affectation de la cuisson.
+test('textureMaterial tolère des props sans tiling ni offset', () => {
+  const src = readFileSync(new URL('../js/materials.js', import.meta.url), 'utf8');
+  const corps = src.slice(src.indexOf('export function textureMaterial'));
+  const fin = corps.indexOf('\n}');
+  assert.match(corps.slice(0, fin), /p\.tiling \|\| \[1, 1\]/);
+  assert.match(corps.slice(0, fin), /p\.offset \|\| \[0, 0\]/);
+});

@@ -10,7 +10,7 @@
 import { PROBE_DEFAULT, ed, ensureProbe } from './component-data.js';
 import { NodeShells, Registry } from './component-registry.js';
 import { hideEditorMarker, liftOverlay } from './editor-overlay.js';
-import { acceptsEnvironment, applySkyFraming, bindEnvironmentKey, isHdrTexture, skyExposureOf, skyRotationOf } from './environment-map.js';
+import { acceptsEnvironment, applySkyFraming, bindEnvironmentKey, hasEnvironment, isHdrTexture, neutralEnvironment, removeEnvironmentFrom, skyExposureOf, skyRotationOf } from './environment-map.js';
 import { buildSkyBackground, env, skySourceStamp } from './environment.js';
 import { setStatus } from './hierarchy.js';
 import { buildInspector } from './inspector.js';
@@ -464,24 +464,16 @@ export function setEnvironmentOn(m, tex, intensity, node){
   // propriété, cette ligne redevient fausse en silence — vérifié : Standard et Physical
   // la définissent tous deux à 1.
   const nodeActuel = m.envNode || null;
-  if(m.envMap === tex && nodeActuel === node
+  const texActuelle = hasEnvironment(m) ? m.envMap : null;   // la texture neutre compte pour « rien »
+  if(texActuelle === tex && nodeActuel === node
      && (tex === null || m.envMapIntensity === intensity)) return;
-  // RETIRER un environnement n'est pas symétrique d'en poser un — et c'est ce qui plantait.
-  //
-  // LE PLANTAGE MESURÉ (v0.108.0). Couper les reflets du ciel fait rendre `null` à
-  // `envMapOfSky()`, donc passer ici avec `tex === null`. Sous le renderer WebGPU, le
-  // matériau a DÉJÀ construit le groupe de bindings qui porte le sampler de l'ancienne
-  // texture. `needsUpdate` reconstruit le PROGRAMME, pas ce groupe-là : le binding survit en
-  // référençant une texture devenue nulle, et son `equals()` déréférence `texture.isTexture`
-  // à chaque image — `TypeError: Cannot read properties of null` répété dans la boucle de
-  // rendu, jusqu'au rechargement de la page.
-  //
-  // `dispose()` libère justement les ressources GPU du matériau, bindings compris ; tout est
-  // reconstruit à l'image suivante, cette fois sans environnement. C'est un geste coûteux,
-  // mais il n'a lieu QUE sur la transition vers `null` — la garde d'égalité au-dessus sort
-  // sans rien faire quand l'état ne change pas, donc jamais par image.
-  const removed = (tex === null && (m.envMap || m.envNode));
-  if(removed && typeof m.dispose === 'function') m.dispose();
+  // RETIRER un environnement n'est pas symétrique d'en poser un : jamais `envMap = null` sur un
+  // matériau déjà rendu, three r185 planterait à chaque image (voir removeEnvironmentFrom,
+  // js/environment-map.js). Couper les reflets du ciel passe ici avec `tex === null`.
+  if(tex === null){
+    removeEnvironmentFrom(m, neutralEnvironment(renderer, createTargetCube));
+    return;
+  }
   m.envMap = tex;
   if(node) m.envNode = node;
   else if(m.envNode) m.envNode = null;
@@ -523,13 +515,10 @@ export function removeProbesOfMaterials(){
     o.traverse(function(x){
       if(!x.isMesh) return;
       listMats(x).forEach(function(m){
-        if(!acceptsEnvironment(m) || (!m.envMap && !m.envNode)) return;
-        // Même raison que dans `setEnvironmentOn` : sous WebGPU, le binding de l'ancienne
-        // texture survit à `needsUpdate` et déréférence `null.isTexture` à chaque image.
-        if(typeof m.dispose === 'function') m.dispose();
-        m.envMap = null;
-        if(m.envNode) m.envNode = null;   // sinon la projection boîte survit à la scène
-        m.needsUpdate = true;
+        if(!acceptsEnvironment(m) || !hasEnvironment(m)) return;
+        // Jamais `null` (voir setEnvironmentOn) ; retire aussi la projection boîte (`envNode`),
+        // sinon elle survivrait à la scène.
+        removeEnvironmentFrom(m, neutralEnvironment(renderer, createTargetCube));
       });
     });
   });

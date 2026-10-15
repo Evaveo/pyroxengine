@@ -77,6 +77,49 @@ export function acceptsEnvironment(m){
   return !!m && (m.isMeshStandardMaterial === true || m.isMeshPhysicalMaterial === true);
 }
 
+// ---------- Retirer un reflet : JAMAIS `envMap = null` sur un matériau déjà rendu ----------
+//
+// three r185 (`NodeMaterialObserver`, lu dans vendor-esm/three.webgpu.min.js) photographie, par
+// matériau et pour TOUTE sa vie, chaque texture de sa liste `refreshUniforms` qu'il a vue non
+// nulle — dans une WeakMap que rien ne vide, `dispose()` compris. Remettre `envMap` à null fait
+// ensuite lire `null.isTexture` dans `equals()` à chaque image : « Cannot read properties of null
+// (reading 'isTexture') » dans la boucle de rendu (décocher « reflets du ciel »). Le `dispose()`
+// posé en v0.108.0 ne protégeait plus rien depuis la montée en r185.
+//
+// On pose donc une texture NEUTRE (cube 1 px, noir) avec une intensité 0 : aucune contribution,
+// et l'observateur garde une texture à comparer. Une par renderer : une texture GPU appartient au
+// device qui l'a créée.
+const NEUTRAL_ENVIRONMENTS = new WeakMap();   // renderer → texture neutre
+
+export function neutralEnvironment(renderer, makeCube){
+  let tex = NEUTRAL_ENVIRONMENTS.get(renderer);
+  if(tex) return tex;
+  const rt = makeCube(1);
+  // Une cible jamais rendue n'a pas de texture GPU : on efface ses six faces une fois.
+  const before = renderer.getRenderTarget ? renderer.getRenderTarget() : null;
+  for(let face = 0; face < 6; face++){
+    renderer.setRenderTarget(rt, face);
+    renderer.clear();
+  }
+  renderer.setRenderTarget(before);
+  tex = rt.texture;
+  tex.userData.neutralEnvironment = true;
+  NEUTRAL_ENVIRONMENTS.set(renderer, tex);
+  return tex;
+}
+
+/** Le matériau reçoit-il un vrai reflet (pas la texture neutre) ? */
+export function hasEnvironment(m){
+  return !!(m && (m.envNode || (m.envMap && !(m.envMap.userData && m.envMap.userData.neutralEnvironment))));
+}
+
+/** Retire le reflet d'un matériau sans jamais écrire `null` dans `envMap` (voir plus haut). */
+export function removeEnvironmentFrom(m, neutral){
+  if(m.envNode) m.envNode = null;
+  if(m.envMap){ m.envMap = neutral; m.envMapIntensity = 0; }
+  m.needsUpdate = true;
+}
+
 // ---------- 2. Les images HDR (HDRI) ----------
 //
 // Un panorama .hdr (RGBE) ou .exr porte de la LUMIÈRE, pas une image : des valeurs bien au-delà

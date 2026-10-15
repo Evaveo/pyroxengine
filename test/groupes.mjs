@@ -60,7 +60,7 @@ export const GROUPS = {
     'materiau-plugin.test.mjs', 'materiau-shader-inspecteur.test.mjs', 'noeud-debris.test.mjs',
     'ombre-cadrage.test.mjs', 'shadow-budget.test.mjs', 'eclairage-v1-11.test.mjs', 'post-etat-neutre.test.mjs', 'post-orientation.test.mjs',
     'post-profile-asset.test.mjs', 'post-sortie-ecran.test.mjs', 'post-volume-blend.test.mjs',
-    'post-volume-component.test.mjs', 'reflets-retrait.test.mjs', 'sonde-ambiance.test.mjs',
+    'post-volume-component.test.mjs', 'reflet-retire-sans-null.test.mjs', 'sonde-ambiance.test.mjs',
     'sondes-non-eclaire.test.mjs', 'sondes-reflets.test.mjs',
     'sous-scene-environnement.test.mjs', 'substance.test.mjs',
     'surface-three-webgpu.test.mjs', 'surface-webgpu.test.mjs',

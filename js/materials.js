@@ -184,8 +184,12 @@ export function textureMaterial(assetId, p){
   const tex = ta.texture.clone();
   tex.userData = {assetTexture:ta.id, flipYAuto:true, tuilageMaterial:true};
   configureTexture(tex, ensureParamsImport(ta), {flipYAuto:true, tuilage:false});
-  tex.repeat.set(p.tiling[0], p.tiling[1]);
-  tex.offset.set(p.offset[0], p.offset[1]);
+  // `p` n'est pas toujours les props complètes d'un matériau : la lightmap posée sur un maillage
+  // (applyLightmapOverrides, js/lightmap-atlas.js) ne passe que la lightmap — sans ces replis,
+  // « Cannot read properties of undefined (reading '0') » à l'affectation de la cuisson.
+  const tiling = p.tiling || [1, 1], offset = p.offset || [0, 0];
+  tex.repeat.set(tiling[0], tiling[1]);
+  tex.offset.set(offset[0], offset[1]);
   return tex;
 }
 

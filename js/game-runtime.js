@@ -9,7 +9,7 @@ import { busOfSource, createAudioBuses, createSourceSound, makeAudioBusApi } fro
 import { sfxBuffer } from './chip-synth.js';
 import { loopBuffer } from './music-loop.js';
 import { backgroundForCamera, isSkyBackground } from './sky-camera.js';
-import { acceptsEnvironment, applySkyFraming, bindEnvironmentKey, isHdrTexture, loadTextureFile, skyBackgroundFor } from './environment-map.js';
+import { acceptsEnvironment, applySkyFraming, bindEnvironmentKey, hasEnvironment, isHdrTexture, loadTextureFile, neutralEnvironment, removeEnvironmentFrom, skyBackgroundFor } from './environment-map.js';
 import { setFalloffAudio } from './audio-falloff.js';
 import { PART_DEFAULT, ed, isActiveInHierarchy, isPlayableAudio } from './component-data.js';
 import { warnOnceMissing } from './dev-guards.js';
@@ -1146,15 +1146,11 @@ function rtSetEnvironmentOn(m, tex, intensity, node){
   if(!acceptsEnvironment(m)) return;   // Standard/Physical seulement : un Basic serait assombri par le ciel
   bindEnvironmentKey(m);               // sinon chaque objet garde le reflet du premier compilé
   const nodeActuel = m.envNode || null;
-  if(m.envMap === tex && nodeActuel === node
+  const texActuelle = hasEnvironment(m) ? m.envMap : null;   // la texture neutre compte pour « rien »
+  if(texActuelle === tex && nodeActuel === node
      && (tex === null || m.envMapIntensity === intensity)) return;
-  // Le MÊME retrait asymétrique que dans js/probes.js, et pour la même raison : sous WebGPU,
-  // le groupe de bindings qui porte le sampler de l'ancienne texture survit à `needsUpdate`
-  // et déréférence `texture.isTexture` sur `null` à chaque image. Ici la conséquence est pire
-  // que dans l'éditeur — c'est le jeu publié qui se figerait chez le joueur.
-  // `dispose()` n'a lieu que sur la transition vers `null` : la garde d'égalité ci-dessus
-  // sort sans rien faire quand l'état ne bouge pas.
-  if(tex === null && (m.envMap || m.envNode) && typeof m.dispose === 'function') m.dispose();
+  // Jamais `envMap = null` sur un matériau déjà rendu (three r185, js/environment-map.js).
+  if(tex === null){ removeEnvironmentFrom(m, neutralEnvironment(renderer, rtTargetCube)); return; }
   m.envMap = tex;
   if(node) m.envNode = node;
   else if(m.envNode) m.envNode = null;
