@@ -45,7 +45,11 @@ export const ENV_TOOL_KEYS = {
   ambient: 'ambiante', ambientColor: 'ambianteColor',
   skyReflections: 'skyReflets', skyReflectionsIntensity: 'skyRefletsIntensity'
 };
-export let env = JSON.parse(JSON.stringify(ENV_DEFAULT));
+// UN SEUL OBJET `env`, JAMAIS RÉAFFECTÉ (`const`). Charger une scène REMPLIT cet objet
+// (applyEnvironment) au lieu d'en créer un neuf : un objet neuf laissait le panneau
+// Environnement, la globale `globalThis.env` et tout code qui avait gardé la référence sur
+// l'ancien — réglages sans effet, valeurs par défaut affichées (docs/KNOWN_ISSUES.md).
+export const env = JSON.parse(JSON.stringify(ENV_DEFAULT));
 export let skyTexture = null;      // texture de fond fabriquée ici (dégradé ou panorama cloné)
 
 // Fabrique le FOND de scène : une couleur unie, ou une texture équirectangulaire (dégradé
@@ -100,8 +104,13 @@ export let skyBackground = null;
 export function applyEnvironment(fresh){
   // Ciel, brouillard, exposition changent l'image : cadence pleine (js/render-throttle.js).
   if(typeof globalThis.requestRender === 'function') globalThis.requestRender();
-  if(fresh) env = Object.assign(JSON.parse(JSON.stringify(ENV_DEFAULT)),
-                                  JSON.parse(JSON.stringify(fresh)));
+  if(fresh){
+    // Copier AVANT de vider : `fresh` peut être `env` lui-même.
+    const next = Object.assign(JSON.parse(JSON.stringify(ENV_DEFAULT)),
+                               JSON.parse(JSON.stringify(fresh)));
+    Object.keys(env).forEach(function(k){ delete env[k]; });
+    Object.assign(env, next);
+  }
   // le ciel est le fond de la caméra, pas un objet de la scène : rien à ajouter dans
   // `objects`, rien à raycaster, rien à sérialiser.
   if(skyTexture){
@@ -139,4 +148,3 @@ export function applyEnvironment(fresh){
 globalThis.applyEnvironment = applyEnvironment;
 globalThis.refreshSkyOfAsset = refreshSkyOfAsset;
 globalThis.env = env;
-globalThis.skyTexture = skyTexture;

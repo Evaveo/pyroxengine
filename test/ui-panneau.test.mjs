@@ -78,7 +78,9 @@ test('un panneau cache n est pas synchronise', () => {
   env.Panels.setVisible('p', false);
   env.Panels.syncAll();
   assert.equal(syncs, 0);
+  // Réaffiché : synchronisé tout de suite (il a manqué les syncAll d'avant), puis à chaque syncAll.
   env.Panels.setVisible('p', true);
-  env.Panels.syncAll();
   assert.equal(syncs, 1);
+  env.Panels.syncAll();
+  assert.equal(syncs, 2);
 });

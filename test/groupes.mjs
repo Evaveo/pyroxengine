@@ -89,7 +89,7 @@ export const GROUPS = {
     'recherche-assets.test.mjs', 'vue-jeu.test.mjs',
     'hierarchy-icon.test.mjs', 'hud-valeurs-vivantes.test.mjs',
     'inspecteur-descripteurs.test.mjs', 'inspecteur-ids.test.mjs', 'palette-flottante.test.mjs',
-    'panneau-environnement.test.mjs', 'panneau-rendu.test.mjs', 'panneaux-reglages.test.mjs',
+    'panneau-environnement.test.mjs', 'environnement-source-unique.test.mjs','panneau-rendu.test.mjs', 'panneaux-reglages.test.mjs',
     'ui-champ-info.test.mjs', 'ui-chemins.test.mjs', 'ui-css-asset.test.mjs',
     'ui-echec-silencieux.test.mjs', 'ui-formulaire-dom.test.mjs',
     'ui-historique-interaction.test.mjs', 'ui-liste.test.mjs', 'ui-multiselection.test.mjs',

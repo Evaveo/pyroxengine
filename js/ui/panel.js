@@ -178,7 +178,20 @@ export const Panels = (function(){
       // Ré-afficher un panneau en échec le fait retenter : c'est le geste naturel de
       // l'utilisateur devant un panneau mort (le fermer, le rouvrir), et il ne servait à rien.
       if(!!on && !r.visible && r.failed && r.host) retry(id);
+      const shown = !!on && !r.visible;
       r.visible = !!on;
+      // Un panneau masqué est sauté par `syncAll()` : à son affichage, sa cible et ses champs
+      // datent d'avant (chargement de projet, changement de scène). Sans cette resynchro, le
+      // panneau Environnement rouvert montrait les valeurs par défaut (docs/KNOWN_ISSUES.md).
+      if(shown && !r.failed && r.host){
+        try {
+          if(typeof r.descriptor.sync === 'function') r.descriptor.sync();
+          else if(r.form){
+            r.form.setTargets(r.descriptor.targets ? r.descriptor.targets() : []);
+            r.form.sync();
+          }
+        } catch(e){ reportFailure(r, id, e); }
+      }
       if(UIRegistry.resolved(id)) UIRegistry.resolve(id, {host: r.host, visible: r.visible});
     },
     visible: function(id){ const r = live.get(id); return !!(r && r.visible); }
