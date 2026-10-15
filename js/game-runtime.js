@@ -1186,6 +1186,8 @@ function rtBakeProbes(){
     const res = Math.max(16, Math.min(512, s.resolution | 0 || 128));
     const rt = rtTargetCube(res);
     const cam = new THREE.CubeCamera(0.1, 800, rt);
+    // Calques de projet 0-30 comme bakeProbe (js/probes.js) — sinon le calque 0 seul.
+    [cam].concat(cam.children).forEach(function(c){ c.layers.disableAll(); for(let i = 0; i < 31; i++) c.layers.enable(i); });
     o.getWorldPosition(cam.position);
     cam.update(renderer, game.scene);
     rtProbes.set(o, {rt: rt, cam: cam});
@@ -3335,9 +3337,10 @@ function applyEnvironment(env){
   game.scene.background = fond;
   applySkyFraming(game.scene, env);
   game.skyTexture = (fond && fond.isTexture) ? fond : null;
-  game.scene.fog = (env.brouillard !== false)
-    ? new THREE.Fog(new THREE.Color(env.brouillardColor || '#cdd9e4'),
-        env.brouillardNear || 40, env.brouillardLoin || 90)
+  // Comme l'éditeur (ENV_DEFAULT) : valeur ABSENTE → défaut, un 0 reste 0.
+  const fogV = function(k, d){ return (env[k] === undefined || env[k] === null) ? d : env[k]; };
+  game.scene.fog = fogV('brouillard', true)
+    ? new THREE.Fog(new THREE.Color(fogV('brouillardColor', '#cdd9e4')), fogV('brouillardNear', 40), fogV('brouillardLoin', 90))
     : null;
   game.hemi.intensity = (env.ambiante !== undefined) ? env.ambiante : 0.4;
   game.hemi.color.set(env.ambianteColor || '#bfd4ff'); game.hemi.groundColor.set(env.ambientGroundColor || '#30281e');

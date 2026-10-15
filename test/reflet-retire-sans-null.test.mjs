@@ -52,3 +52,12 @@ test('plus aucun envMap = null sur un materiau vivant (editeur et jeu)', () => {
     assert.match(src, /removeEnvironmentFrom\(m, neutralEnvironment\(/, f);
   }
 });
+
+// v1.13.3 — parité Scène / Jouer : les sondes du jeu voient les calques 0-30 comme celles de
+// l'éditeur, et le brouillard garde un 0 au lieu de le remplacer par le défaut.
+test('jeu : sondes sur les calques 0-30, brouillard aux defauts de l editeur', () => {
+  const src = readFileSync(new URL('../js/game-runtime.js', import.meta.url), 'utf8');
+  assert.match(src, /new THREE\.CubeCamera\(0\.1, 800, rt\);\s*\n(\s*\/\/.*\n)*\s*\[cam\]\.concat\(cam\.children\)\.forEach\(function\(c\)\{ c\.layers\.disableAll\(\); for\(let i = 0; i < 31; i\+\+\)/);
+  assert.doesNotMatch(src, /brouillardNear \|\| 40/);
+  assert.match(src, /fogV\('brouillard', true\)/);
+});
