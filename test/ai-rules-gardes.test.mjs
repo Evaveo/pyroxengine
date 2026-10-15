@@ -73,3 +73,17 @@ test('lint durci : lumières et niveau généré dans start refusés, avec le te
   const l = lintScriptAssets('var s = new THREE.SpotLight(0xffffff);');
   assert.deepEqual(l.blocking, [ruleText('scripts.no_lights')]);
 });
+
+// Diobla 2026-10-15 : un script qui RETOUCHE le ciel, le brouillard ou les lumières de la scène est
+// refusé comme celui qui en crée — la vue Scène ne le montrerait pas.
+test('regler l eclairage de la scene en code est refuse', async () => {
+  const { lintScriptAssets } = await import('../js/script-asset-lint.js');
+  const id = ruleText('scripts.no_scene_lighting');
+  [ 'G.scene.background = new THREE.Color(0x1c1f2a);',
+    'api.scene.fog = null;',
+    'lights.forEach(function (l) { if (l.isHemisphereLight) { l.intensity = 1.1; } });',
+    'if (l.isDirectionalLight) l.color.setHex(0xffd0a0);'
+  ].forEach((code) => assert.ok(lintScriptAssets(code).blocking.includes(id), code));
+  [ 'if (scene.fog === null) return;', 'torche.intensity = 3;', 'G.V.finBrouillard();'
+  ].forEach((code) => assert.ok(!lintScriptAssets(code).blocking.includes(id), code));
+});

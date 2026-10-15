@@ -31,7 +31,13 @@ const RULES = [
   // Zeldo, 2026-10-02 : soleil, ciel et lumières des feux étaient créés par Jeu_Principal/Decor —
   // invisibles et non réglables dans l'éditeur. Une lumière est un objet de scène.
   {id: 'scripts.no_lights', block: true, re: RegExp('new\\s+THREE\\.(Hemisphere|Directional|Point|Spot|Ambient|RectArea)Light\\b'),
-    msg: ruleText('scripts.no_lights')}
+    msg: ruleText('scripts.no_lights')},
+  // Diobla, 2026-10-15 : `ambiance()` réécrivait ciel, brouillard, ambiance et soleil au lancement —
+  // le jeu ne ressemblait plus du tout à la vue Scène, sans rien qui le dise. Retoucher les lumières
+  // EXISTANTES est la même faute que les créer.
+  {id: 'scripts.no_scene_lighting', block: true,
+    re: /\bscene\s*\.\s*(background|fog|environment)\s*=(?!=)|\bis(Hemisphere|Directional|Ambient)Light\b[\s\S]{0,300}?\.(intensity\s*=(?!=)|color\s*\.\s*set|groundColor)/,
+    msg: ruleText('scripts.no_scene_lighting')}
 ];
 
 // Une table de contenu écrite en littéral : beaucoup d'objets qui portent les MÊMES clés.

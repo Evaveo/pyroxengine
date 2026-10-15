@@ -27,6 +27,8 @@ export const AI_RULES = [
     text: 'crée des matériaux en code : crée des assets matériau (create_material) et affecte-les aux objets'},
   {id: 'scripts.no_lights', level: 'block',
     text: 'crée des lumières en code : pose-les dans la scène (create_object point/spot/directional, configure_light, configure_environment pour l\'ambiance) et retrouve-les avec api.find(nom)'},
+  {id: 'scripts.no_scene_lighting', level: 'block',
+    text: 'règle en code le ciel, le brouillard ou l\'éclairage de la scène (scene.background/fog/environment, intensité ou couleur des lumières de la scène) : la vue Scène ne le montrerait pas et le créateur ne pourrait pas le retoucher — règle-les dans l\'éditeur (configure_environment, configure_light)'},
   {id: 'scripts.no_level_in_start', level: 'block',
     text: 'crée des objets en boucle dans start : un niveau se pose dans la scène (objets, prefabs instanciés, paint_room), il n\'est pas généré au lancement — api.create sert aux apparitions en jeu'},
 
