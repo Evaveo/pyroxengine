@@ -22,6 +22,7 @@ import { analyzeScene } from './analysis.js';
 import { captureSeqNow, capturedSince, formatConsole } from './copilot-inspect.js';
 import { assets } from './assets.js';
 import { CopilotTools } from './copilot.js';
+import { formatFrameReport, installFrameProbe } from './frame-probe.js';
 import { EditorIcons } from './gizmo-icons.js';
 import { stateCurrent } from './history.js';
 import { objects } from './objects.js';
@@ -91,9 +92,13 @@ export async function captureViewEditor(widthMax){
 
 export let frameDryRun = null;
 
+// Lu par la boucle de l'éditeur (viewport.js) : la vue Scène ne rend pas pendant la mesure.
+function setMeasuring(on){ globalThis.__measuringGame = on === true; }
+
 export function closeFrameDryRun(){
   if(frameDryRun && frameDryRun.parentNode) frameDryRun.parentNode.removeChild(frameDryRun);
   frameDryRun = null;
+  setMeasuring(false);   // la vue Scène reprend, quelle que soit l'issue de la mesure
 }
 
 /**
@@ -238,6 +243,15 @@ export async function playAndMeasure(opts){
   // attendre éternellement un jeu réellement figé. Les touches simulées partent au même rythme.
   const duration = images / 60;
   const samples = [];
+  // LA PERFORMANCE (js/frame-probe.js), posée sur la fenêtre du jeu. La vue Scène de l'éditeur est
+  // mise en pause le temps de la mesure (viewport.js lit `__measuringGame`) : elle partage le GPU
+  // avec le cadre, et ses images seraient comptées dans celles du jeu.
+  let probe = null;
+  try{
+    const r = gameWindow().__gameRenderer;
+    if(r) probe = installFrameProbe(gameWindow(), r, {shadows: o.shadows});
+  } catch(e){ probe = null; }
+  setMeasuring(true);
   const readTime = function(){ try{ return Number(gameWindow().__stateGame().time) || 0; } catch(e){ return null; } };
   const tStart = readTime() || 0;
   const wallStart = Date.now();
@@ -255,6 +269,9 @@ export async function playAndMeasure(opts){
   }
   // Une touche encore enfoncée à la fin est relâchée : le cadre va disparaître, mais proprement.
   try{ sendKeyEvents(gameWindow(), plan, Infinity); } catch(e){ /* cadre parti */ }
+  setMeasuring(false);
+  let perf = null;
+  try{ perf = probe ? probe.stop() : null; } catch(e){ perf = null; }
 
   // Les erreurs que le runtime shown lui-même. C'est SON canal : il y écrit les scripts qui ne
   // compilent pas et les assets manquants.
@@ -276,7 +293,7 @@ export async function playAndMeasure(opts){
 
   closeFrameDryRun();
   return {samples: samples, errors: errors, gameConsole: capturedSince(consoleSeq0), image: image, souciImage: souciImage,
-          imagesDemandees: images, loadSeconds: loadSeconds, pose: pose};
+          imagesDemandees: images, loadSeconds: loadSeconds, pose: pose, perf: perf};
 }
 
 // ---------- Les validateurs, rendus interrogeables ----------
@@ -415,6 +432,8 @@ CopilotTools.register({
     + 'toujours de son spawn, rien n\'est écrit dans le projet) — pour regarder un endroit précis.',
   schema: {type: 'object', properties: {
     images: {type: 'number', description: 'combien d\'images laisser tourner (défaut 120, soit ~2 s)'},
+    shadows: {type: 'boolean', description: 'false = couper les ombres le temps de la mesure (le projet '
+      + 'n\'est pas modifié), pour comparer la performance avec et sans'},
     samples: {type: 'number', description: 'nombre de relevés répartis sur la durée (défaut 3)'},
     width: {type: 'number', description: 'largeur de l\'image rendue (défaut 640)'},
     camera: {type: 'object', description: 'point de vue imposé à l\'image, le temps de la mesure seulement '
@@ -453,6 +472,7 @@ CopilotTools.register({
     });
     let text = 'jeu démarré en ' + r.loadSeconds + ' s, mesuré sur ~' + r.imagesDemandees + ' images.\n' + lines.join('\n');
     const lastSample = r.samples[r.samples.length - 1];
+    text += '\n' + formatFrameReport(r.perf) + ' — mesuré dans un cadre de la taille de la vue, la vue Scène en pause';
     if(lastSample && lastSample.shadows) text += '\nombres : ' + JSON.stringify(lastSample.shadows);
     if(r.pose) text += '\npoint de vue imposé (mesure seulement) : caméra ' + JSON.stringify(r.pose.position)
       + ' → ' + JSON.stringify(r.pose.target) + ' ; les scripts qui lisent la caméra la voient aussi.';

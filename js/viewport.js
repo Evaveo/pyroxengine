@@ -687,6 +687,9 @@ export function loop(){
   // même scène, mais son propre canevas et sa caméra principale. Elle recadre les ombres sur SA
   // caméra ; la vue Scène les recadre sur la sienne juste après — l'ordre est donc libre de
   // tout effet de bord d'une vue sur l'autre.
+  // PENDANT play_and_measure, l'éditeur ne rend rien : il partagerait le GPU avec le jeu mesuré
+  // (js/copilot-observer.js, js/frame-probe.js) et fausserait ses images par seconde.
+  if(globalThis.__measuringGame === true){ depthEnd('render'); return; }
   renderExtraViews({dt: dt}, System.isolate);
   // RALENTI AU REPOS (js/render-throttle.js) : au-delà de deux secondes sans activité ni
   // travail continu, la vue Scène n'est plus rendue que ~10 fois par seconde. Tout ce qui

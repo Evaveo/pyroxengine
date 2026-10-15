@@ -86,6 +86,8 @@ export function renderSetupFor(settings, dpr, isTouch){
     attach: function(r, resize, isPaused){
       renderer = r; onResize = resize; paused = isPaused;
       r.setPixelRatio(scaler.ratio);
+      // Lu par la sonde de play_and_measure (js/frame-probe.js), posée de l'extérieur sur la fenêtre du jeu.
+      globalThis.__gameRenderer = renderer;
     },
     // Appelé à chaque image avec le dt BRUT ; ne touche au renderer que quand le rapport change.
     tick: function(dt){

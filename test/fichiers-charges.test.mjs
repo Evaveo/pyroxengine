@@ -36,7 +36,9 @@ const HORS_PAGES = {
   'copilot-workshop.js': 'PAS de <script> propre, même raison que copilot-observer.js ci-dessus : '
     + 'ui-factory.js l\'importe déjà (`import { createSoundProc, createTextureProc } from '
     + '\'./copilot-workshop.js\'`). Mesuré de la même façon : create_texture s\'enregistrait deux '
-    + 'fois. Voir test/copilote-registre.test.mjs.'
+    + 'fois. Voir test/copilote-registre.test.mjs.',
+  'frame-probe.js': 'module pur importé par copilot-observer.js (sonde de performance de '
+    + 'play_and_measure), qui n\'a lui-même pas de <script> propre — voir ci-dessus.'
 };
 
 // Le moteur n'a plus une seule page mais plusieurs — l'éditeur, l'aide, l'aperçu de jeu.
