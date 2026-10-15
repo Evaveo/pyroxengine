@@ -2,14 +2,17 @@
 //
 // CAPTURES ET VIDÉO DE GAMEPLAY depuis « ▶ Jouer » — pour la fiche catalogue du cloud (couverture,
 // captures 16:9, vidéo de 10 à 30 s). Chargé par game-preview.html SEULEMENT : un jeu publié n'a ni
-// ces touches ni ce code. Aucune ligne dans la boucle de js/game-runtime.js : le module lit le
-// renderer exposé par js/render-scale.js (`__gameRenderer`) et se branche de l'extérieur.
+// ces touches ni ce code. Aucune ligne dans la boucle de js/game-runtime.js.
 //
 //   F8 : capture 1920×1080 (recadrée au centre en 16:9), WebP sous 2 Mo — la limite du catalogue.
-//   F9 : démarre / arrête l'enregistrement (WebM, plus MP4 quand le navigateur sait l'encoder),
+//   F9 : démarre / arrête l'enregistrement en WebM (le seul format retenu),
 //        arrêt automatique à 30 s, son du jeu compris.
 //
-// Seule la TOILE du jeu est enregistrée : l'interface HTML posée par-dessus (HUD, menus) n'y est pas.
+// CE QUE LE JOUEUR VOIT, interface comprise. Le HUD, les menus, les textes du jeu sont du HTML posé
+// sur la toile : enregistrer la toile seule les perdait (signalé le 2026-10-15). On capture donc
+// L'ONGLET par le navigateur (getDisplayMedia, onglet courant) : au premier F8/F9, le navigateur
+// demande l'autorisation, puis le flux sert à toutes les captures de la session — son de l'onglet
+// compris. Refusé ou indisponible : repli sur la toile seule, en le disant.
 
 export const CAPTURE_SIZE = [1920, 1080];
 export const CAPTURE_MAX_BYTES = 2 * 1024 * 1024;
@@ -33,39 +36,42 @@ export function captureFileName(title, kind, ext, date){
     + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.' + ext;
 }
 
-/** Les formats vidéo à enregistrer : WebM toujours (si possible), MP4 en plus quand il est pris en charge. */
+/** Le format vidéo : WebM seulement (choix du 2026-10-15), le meilleur codec disponible. */
 export function videoFormats(isSupported){
-  const pick = function(list){ return list.find(function(t){ return isSupported(t); }) || null; };
-  const out = [];
-  const webm = pick(['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']);
-  if(webm) out.push({mime: webm, ext: 'webm'});
-  const mp4 = pick(['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4']);
-  if(mp4) out.push({mime: mp4, ext: 'mp4'});
-  return out;
+  const webm = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    .find(function(t){ return isSupported(t); });
+  return webm ? [{mime: webm, ext: 'webm'}] : [];
 }
 
 // ---------- Ce qui suit touche le navigateur ----------
 
-// LE SON. On mémorise tout ce qui se branche sur la sortie d'un AudioContext, dès le chargement de
-// la page (avant que le jeu ne construise son graphe) : à l'enregistrement, ces nœuds sont aussi
-// branchés sur une destination de flux, et ce qui se branche pendant l'enregistrement aussi.
-const toDestination = new Map();   // AudioContext → Set des nœuds branchés sur sa sortie
-let recordingAudio = null;         // {ctx, dest} pendant un enregistrement
-function hookAudio(){
-  if(!globalThis.AudioNode || AudioNode.prototype.__captureHooked) return;
-  const connect = AudioNode.prototype.connect;
-  AudioNode.prototype.connect = function(target){
-    if(target && target === this.context.destination){
-      let set = toDestination.get(this.context);
-      if(!set){ set = new Set(); toDestination.set(this.context, set); }
-      set.add(this);
-      if(recordingAudio && recordingAudio.ctx === this.context){
-        try { connect.call(this, recordingAudio.dest); } catch(e){ /* nœud déjà parti */ }
-      }
-    }
-    return connect.apply(this, arguments);
-  };
-  AudioNode.prototype.__captureHooked = true;
+// Ce qui ne doit pas apparaître dans une capture : le badge de ce module et le bouton plein écran de
+// l'aperçu. Masqués le temps d'une capture et de tout un enregistrement ; l'état passe alors par le
+// titre de l'onglet, hors de l'image.
+const HIDE_CLASS = 'capture-hide-tools';
+function hideTools(on){
+  if(!document.getElementById('capture-tools-style')){
+    const st = document.createElement('style');
+    st.id = 'capture-tools-style';
+    st.textContent = 'body.' + HIDE_CLASS + ' #rj-full-screen, body.' + HIDE_CLASS + ' #capture-badge{display:none !important}';
+    document.head.appendChild(st);
+  }
+  document.body.classList.toggle(HIDE_CLASS, !!on);
+}
+
+let badge = null;
+function showCaptureBadge(text, ms){
+  if(!badge){
+    badge = document.createElement('div');
+    badge.id = 'capture-badge';
+    badge.style.cssText = 'position:fixed;right:10px;top:10px;z-index:99999;font:13px system-ui,sans-serif;'
+      + 'color:#fff;background:#000b;padding:5px 10px;border-radius:6px;pointer-events:none';
+    document.body.appendChild(badge);
+  }
+  badge.textContent = text;
+  badge.style.display = '';
+  clearTimeout(badge._t);
+  if(ms) badge._t = setTimeout(function(){ badge.style.display = 'none'; }, ms);
 }
 
 function download(blob, name){
@@ -77,94 +83,153 @@ function download(blob, name){
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
 
-let badge = null;
-function showCaptureBadge(text, ms){
-  if(!badge){
-    badge = document.createElement('div');
-    badge.style.cssText = 'position:fixed;right:10px;top:10px;z-index:99999;font:13px system-ui,sans-serif;'
-      + 'color:#fff;background:#000b;padding:5px 10px;border-radius:6px;pointer-events:none';
-    document.body.appendChild(badge);
-  }
-  badge.textContent = text;
-  badge.style.display = '';
-  clearTimeout(badge._t);
-  if(ms) badge._t = setTimeout(function(){ badge.style.display = 'none'; }, ms);
+function nextFrames(n){
+  return new Promise(function(resolve){
+    const step = function(){ if(--n <= 0) resolve(); else requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
 }
 
-// La toile WebGPU n'est lisible que juste après un rendu : on attend le prochain `render` et on copie
-// l'image dans la foulée.
-function afterNextRender(renderer, fn){
-  const render = renderer.render;
-  renderer.render = function(){
+// LE FLUX DE L'ONGLET, demandé au premier besoin puis gardé. null = refusé ou indisponible ; un
+// partage arrêté (bouton du navigateur) sera redemandé à la capture suivante.
+let tab = null;   // {stream, video}
+async function tabStream(){
+  if(tab && tab.stream.getVideoTracks().some(function(t){ return t.readyState === 'live'; })) return tab;
+  tab = null;
+  const md = globalThis.navigator && navigator.mediaDevices;
+  if(!md || !md.getDisplayMedia) return null;
+  try {
+    const stream = await md.getDisplayMedia({
+      video: {displaySurface: 'browser', frameRate: 60},
+      audio: true,
+      preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', systemAudio: 'include'
+    });
+    const video = document.createElement('video');
+    video.muted = true; video.playsInline = true; video.srcObject = stream;
+    await video.play();
+    tab = {stream: stream, video: video};
+    stream.getVideoTracks()[0].addEventListener('ended', function(){ tab = null; });
+    return tab;
+  } catch(e){ return null; }
+}
+
+let titleBeforeRec = null;
+function baseTitle(){ return titleBeforeRec !== null ? titleBeforeRec : document.title; }
+
+function encodeCapture(source, w, h){
+  const out = document.createElement('canvas');
+  out.width = CAPTURE_SIZE[0]; out.height = CAPTURE_SIZE[1];
+  const c = coverCrop(w, h, CAPTURE_SIZE[0], CAPTURE_SIZE[1]);
+  const g = out.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(source, c.x, c.y, c.w, c.h, 0, 0, out.width, out.height);
+  const tryQuality = function(q){
+    out.toBlob(function(blob){
+      if(!blob) return showCaptureBadge('Capture impossible : le navigateur n\'a rien produit', 4000);
+      if(blob.size > CAPTURE_MAX_BYTES && q > 0.5) return tryQuality(Math.round((q - 0.1) * 10) / 10);
+      download(blob, captureFileName(baseTitle(), 'capture', 'webp'));
+      showCaptureBadge('📷 Capture enregistrée (' + Math.round(blob.size / 1024) + ' Ko)', 2500);
+    }, 'image/webp', q);
+  };
+  tryQuality(0.92);
+}
+
+// REPLI : la toile seule, lisible juste après un rendu WebGPU.
+function canvasScreenshot(){
+  const r = globalThis.__gameRenderer;
+  if(!r) return showCaptureBadge('Le jeu n\'a pas encore démarré', 3000);
+  const render = r.render;
+  r.render = function(){
     const out = render.apply(this, arguments);
-    renderer.render = render;
-    try { fn(renderer.domElement); } catch(e){ showCaptureBadge('Capture impossible : ' + e.message, 4000); }
+    r.render = render;
+    try { encodeCapture(r.domElement, r.domElement.width, r.domElement.height); }
+    catch(e){ showCaptureBadge('Capture impossible : ' + e.message, 4000); }
     return out;
   };
 }
 
-function screenshot(){
-  const r = globalThis.__gameRenderer;
-  if(!r) return showCaptureBadge('Le jeu n\'a pas encore démarré', 3000);
-  afterNextRender(r, function(src){
-    const out = document.createElement('canvas');
-    out.width = CAPTURE_SIZE[0]; out.height = CAPTURE_SIZE[1];
-    const c = coverCrop(src.width, src.height, CAPTURE_SIZE[0], CAPTURE_SIZE[1]);
-    const g = out.getContext('2d');
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(src, c.x, c.y, c.w, c.h, 0, 0, out.width, out.height);
-    const tryQuality = function(q){
-      out.toBlob(function(blob){
-        if(!blob) return showCaptureBadge('Capture impossible : le navigateur n\'a rien produit', 4000);
-        if(blob.size > CAPTURE_MAX_BYTES && q > 0.5) return tryQuality(Math.round((q - 0.1) * 10) / 10);
-        download(blob, captureFileName(document.title, 'capture', 'webp'));
-        showCaptureBadge('📷 Capture enregistrée (' + Math.round(blob.size / 1024) + ' Ko)', 2500);
-      }, 'image/webp', q);
-    };
-    tryQuality(0.92);
-  });
+async function screenshot(){
+  const t = await tabStream();
+  if(!t){
+    showCaptureBadge('Partage d\'onglet refusé : capture de l\'image 3D seule, SANS l\'interface', 4000);
+    return canvasScreenshot();
+  }
+  hideTools(true);
+  await nextFrames(3);   // le flux a un léger retard : laisser passer les images où les outils étaient visibles
+  try { encodeCapture(t.video, t.video.videoWidth, t.video.videoHeight); }
+  catch(e){ showCaptureBadge('Capture impossible : ' + e.message, 4000); }
+  if(!recording) hideTools(false);
 }
 
-let recording = null;
-function toggleRecording(){
-  if(recording){ recording.stop(); return; }
+// Repli audio (toile seule) : ce qui se branche sur la sortie d'un AudioContext, mémorisé dès le
+// chargement de la page, ajouté au flux de la toile.
+const toDestination = new Map();
+function hookAudio(){
+  if(!globalThis.AudioNode || AudioNode.prototype.__captureHooked) return;
+  const connect = AudioNode.prototype.connect;
+  AudioNode.prototype.connect = function(target){
+    if(target && target === this.context.destination){
+      let set = toDestination.get(this.context);
+      if(!set){ set = new Set(); toDestination.set(this.context, set); }
+      set.add(this);
+    }
+    return connect.apply(this, arguments);
+  };
+  AudioNode.prototype.__captureHooked = true;
+}
+function canvasStreamWithAudio(){
   const r = globalThis.__gameRenderer;
-  if(!r) return showCaptureBadge('Le jeu n\'a pas encore démarré', 3000);
-  if(!globalThis.MediaRecorder) return showCaptureBadge('Ce navigateur ne sait pas enregistrer de vidéo', 4000);
-  const formats = videoFormats(function(t){ return MediaRecorder.isTypeSupported(t); });
-  if(!formats.length) return showCaptureBadge('Aucun format vidéo disponible dans ce navigateur', 4000);
+  if(!r) return null;
   const stream = r.domElement.captureStream(60);
-  // Le son : l'AudioContext qui a le plus de nœuds branchés sur sa sortie (celui du jeu).
   let best = null, n = -1;
   toDestination.forEach(function(set, ctx){ if(set.size > n){ n = set.size; best = ctx; } });
   if(best && best.createMediaStreamDestination){
     const dest = best.createMediaStreamDestination();
     toDestination.get(best).forEach(function(node){ try { node.connect(dest); } catch(e){ /* nœud parti */ } });
-    recordingAudio = {ctx: best, dest: dest};
-    dest.stream.getAudioTracks().forEach(function(t){ stream.addTrack(t); });
+    dest.stream.getAudioTracks().forEach(function(tr){ stream.addTrack(tr); });
   }
-  const recs = formats.map(function(f){
-    const chunks = [];
-    const mr = new MediaRecorder(stream, {mimeType: f.mime, videoBitsPerSecond: 8000000});
-    mr.ondataavailable = function(e){ if(e.data && e.data.size) chunks.push(e.data); };
-    mr.onstop = function(){ download(new Blob(chunks, {type: f.mime.split(';')[0]}), captureFileName(document.title, 'gameplay', f.ext)); };
-    mr.start(1000);
-    return mr;
-  });
+  return stream;
+}
+
+let recording = null;
+async function toggleRecording(){
+  if(recording){ recording.stop(); return; }
+  if(!globalThis.MediaRecorder) return showCaptureBadge('Ce navigateur ne sait pas enregistrer de vidéo', 4000);
+  const format = videoFormats(function(t){ return MediaRecorder.isTypeSupported(t); })[0];
+  if(!format) return showCaptureBadge('Ce navigateur ne sait pas enregistrer en WebM', 4000);
+  const t = await tabStream();
+  let stream;
+  if(t) stream = t.stream;
+  else {
+    stream = canvasStreamWithAudio();
+    if(!stream) return showCaptureBadge('Le jeu n\'a pas encore démarré', 3000);
+    showCaptureBadge('Partage d\'onglet refusé : vidéo de l\'image 3D seule, SANS l\'interface', 4000);
+  }
+  if(t){ hideTools(true); await nextFrames(3); }
+  titleBeforeRec = document.title;
+  const chunks = [];
+  const mr = new MediaRecorder(stream, {mimeType: format.mime, videoBitsPerSecond: 10000000});
+  mr.ondataavailable = function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+  const name = captureFileName(titleBeforeRec, 'gameplay', format.ext);
+  mr.onstop = function(){ download(new Blob(chunks, {type: 'video/webm'}), name); };
+  mr.start(1000);
   const t0 = performance.now();
+  // L'état s'affiche dans le TITRE de l'onglet : un badge dans la page serait dans la vidéo.
   const timer = setInterval(function(){
     const s = Math.floor((performance.now() - t0) / 1000);
-    showCaptureBadge('● REC ' + s + ' s / ' + VIDEO_MAX_SECONDS + ' — F9 pour arrêter');
-    if(s >= VIDEO_MAX_SECONDS) recording.stop();
+    document.title = '● REC ' + s + ' s / ' + VIDEO_MAX_SECONDS + ' — ' + titleBeforeRec;
+    if(!t) showCaptureBadge('● REC ' + s + ' s / ' + VIDEO_MAX_SECONDS + ' — F9 pour arrêter');
+    if(s >= VIDEO_MAX_SECONDS && recording) recording.stop();
   }, 250);
   recording = {stop: function(){
     clearInterval(timer);
-    recs.forEach(function(mr){ if(mr.state !== 'inactive') mr.stop(); });
-    recordingAudio = null;
+    if(mr.state !== 'inactive') mr.stop();
     recording = null;
-    showCaptureBadge('🎬 Vidéo enregistrée (' + formats.map(function(f){ return f.ext.toUpperCase(); }).join(' + ') + ')', 3000);
+    document.title = titleBeforeRec;
+    titleBeforeRec = null;
+    hideTools(false);
+    showCaptureBadge('🎬 Vidéo enregistrée (WebM)', 3000);
   }};
-  showCaptureBadge('● REC 0 s / ' + VIDEO_MAX_SECONDS + ' — F9 pour arrêter');
 }
 
 if(globalThis.window && globalThis.document){

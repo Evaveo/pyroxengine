@@ -16,9 +16,10 @@ test('nom de fichier sans accent ni caractère interdit', () => {
   assert.equal(captureFileName('', 'gameplay', 'webm', d), 'jeu-gameplay-20261015-090507.webm');
 });
 
-test('formats vidéo : WebM, plus MP4 si le navigateur sait', () => {
+test('format vidéo : WebM seulement', () => {
   assert.deepEqual(videoFormats((t) => t.startsWith('video/webm')).map((f) => f.ext), ['webm']);
-  assert.deepEqual(videoFormats(() => true).map((f) => f.ext), ['webm', 'mp4']);
+  assert.deepEqual(videoFormats(() => true).map((f) => f.ext), ['webm']);
+  assert.deepEqual(videoFormats((t) => t.startsWith('video/mp4')), []);
   assert.deepEqual(videoFormats(() => false), []);
 });
 
@@ -27,4 +28,12 @@ test('chargé par « Jouer » seulement, avant le runtime, jamais par un build',
   assert.ok(page.indexOf('js/capture-tools.js') !== -1 && page.indexOf('js/capture-tools.js') < page.indexOf('js/game-runtime.js'));
   const build = readFileSync(new URL('../js/build.js', import.meta.url), 'utf8');
   assert.equal(build.indexOf('capture-tools'), -1);
+});
+
+test('capture de l onglet (interface comprise), outils masqués pendant la capture', () => {
+  const src = readFileSync(new URL('../js/capture-tools.js', import.meta.url), 'utf8');
+  assert.ok(src.includes("getDisplayMedia("));
+  assert.match(src, /preferCurrentTab: true/);
+  assert.match(src, /#rj-full-screen/);
+  assert.ok(!src.includes("video/mp4"));
 });
