@@ -71,9 +71,13 @@ test('grappe : aucun chevauchement, la rangée du bas se remplit d abord', () =>
         n + ' boutons : ' + i + ' et ' + j + ' se chevauchent');
     }
   }
-  const g = ctx.clusterLayout(8, 66);
-  assert.ok(Math.abs(g[1].y - g[0].y) < 2 && g[1].x > g[0].x, 'le 2ᵉ bouton (B) est à côté du principal, sur sa ligne');
-  assert.ok(g[2].y < g[5].y, 'les premiers sont plus bas que les derniers');
+  // v1.20.1 : les quatre suivants à ÉGALE distance du principal, répartis de sa gauche à au-dessus.
+  const g = ctx.clusterLayout(6, 62);
+  const d = (k) => Math.hypot(g[k].x - g[0].x, g[k].y - g[0].y);
+  [2, 3, 4].forEach((k) => assert.ok(Math.abs(d(k) - d(1)) < 2, 'arc régulier'));
+  assert.ok(Math.abs(g[1].y - g[0].y) < 2 && g[1].x > g[0].x, 'le 1er de l arc est à côté du principal, sur sa ligne');
+  assert.ok(Math.abs(g[4].x - g[0].x) < 2 && g[4].y > g[0].y, 'le 4ᵉ est au-dessus du principal');
+  assert.ok(Math.abs(g[5].y - g[0].y) < 2 && d(5) > d(1), 'seul sur l arc extérieur : en bas, plus loin');
 });
 
 test('position de la grappe réglable (pour la décoller d un HUD)', () => {

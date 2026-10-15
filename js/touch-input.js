@@ -292,42 +292,36 @@ function safe(px, edge){
 }
 
 /**
- * LA GRAPPE DE BOUTONS : le premier est le bouton principal (×1,35, dans le coin), les suivants en
- * arc autour de lui, en partant du BAS (0° = à côté de lui, sur sa ligne, vers le centre de l'écran)
- * jusqu'au-dessus (90°) : les premiers de la liste sont les plus bas, les plus faciles à atteindre.
- * L'écart entre deux voisins est CALCULÉ pour qu'ils ne se touchent jamais (corde ≥ taille + marge) ;
- * ce qui ne tient pas sur le premier arc passe sur un second, plus large. (v1.20.0 : avant, cinq
- * boutons étaient tassés sur un même quart de cercle et se chevauchaient.)
+ * LA GRAPPE DE BOUTONS, disposée comme sur un jeu mobile : le premier est le bouton principal
+ * (×1,35, dans le coin) ; les quatre suivants sont RÉPARTIS régulièrement sur un arc autour de lui,
+ * de sa gauche (0°, sur sa ligne) jusqu'au-dessus (90°), comme les compétences autour de l'attaque ;
+ * les suivants sur un second arc, répartis de même. Le rayon de chaque arc grandit juste assez pour
+ * que deux voisins ne se touchent pas. (v1.20.1 : la v1.20.0 tassait les boutons depuis le bas et
+ * étirait une longue rangée sur l'écran de jeu.)
  * Rend des centres {x (depuis le bord de son côté), y (depuis le bas), size}, en px.
  */
 export const CLUSTER_GAP = 14;
+export const CLUSTER_RING = 4;
 export function clusterLayout(n, size){
   const out = [];
   if(n <= 0) return out;
   const main = Math.round(size * 1.35);
   const cx = main / 2, cy = main / 2;
   out.push({x: cx, y: cy, size: main});
-  let left = n - 1, radius = main / 2 + size / 2 + CLUSTER_GAP;
+  let left = n - 1, minRadius = main / 2 + size / 2 + CLUSTER_GAP;
   while(left > 0){
-    // pas angulaire minimal pour que deux boutons voisins ne se chevauchent pas
-    const step = 2 * Math.asin(Math.min(1, (size + CLUSTER_GAP) / (2 * radius)));
-    const fit = Math.max(1, Math.floor((Math.PI / 2) / step + 1e-6) + 1);
-    const count = Math.min(left, fit);
+    const count = Math.min(left, CLUSTER_RING);
+    const span = count === 1 ? 0 : (Math.PI / 2) / (count - 1);
+    // rayon minimal pour que deux voisins espacés de `span` ne se chevauchent pas
+    const radius = count === 1 ? minRadius : Math.max(minRadius, (size + CLUSTER_GAP) / (2 * Math.sin(span / 2)));
     for(let i = 0; i < count; i++){
-      const a = i * step;
+      const a = count === 1 ? 0 : i * span;   // seul sur son arc : en bas, sur la ligne du principal
       out.push({x: Math.round(cx + Math.cos(a) * radius), y: Math.round(cy + Math.sin(a) * radius), size: size});
     }
     left -= count;
-    radius += size + CLUSTER_GAP;
+    minRadius = radius + size + CLUSTER_GAP;
   }
-  // Les places sont rendues de BAS EN HAUT, puis de la plus proche à la plus lointaine : le 2ᵉ bouton
-  // de la liste est toujours à côté du principal, sur sa ligne (B), les suivants le long du bas.
-  const main0 = out[0];
-  const rest = out.slice(1).sort(function(p, q){
-    const dy = Math.round((p.y - q.y) / 12);
-    return dy || (Math.hypot(p.x - main0.x, p.y - main0.y) - Math.hypot(q.x - main0.x, q.y - main0.y));
-  });
-  return [main0].concat(rest);
+  return out;
 }
 
 function buildOverlay(host, cfg, ctx){
