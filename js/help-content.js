@@ -213,6 +213,7 @@ export const COMMANDS_HELP = [
   {name:'write_animation', quoi:'Crée ou réécrit un CLIP d\'animation à clés (position, rotation, échelle, courbes), éditable ensuite dans la timeline.'},
   {name:'write_script_asset', quoi:'Écrit un asset script SANS l\'attacher : une bibliothèque partagée (lue par api.lib) ou un script à poser plus tard. Même contrôle que attach_script.'},
   {name:'configure_fog_of_war', quoi:'Pose ou règle le BROUILLARD DE GUERRE (grille, équipe du joueur, alliés, couleurs) sur un objet, et la VISION (rayon, équipe, mémoire) des unités, bâtiments et ressources.'},
+  {name:'configure_touch_controls', quoi:'Pose ou règle les COMMANDES TACTILES d’un objet (téléphone, tablette) : joystick (côté, taille, écart au bord, directions pressées) et boutons branchés sur les actions de la table d’entrées — bouton principal et grappe autour, boutons de menu en haut.'},
   {name:'configure_team_color', quoi:'Pose ou règle la COULEUR D\'ÉQUIPE d\'un objet : ses maillages dont le matériau porte le nom donné (Team par défaut) sont teints pour lui seul. Un seul modèle sert ainsi à tous les joueurs.'},
   {name:'read_asset', quoi:'Relit le contenu sérialisé de n\'importe quel asset (matériau, table, animation, bruitage, UI, prefab…) pour le retoucher au lieu de le refaire.'},
   {name:'summarize_scene', quoi:'Résumé compact du projet. À préférer à list_scene pour se repérer, qui rend tout sans rien apprendre.'},

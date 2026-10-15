@@ -1684,6 +1684,65 @@ CopilotTools.register({
   }
 });
 
+// ---------- configure_touch_controls ----------
+// Le composant TouchControls (joystick, boutons, glisser) n'avait AUCUN outil : un agent ne pouvait
+// ni le poser ni brancher les boutons sur les actions du jeu (Donjon, 2026-10-15 : compétences
+// branchées sur rien, menu sur B). Les champs absents gardent leur valeur ; `buttons` remplace la liste.
+CopilotTools.register({
+  name: 'configure_touch_controls',
+  description: 'Pose (ou règle) le composant TouchControls d\'un objet — les commandes tactiles du jeu '
+    + 'sur téléphone et tablette. `joystick` : {enabled, side left|right, size, inset (écart au bord, px), '
+    + 'lift (hauteur, px), deadZone, axisX, axisY, fourWay, actions:{up,down,left,right}} — `actions` = '
+    + 'actions de la table d\'entrées pressées par le stick (jeu à grille, menus). `buttons` : liste '
+    + '[{label, action, side left|right|top}] qui REMPLACE l\'existante ; en disposition `layout: "cluster"` '
+    + '(défaut), le PREMIER bouton d\'un côté est le bouton principal, les suivants en arc autour ; '
+    + 'side "top" = petite barre de menu en haut à droite. `action` = nom dans la table d\'entrées '
+    + '(configure_inputs). Une scène sans composant reçoit des commandes DÉDUITES de la table d\'entrées.',
+  schema: {type: 'object', properties: {
+    name: {type: 'string', description: 'objet porteur (un objet d\'interface de la scène, par ex.)'},
+    showOnDesktop: {type: 'boolean'}, opacity: {type: 'number'}, buttonSize: {type: 'number'},
+    layout: {type: 'string', enum: ['cluster', 'column']},
+    joystick: {type: 'object'},
+    swipe: {type: 'object'},
+    buttons: {type: 'array', items: {type: 'object', properties: {
+      label: {type: 'string'}, action: {type: 'string'}, side: {type: 'string', enum: ['left', 'right', 'top']}
+    }, required: ['action']}}
+  }, required: ['name'], additionalProperties: false},
+  exec: function(a){
+    const o = objects.find(function(x){ return x.name === a.name; });
+    if(!o) throw new Error('objet « ' + a.name + ' » introuvable (utilise list_scene)');
+    pushHistory();
+    let c = o.getComponent('TouchControls');
+    if(!c) c = o.addComponent('TouchControls', {});
+    const cur = c.data || {};
+    const next = Object.assign({}, cur);
+    ['showOnDesktop', 'opacity', 'buttonSize', 'layout'].forEach(function(k){ if(a[k] !== undefined) next[k] = a[k]; });
+    if(a.joystick){
+      next.joystick = Object.assign({}, cur.joystick || {}, a.joystick,
+        {actions: Object.assign({}, (cur.joystick || {}).actions || {}, a.joystick.actions || {})});
+    }
+    if(a.swipe) next.swipe = Object.assign({}, cur.swipe || {}, a.swipe);
+    if(Array.isArray(a.buttons)){
+      next.buttons = a.buttons.map(function(b, i){
+        return {id: 'button' + (i + 1), label: b.label || b.action, action: b.action, side: b.side || 'right'};
+      });
+    }
+    c.hydrate(next);
+    buildInspector();
+    // Une action absente de la table d'entrées ne fera rien en jeu : le dire.
+    const known = (project.inputs && project.inputs.actions) || {};
+    const wanted = c.data.buttons.map(function(b){ return b.action; })
+      .concat(Object.values(c.data.joystick.actions || {}).filter(Boolean));
+    const missing = wanted.filter(function(x, i){ return !known[x] && wanted.indexOf(x) === i; });
+    const d = c.data;
+    return 'commandes tactiles de « ' + a.name + ' » : joystick ' + (d.joystick.enabled ? d.joystick.side
+      + ' (' + d.joystick.size + ' px, à ' + d.joystick.inset + ' px du bord)' : 'désactivé') + ' · '
+      + d.buttons.length + ' bouton(s) [' + d.buttons.map(function(b){ return b.label + '→' + b.action + '(' + b.side + ')'; }).join(', ')
+      + '] · disposition ' + d.layout
+      + (missing.length ? ' · ⚠ action(s) absente(s) de la table d\'entrées : ' + missing.join(', ') + ' (configure_inputs)' : '');
+  }
+});
+
 // ---------- write_script_asset ----------
 // Une BIBLIOTHÈQUE (api.lib, js/script-library.js) n'est attachée à aucun objet : attach_script ne
 // pouvait donc pas la créer. Même contrôle de contenu que les scripts attachés.

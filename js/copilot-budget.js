@@ -61,7 +61,7 @@ export const TOOL_DOMAINS = {
     tools: ['configure_audio', 'create_sound', 'play_sound', 'import_audio', 'configure_audio_mix', 'create_sfx', 'edit_sfx',
       'mutate_sfx', 'create_music_loop', 'edit_music_loop', 'read_sound_asset']},
   ui: {label: 'documents d\'interface, feuilles de style, entrées',
-    tools: ['configure_ui_document', 'write_ui_document', 'write_ui_stylesheet', 'configure_inputs']},
+    tools: ['configure_ui_document', 'write_ui_document', 'write_ui_stylesheet', 'configure_inputs', 'configure_touch_controls']},
   render: {label: 'matériaux PBR, lumières, environnement, post-traitement, sondes, lightmaps, caméra, textures, capture',
     tools: ['describe_material', 'configure_material_pbr', 'configure_environment', 'configure_post_volume',
       'configure_reflection_probe', 'bake_reflection_probes', 'bake_lightmaps', 'clear_lightmaps', 'configure_camera',
