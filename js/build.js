@@ -440,6 +440,72 @@ export function networkConfigForBuild(){
  * PARTAGÉ par l'export .zip et par « Publier en ligne » : deux assemblages finiraient par publier
  * autre chose que ce qu'on exporte. Rend null si les sources de l'éditeur sont illisibles.
  */
+// ---------- Les assets en FICHIERS SÉPARÉS (v1.17.0) ----------
+//
+// Jusqu'ici chaque fichier d'asset voyageait DANS data.js, en data URL base64 : un tiers plus lourd,
+// tout téléchargé avant la première image, et le texte gardé en mémoire toute la partie à côté de la
+// forme décodée (deux copies en régime établi, trois au chargement — risque de crash sous la limite
+// mémoire d'un onglet iPhone). Chaque fichier sort maintenant dans `assets/<empreinte>.<ext>`, et
+// data.js ne garde que ce chemin. Le runtime n'a rien à changer : `b64InBlob` faisait déjà un `fetch`
+// sur l'adresse, qu'elle soit une data URL (aperçu « Jouer ») ou un chemin (build).
+//
+// Le nom est l'EMPREINTE DU CONTENU : deux assets identiques donnent un seul fichier, et un fichier
+// ne change jamais de contenu sous un même nom — le serveur peut le mettre en cache pour toujours.
+// L'extension ne sert qu'au type servi : elle passe par une liste fermée (un nom d'asset choisi par
+// l'utilisateur ne doit pas faire servir du HTML depuis l'origine du jeu).
+const ASSET_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'ktx2', 'glb', 'gltf', 'bin', 'fbx', 'obj',
+  'mp3', 'ogg', 'wav', 'm4a', 'woff', 'woff2', 'ttf', 'otf', 'hdr', 'exr', 'json', 'txt'];
+export const BUILD_ASSET_DIR = 'assets/';
+
+export function assetExtension(name){
+  const m = /\.([A-Za-z0-9]{1,5})$/.exec(String(name || ''));
+  const ext = m ? m[1].toLowerCase() : '';
+  return ASSET_EXTENSIONS.indexOf(ext) !== -1 ? ext : 'bin';
+}
+
+/** Empreinte hexadécimale (SHA-256 tronqué) d'octets — ou FNV-1a sans WebCrypto (tests, http). */
+export async function contentHash(bytes){
+  const subtle = globalThis.crypto && globalThis.crypto.subtle;
+  if(subtle){
+    const d = new Uint8Array(await subtle.digest('SHA-256', bytes));
+    return Array.from(d.slice(0, 10), function(b){ return b.toString(16).padStart(2, '0'); }).join('');
+  }
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for(let i = 0; i < bytes.length; i++){ h1 = Math.imul(h1 ^ bytes[i], 16777619) >>> 0; h2 = Math.imul(h2 ^ bytes[i], 2246822519) >>> 0; }
+  return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0');
+}
+
+function dataUrlBytes(url){
+  const i = url.indexOf(',');
+  const bin = atob(url.slice(i + 1));
+  const out = new Uint8Array(bin.length);
+  for(let k = 0; k < bin.length; k++) out[k] = bin.charCodeAt(k);
+  return out;
+}
+
+/**
+ * Sort de `data` tout fichier `{name, b64: 'data:…;base64,…'}`, où qu'il soit (assets, polices,
+ * plugins…), et le remplace par son chemin dans le build. Rend `{ 'assets/<empreinte>.<ext>': octets }`.
+ * MODIFIE `data` : à appeler APRÈS tout ce qui lit le contenu base64 (décodeurs, allègement).
+ */
+export async function externalizeAssets(data){
+  const out = {};
+  const seen = new WeakSet();
+  const visit = async function(node){
+    if(!node || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    if(typeof node.b64 === 'string' && /^data:[^,]*;base64,/.test(node.b64)){
+      const bytes = dataUrlBytes(node.b64);
+      const path = BUILD_ASSET_DIR + (await contentHash(bytes)) + '.' + assetExtension(node.name);
+      out[path] = bytes;
+      node.b64 = path;
+    }
+    for(const k of Object.keys(node)) await visit(node[k]);
+  };
+  await visit(data);
+  return out;
+}
+
 export async function assembleBuild(){
   // vendor/three-addons.min.js : GLTFLoader, FBXLoader et TransformControls recompiles contre le
   // THREE du pont ESM (une seule instance de three.js — vendor/RECETTE-addons.md).
@@ -489,6 +555,8 @@ export async function assembleBuild(){
   // fichier qu'on ne publiera pas ne coûte rien (l'éditeur les lit en local), et la page publiée
   // et le ZIP doivent être filtrés par le MÊME `trimming` pour rester d'accord.
   const trimming = trimmingBuild(data);
+  // APRÈS les décodeurs et l'allègement, qui lisent le contenu base64 : les fichiers sortent de data.js.
+  const assetFiles = await externalizeAssets(data);
 
   // La table du ZIP se DÉDUIT de `BUILD_MODULES`, par construction : plus aucune correspondance
   // nom↔index à écrire ni à vérifier à la main.
@@ -496,6 +564,7 @@ export async function assembleBuild(){
     'index.html': fflate.strToU8(pageIndexBuild(project.name || 'Jeu', bundlesDecoders, trimming)),
     'data.js':    fflate.strToU8('window.GAME_DATA = ' + JSON.stringify(data) + ';\n')
   };
+  Object.keys(assetFiles).forEach(function(k){ files[k] = assetFiles[k]; });
   BUILD_MODULES.forEach(function(m, i){ files[outputBuildModule(m)] = fflate.strToU8(textes[i]); });
   // les décodeurs gardent leur chemin vendor/… : c'est celui qu'écrit pageIndexBuild
   bundlesDecoders.forEach(function(b, i){
@@ -534,8 +603,8 @@ export async function exportBuildWeb(){
   const zip = fflate.zipSync(build.files, {level:6});
   const blob = new Blob([zip], {type:'application/zip'});
   telecharger(blob, slugFile(project.name) + '-build.zip');
-  setStatus('🎮 Build Web exporté (' + Math.round(blob.size/1024) + ' Ko) — dézippez et ouvrez '
-    + 'index.html' + trimmingNote(build), 9000);
+  setStatus('🎮 Build Web exporté (' + Math.round(blob.size/1024) + ' Ko) — à héberger tel quel (itch.io, hébergeur statique) ou servir en local par HTTP (pas en double-clic)'
+    + trimmingNote(build), 9000);
 }
 
 /**
