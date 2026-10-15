@@ -30,3 +30,32 @@ test('glisser sous l interface, joystick et boutons au-dessus', () => {
   ctx.clearTouchControls();
   assert.equal(Array.from(host.children).filter((k) => /touch-controls/.test(k.className || '')).length, 0, 'les deux couches partent');
 });
+
+// v1.18.0 — disposition demandée sur Donjon : bouton principal dans le coin, les autres en arc
+// autour ; joystick rapproché du centre ; boutons de menu en haut, jamais sur la grappe.
+test('grappe : principal plus gros dans le coin, les autres autour, vers le centre et le haut', () => {
+  const ctx = creerContexte(['js/touch-input.js']);
+  const g = ctx.clusterLayout(5, 72);
+  assert.equal(g.length, 5);
+  assert.ok(g[0].size > 72, 'le principal est plus gros');
+  const main = g[0];
+  g.slice(1).forEach((b) => {
+    const d = Math.hypot(b.x - main.x, b.y - main.y);
+    assert.ok(d > main.size / 2 + b.size / 2, 'pas de chevauchement avec le principal');
+    assert.ok(b.x >= main.x - 1 && b.y >= main.y - 10, 'du côté du centre et vers le haut');
+  });
+  assert.equal(ctx.clusterLayout(9, 72).length, 9, 'au-delà de cinq, un second anneau');
+});
+
+test('joystick décollé du bord, menu déduit en haut et pas sur B', () => {
+  const ctx = creerContexte(['js/touch-input.js']);
+  const n = ctx.normalizeTouchControls({});
+  assert.ok(n.joystick.inset >= 60 && n.joystick.lift >= 40, 'plus loin du bord que les 24 px d avant');
+  assert.equal(n.layout, 'cluster');
+  assert.equal(ctx.normalizeTouchControls({buttons: [{action: 'menu', side: 'top'}]}).buttons[0].side, 'top');
+  const auto = ctx.autoTouchConfig({actions: {haut: ['ArrowUp'], attaque: [' ', 'pad:0'], annuler: ['Escape', 'pad:1'],
+    menu: ['Tab', 'pad:8']}, axes: {}});
+  const menu = auto.buttons.find((b) => b.action === 'menu');
+  assert.equal(menu.side, 'top');
+  assert.equal(auto.buttons.find((b) => b.label === 'B').action, 'annuler');
+});

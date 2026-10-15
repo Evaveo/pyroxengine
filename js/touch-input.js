@@ -15,13 +15,19 @@
 export const TOUCH_CONTROLS_DEFAULT = {
   showOnDesktop: false,   // faux : n'apparaît que sur un écran tactile
   opacity: 0.85,
-  joystick: {enabled: true, side: 'left', size: 150, deadZone: 0.15,
+  // inset / lift : distance du joystick au bord de son côté et au bas de l'écran (px). 24 px collaient
+  // le pouce au bord (« ça fait mal aux doigts », 2026-10-15) : il est rapproché du centre.
+  joystick: {enabled: true, side: 'left', size: 150, deadZone: 0.15, inset: 72, lift: 56,
              axisX: 'horizontal', axisY: 'vertical', invertY: false,
              // Les ACTIONS pressées par le stick, pour un jeu qui lit des directions et non des
              // axes (`api.actionPressed('haut')` — grille, menus). Vide : rien n'est pressé.
              actions: {up: '', down: '', left: '', right: ''}, fourWay: true},
   buttonSize: 84,
   swipe: {enabled: false, axis: 'horizontal', sensitivity: 1.5},
+  // 'cluster' : le PREMIER bouton d'un côté est le bouton principal (plus gros, dans le coin), les
+  // suivants en arc autour de lui, comme une manette de jeu mobile. 'column' : l'ancienne pile.
+  layout: 'cluster',
+  // side : 'right' | 'left' (pouce) ou 'top' (petits boutons de menu, en haut à droite).
   buttons: []             // [{id, label, action, side: 'right'}]
 };
 
@@ -32,6 +38,7 @@ function num(v, def, min, max){
 }
 function str(v, def){ return (typeof v === 'string') ? v : def; }
 function side(v, def){ return (v === 'left' || v === 'right') ? v : def; }
+function buttonSide(v, def){ return (v === 'left' || v === 'right' || v === 'top') ? v : def; }
 
 export function normalizeTouchControls(data){
   const s = data || {};
@@ -49,8 +56,11 @@ export function normalizeTouchControls(data){
       axisY: str(j.axisY, D.joystick.axisY),
       invertY: !!j.invertY,
       actions: {up: str(ja.up, ''), down: str(ja.down, ''), left: str(ja.left, ''), right: str(ja.right, '')},
-      fourWay: j.fourWay === undefined ? true : !!j.fourWay
+      fourWay: j.fourWay === undefined ? true : !!j.fourWay,
+      inset: num(j.inset, D.joystick.inset, 0, 600),
+      lift: num(j.lift, D.joystick.lift, 0, 600)
     },
+    layout: (s.layout === 'column') ? 'column' : 'cluster',
     buttonSize: num(s.buttonSize, D.buttonSize, 40, 160),
     swipe: {
       enabled: !!w.enabled,
@@ -61,7 +71,7 @@ export function normalizeTouchControls(data){
       const x = b || {};
       const action = str(x.action, '');
       return {id: str(x.id, '') || ('button' + (i + 1)), label: str(x.label, action || 'Bouton'),
-              action: action, side: side(x.side, 'right')};
+              action: action, side: buttonSide(x.side, 'right')};
     })
   };
 }
@@ -220,7 +230,7 @@ export function autoTouchConfig(inputs){
   // Une action qui sert déjà de direction n'est pas un bouton (« advance » porte pad:12 ET ArrowUp).
   const used = new Set([dirs.up, dirs.down, dirs.left, dirs.right]);
   const buttons = [];
-  [['A', 'pad:0', ' '], ['B', 'pad:1', 'Escape'], ['X', 'pad:2', 'Enter'], ['Y', 'pad:3', ''], ['Menu', 'pad:9', '']]
+  [['A', 'pad:0', ' '], ['B', 'pad:1', 'Escape'], ['X', 'pad:2', 'Enter'], ['Y', 'pad:3', '']]
     .forEach(function(b){
       if(buttons.length >= 4) return;
       let a = bound(b[1]);
@@ -229,6 +239,13 @@ export function autoTouchConfig(inputs){
       used.add(a);
       buttons.push({id: 'auto' + (buttons.length + 1), label: b[0], action: a, side: 'right'});
     });
+  // LE MENU va en haut (Start, puis Select, puis Tab), JAMAIS sur la grappe du pouce : il était le
+  // 5ᵉ candidat de la grappe, et y tombait sur B dans un jeu où B annule (Donjon, 2026-10-15).
+  const menuAction = ['pad:9', 'pad:8', 'Tab'].map(bound).find(function(a){ return a && !used.has(a); });
+  if(menuAction){
+    used.add(menuAction);
+    buttons.push({id: 'auto-menu', label: 'Menu', action: menuAction, side: 'top'});
+  }
   if(!hasAxes && !hasDirs && !buttons.length) return null;
   return normalizeTouchControls({
     opacity: 0.8, buttonSize: 72,
@@ -263,6 +280,35 @@ function firstKeyOf(ctx, action){
   const inputs = (typeof ctx.inputs === 'function') ? ctx.inputs() : ctx.inputs;
   const t = inputs && inputs.actions ? inputs.actions[action] : null;
   return (t && t.length) ? t[0] : null;
+}
+
+// Une distance au bord, décalée de la zone sûre (encoche, barre d'accueil) quand l'appareil en a une.
+function safe(px, edge){
+  return 'calc(' + Math.round(px) + 'px + env(safe-area-inset-' + edge + ', 0px))';
+}
+
+/**
+ * LA GRAPPE DE BOUTONS : le premier est le bouton principal (×1,35, dans le coin), les suivants en
+ * arc autour de lui, du côté du centre de l'écran vers le haut (0° = vers le centre, 90° = au-dessus).
+ * Rend des centres {x (depuis le bord de son côté), y (depuis le bas), size}, en px. Au-delà de cinq
+ * boutons secondaires, un second anneau.
+ */
+export function clusterLayout(n, size){
+  const out = [];
+  if(n <= 0) return out;
+  const main = Math.round(size * 1.35);
+  const cx = main / 2, cy = main / 2;
+  out.push({x: cx, y: cy, size: main});
+  const rest = n - 1, ring1 = Math.min(rest, 5);
+  const place = function(count, radius){
+    for(let i = 0; i < count; i++){
+      const a = (count === 1 ? 45 : i * 90 / (count - 1)) * Math.PI / 180;
+      out.push({x: Math.round(cx + Math.cos(a) * radius), y: Math.round(cy + Math.sin(a) * radius), size: size});
+    }
+  };
+  place(ring1, main / 2 + size / 2 + 14);
+  if(rest > 5) place(rest - 5, main / 2 + size * 1.5 + 28);
+  return out;
 }
 
 function buildOverlay(host, cfg, ctx){
@@ -317,10 +363,10 @@ function buildOverlay(host, cfg, ctx){
 
   if(cfg.joystick.enabled){
     const j = cfg.joystick, size = j.size;
-    const base = el('div', 'touch-joystick', {position: 'absolute', bottom: '24px', width: size + 'px',
+    const base = el('div', 'touch-joystick', {position: 'absolute', bottom: safe(j.lift, 'bottom'), width: size + 'px',
       height: size + 'px', borderRadius: '50%', background: 'rgba(255,255,255,.14)',
       border: '2px solid rgba(255,255,255,.45)', pointerEvents: 'auto', touchAction: 'none'});
-    base.style[j.side] = '24px';
+    base.style[j.side] = safe(j.inset, j.side);
     const knob = el('div', 'touch-joystick-knob', {position: 'absolute', left: '50%', top: '50%',
       width: (size * 0.42) + 'px', height: (size * 0.42) + 'px',
       margin: (-size * 0.21) + 'px 0 0 ' + (-size * 0.21) + 'px',
@@ -367,24 +413,51 @@ function buildOverlay(host, cfg, ctx){
     listen(base, 'pointercancel', end);
   }
 
-  const columns = {left: null, right: null};
-  cfg.buttons.forEach(function(b){
-    if(!columns[b.side]){
-      const col = el('div', 'touch-buttons', {position: 'absolute', bottom: '32px', display: 'flex',
-        flexDirection: 'column', flexWrap: 'wrap', gap: '12px', pointerEvents: 'none',
-        maxHeight: 'calc(100% - 48px)', alignContent: 'flex-end'});
-      col.style[b.side] = '28px';
-      if(cfg.joystick.enabled && cfg.joystick.side === b.side) col.style.bottom = (cfg.joystick.size + 48) + 'px';
-      top.appendChild(col);
-      columns[b.side] = col;
+  // Les boutons : 'top' = barre de menu en haut ; sinon grappe autour du bouton principal
+  // (clusterLayout) ou ancienne colonne (layout 'column').
+  const bySide = {left: [], right: [], top: []};
+  cfg.buttons.forEach(function(b){ bySide[b.side].push(b); });
+  const placed = new Map();   // bouton → {style}
+  ['left', 'right'].forEach(function(sd){
+    const list = bySide[sd];
+    if(!list.length) return;
+    const jsSame = cfg.joystick.enabled && cfg.joystick.side === sd;
+    const baseY = jsSame ? cfg.joystick.lift + cfg.joystick.size + 24 : 48;
+    if(cfg.layout === 'column'){
+      list.forEach(function(b, i){
+        placed.set(b, {size: cfg.buttonSize, x: 40 + cfg.buttonSize / 2, y: baseY + cfg.buttonSize / 2 + i * (cfg.buttonSize + 12)});
+      });
+      return;
     }
-    const btn = el('button', 'touch-button', {pointerEvents: 'auto', touchAction: 'none', minWidth: cfg.buttonSize + 'px',
-      minHeight: cfg.buttonSize + 'px', borderRadius: '50%', border: '2px solid rgba(255,255,255,.6)',
-      background: 'rgba(20,30,60,.55)', color: '#fff', font: '600 16px system-ui,sans-serif'});
+    clusterLayout(list.length, cfg.buttonSize).forEach(function(p, i){
+      placed.set(list[i], {size: p.size, x: 40 + p.x, y: baseY + p.y, primary: i === 0});
+    });
+  });
+  let menuBar = null;
+  if(bySide.top.length){
+    menuBar = el('div', 'touch-menu-bar', {position: 'absolute', top: safe(12, 'top'), right: safe(12, 'right'),
+      display: 'flex', gap: '10px', pointerEvents: 'none'});
+    top.appendChild(menuBar);
+  }
+  cfg.buttons.forEach(function(b){
+    const isMenu = b.side === 'top';
+    const p = placed.get(b);
+    const sz = isMenu ? Math.round(cfg.buttonSize * 0.6) : p.size;
+    const btn = el('button', isMenu ? 'touch-button touch-menu' : (p.primary ? 'touch-button touch-primary' : 'touch-button'), {
+      pointerEvents: 'auto', touchAction: 'none', boxSizing: 'border-box',
+      width: isMenu ? 'auto' : sz + 'px', height: sz + 'px', minWidth: sz + 'px', padding: isMenu ? '0 14px' : '0',
+      borderRadius: isMenu ? '14px' : '50%', border: '2px solid rgba(255,255,255,' + (p && p.primary ? '.85' : '.6') + ')',
+      background: (p && p.primary) ? 'rgba(200,60,60,.6)' : 'rgba(20,30,60,.55)', color: '#fff',
+      font: '600 ' + Math.round(Math.max(13, sz * (isMenu ? 0.3 : 0.24))) + 'px system-ui,sans-serif'});
+    if(!isMenu){
+      btn.style.position = 'absolute';
+      btn.style[b.side] = safe(p.x - sz / 2, b.side);
+      btn.style.bottom = safe(p.y - sz / 2, 'bottom');
+    }
     btn.type = 'button';
     btn.dataset.action = b.action;
     btn.textContent = b.label;
-    columns[b.side].appendChild(btn);
+    (isMenu ? menuBar : top).appendChild(btn);
     let key = null;
     listen(btn, 'pointerdown', function(e){
       e.preventDefault(); e.stopPropagation();

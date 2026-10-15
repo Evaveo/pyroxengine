@@ -2712,6 +2712,14 @@ declareComponentPanel('TouchControls', {
       { ids: ['f-touch-joy-size'], label: 'Taille (px)', type: 'number', step: 10, min: 60, max: 400,
         get: function(c){ return c.data.joystick.size; },
         set: function(c, v){ c.data.joystick.size = Math.max(60, Math.min(400, Number(v) || 150)); } },
+      { ids: ['f-touch-joy-inset'], label: 'Écart du bord (px)', type: 'number', step: 4, min: 0, max: 600,
+        help: 'Distance au bord de son côté : plus grand = plus près du centre, plus confortable pour le pouce',
+        get: function(c){ return c.data.joystick.inset !== undefined ? c.data.joystick.inset : 72; },
+        set: function(c, v){ c.data.joystick.inset = Math.max(0, Math.min(600, Number(v) || 0)); } },
+      { ids: ['f-touch-joy-lift'], label: 'Hauteur (px)', type: 'number', step: 4, min: 0, max: 600,
+        help: 'Distance au bas de l\'écran',
+        get: function(c){ return c.data.joystick.lift !== undefined ? c.data.joystick.lift : 56; },
+        set: function(c, v){ c.data.joystick.lift = Math.max(0, Math.min(600, Number(v) || 0)); } },
       { ids: ['f-touch-joy-dead'], label: 'Zone morte', type: 'number', step: 0.05, min: 0, max: 0.9,
         get: function(c){ return c.data.joystick.deadZone; },
         set: function(c, v){ c.data.joystick.deadZone = Math.max(0, Math.min(0.9, Number(v) || 0)); } },
@@ -2734,6 +2742,11 @@ declareComponentPanel('TouchControls', {
         set: function(c, v){ c.data.swipe.sensitivity = Math.max(0.1, Math.min(10, Number(v) || 1)); } }
     ]},
     { id: 'touch-buttons', title: 'Boutons', fields: [
+      { ids: ['f-touch-layout'], label: 'Disposition', type: 'choice',
+        options: [['cluster', 'Grappe (1ᵉʳ bouton principal, les autres autour)'], ['column', 'Colonne']],
+        help: 'En grappe, le premier bouton de chaque côté est le bouton principal, plus gros, dans le coin',
+        get: function(c){ return c.data.layout === 'column' ? 'column' : 'cluster'; },
+        set: function(c, v){ c.data.layout = v; } },
       { type: 'list', id: 'f-touch-buttons', label: 'Boutons', addLabel: '＋ Ajouter un bouton',
         items: function(c){ return c.data.buttons; },
         fields: function(b, i){
@@ -2742,7 +2755,7 @@ declareComponentPanel('TouchControls', {
             { key: 'action', ids: ['f-touch-b-' + i + '-action'], label: 'Action', type: 'text',
               placeholder: 'nom dans la table d\'entrées' },
             { key: 'side', ids: ['f-touch-b-' + i + '-side'], label: 'Côté', type: 'choice',
-              options: [['left', 'gauche'], ['right', 'droite']] }
+              options: [['left', 'gauche'], ['right', 'droite'], ['top', 'en haut (menu)']] }
           ];
         },
         onAdd: function(c){
