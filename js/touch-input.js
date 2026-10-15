@@ -27,6 +27,7 @@ export const TOUCH_CONTROLS_DEFAULT = {
   // 'cluster' : le PREMIER bouton d'un côté est le bouton principal (plus gros, dans le coin), les
   // suivants en arc autour de lui, comme une manette de jeu mobile. 'column' : l'ancienne pile.
   layout: 'cluster',
+  buttonsInset: 40, buttonsLift: 48,
   // side : 'right' | 'left' (pouce) ou 'top' (petits boutons de menu, en haut à droite).
   buttons: []             // [{id, label, action, side: 'right'}]
 };
@@ -61,6 +62,9 @@ export function normalizeTouchControls(data){
       lift: num(j.lift, D.joystick.lift, 0, 600)
     },
     layout: (s.layout === 'column') ? 'column' : 'cluster',
+    // Position de la grappe : écart au bord de son côté et hauteur (px) — pour la décoller d'un HUD.
+    buttonsInset: num(s.buttonsInset, D.buttonsInset, 0, 600),
+    buttonsLift: num(s.buttonsLift, D.buttonsLift, 0, 600),
     buttonSize: num(s.buttonSize, D.buttonSize, 40, 160),
     swipe: {
       enabled: !!w.enabled,
@@ -289,26 +293,41 @@ function safe(px, edge){
 
 /**
  * LA GRAPPE DE BOUTONS : le premier est le bouton principal (×1,35, dans le coin), les suivants en
- * arc autour de lui, du côté du centre de l'écran vers le haut (0° = vers le centre, 90° = au-dessus).
- * Rend des centres {x (depuis le bord de son côté), y (depuis le bas), size}, en px. Au-delà de cinq
- * boutons secondaires, un second anneau.
+ * arc autour de lui, en partant du BAS (0° = à côté de lui, sur sa ligne, vers le centre de l'écran)
+ * jusqu'au-dessus (90°) : les premiers de la liste sont les plus bas, les plus faciles à atteindre.
+ * L'écart entre deux voisins est CALCULÉ pour qu'ils ne se touchent jamais (corde ≥ taille + marge) ;
+ * ce qui ne tient pas sur le premier arc passe sur un second, plus large. (v1.20.0 : avant, cinq
+ * boutons étaient tassés sur un même quart de cercle et se chevauchaient.)
+ * Rend des centres {x (depuis le bord de son côté), y (depuis le bas), size}, en px.
  */
+export const CLUSTER_GAP = 14;
 export function clusterLayout(n, size){
   const out = [];
   if(n <= 0) return out;
   const main = Math.round(size * 1.35);
   const cx = main / 2, cy = main / 2;
   out.push({x: cx, y: cy, size: main});
-  const rest = n - 1, ring1 = Math.min(rest, 5);
-  const place = function(count, radius){
+  let left = n - 1, radius = main / 2 + size / 2 + CLUSTER_GAP;
+  while(left > 0){
+    // pas angulaire minimal pour que deux boutons voisins ne se chevauchent pas
+    const step = 2 * Math.asin(Math.min(1, (size + CLUSTER_GAP) / (2 * radius)));
+    const fit = Math.max(1, Math.floor((Math.PI / 2) / step + 1e-6) + 1);
+    const count = Math.min(left, fit);
     for(let i = 0; i < count; i++){
-      const a = (count === 1 ? 45 : i * 90 / (count - 1)) * Math.PI / 180;
+      const a = i * step;
       out.push({x: Math.round(cx + Math.cos(a) * radius), y: Math.round(cy + Math.sin(a) * radius), size: size});
     }
-  };
-  place(ring1, main / 2 + size / 2 + 14);
-  if(rest > 5) place(rest - 5, main / 2 + size * 1.5 + 28);
-  return out;
+    left -= count;
+    radius += size + CLUSTER_GAP;
+  }
+  // Les places sont rendues de BAS EN HAUT, puis de la plus proche à la plus lointaine : le 2ᵉ bouton
+  // de la liste est toujours à côté du principal, sur sa ligne (B), les suivants le long du bas.
+  const main0 = out[0];
+  const rest = out.slice(1).sort(function(p, q){
+    const dy = Math.round((p.y - q.y) / 12);
+    return dy || (Math.hypot(p.x - main0.x, p.y - main0.y) - Math.hypot(q.x - main0.x, q.y - main0.y));
+  });
+  return [main0].concat(rest);
 }
 
 function buildOverlay(host, cfg, ctx){
@@ -422,15 +441,15 @@ function buildOverlay(host, cfg, ctx){
     const list = bySide[sd];
     if(!list.length) return;
     const jsSame = cfg.joystick.enabled && cfg.joystick.side === sd;
-    const baseY = jsSame ? cfg.joystick.lift + cfg.joystick.size + 24 : 48;
+    const baseY = jsSame ? cfg.joystick.lift + cfg.joystick.size + 24 : cfg.buttonsLift;
     if(cfg.layout === 'column'){
       list.forEach(function(b, i){
-        placed.set(b, {size: cfg.buttonSize, x: 40 + cfg.buttonSize / 2, y: baseY + cfg.buttonSize / 2 + i * (cfg.buttonSize + 12)});
+        placed.set(b, {size: cfg.buttonSize, x: cfg.buttonsInset + cfg.buttonSize / 2, y: baseY + cfg.buttonSize / 2 + i * (cfg.buttonSize + 12)});
       });
       return;
     }
     clusterLayout(list.length, cfg.buttonSize).forEach(function(p, i){
-      placed.set(list[i], {size: p.size, x: 40 + p.x, y: baseY + p.y, primary: i === 0});
+      placed.set(list[i], {size: p.size, x: cfg.buttonsInset + p.x, y: baseY + p.y, primary: i === 0});
     });
   });
   let menuBar = null;

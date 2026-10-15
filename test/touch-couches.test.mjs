@@ -59,3 +59,26 @@ test('joystick décollé du bord, menu déduit en haut et pas sur B', () => {
   assert.equal(menu.side, 'top');
   assert.equal(auto.buttons.find((b) => b.label === 'B').action, 'annuler');
 });
+
+// v1.20.0 — capture Donjon : boutons 1-4 superposés, B pas en bas. L'écart est calculé, et les
+// premiers boutons de la liste prennent la rangée du bas, à côté du principal.
+test('grappe : aucun chevauchement, la rangée du bas se remplit d abord', () => {
+  const ctx = creerContexte(['js/touch-input.js']);
+  for(const n of [2, 4, 6, 8, 10]){
+    const g = ctx.clusterLayout(n, 66);
+    for(let i = 0; i < g.length; i++) for(let j = i + 1; j < g.length; j++){
+      assert.ok(Math.hypot(g[i].x - g[j].x, g[i].y - g[j].y) >= (g[i].size + g[j].size) / 2 + 4,
+        n + ' boutons : ' + i + ' et ' + j + ' se chevauchent');
+    }
+  }
+  const g = ctx.clusterLayout(8, 66);
+  assert.ok(Math.abs(g[1].y - g[0].y) < 2 && g[1].x > g[0].x, 'le 2ᵉ bouton (B) est à côté du principal, sur sa ligne');
+  assert.ok(g[2].y < g[5].y, 'les premiers sont plus bas que les derniers');
+});
+
+test('position de la grappe réglable (pour la décoller d un HUD)', () => {
+  const ctx = creerContexte(['js/touch-input.js']);
+  const n = ctx.normalizeTouchControls({buttonsInset: 120, buttonsLift: 200});
+  assert.equal(n.buttonsInset, 120);
+  assert.equal(n.buttonsLift, 200);
+});

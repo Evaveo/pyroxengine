@@ -1702,6 +1702,8 @@ CopilotTools.register({
     name: {type: 'string', description: 'objet porteur (un objet d\'interface de la scène, par ex.)'},
     showOnDesktop: {type: 'boolean'}, opacity: {type: 'number'}, buttonSize: {type: 'number'},
     layout: {type: 'string', enum: ['cluster', 'column']},
+    buttonsInset: {type: 'number', description: 'écart de la grappe au bord de son côté (px)'},
+    buttonsLift: {type: 'number', description: 'hauteur de la grappe au-dessus du bas de l’écran (px), pour la décoller d’un HUD'},
     joystick: {type: 'object'},
     swipe: {type: 'object'},
     buttons: {type: 'array', items: {type: 'object', properties: {
@@ -1716,7 +1718,7 @@ CopilotTools.register({
     if(!c) c = o.addComponent('TouchControls', {});
     const cur = c.data || {};
     const next = Object.assign({}, cur);
-    ['showOnDesktop', 'opacity', 'buttonSize', 'layout'].forEach(function(k){ if(a[k] !== undefined) next[k] = a[k]; });
+    ['showOnDesktop', 'opacity', 'buttonSize', 'layout', 'buttonsInset', 'buttonsLift'].forEach(function(k){ if(a[k] !== undefined) next[k] = a[k]; });
     if(a.joystick){
       next.joystick = Object.assign({}, cur.joystick || {}, a.joystick,
         {actions: Object.assign({}, (cur.joystick || {}).actions || {}, a.joystick.actions || {})});

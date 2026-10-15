@@ -2747,6 +2747,13 @@ declareComponentPanel('TouchControls', {
         help: 'En grappe, le premier bouton de chaque côté est le bouton principal, plus gros, dans le coin',
         get: function(c){ return c.data.layout === 'column' ? 'column' : 'cluster'; },
         set: function(c, v){ c.data.layout = v; } },
+      { ids: ['f-touch-btn-inset'], label: 'Écart du bord (px)', type: 'number', step: 4, min: 0, max: 600,
+        get: function(c){ return c.data.buttonsInset !== undefined ? c.data.buttonsInset : 40; },
+        set: function(c, v){ c.data.buttonsInset = Math.max(0, Math.min(600, Number(v) || 0)); } },
+      { ids: ['f-touch-btn-lift'], label: 'Hauteur (px)', type: 'number', step: 4, min: 0, max: 600,
+        help: 'Pour décoller les boutons d’un HUD posé en bas de l’écran',
+        get: function(c){ return c.data.buttonsLift !== undefined ? c.data.buttonsLift : 48; },
+        set: function(c, v){ c.data.buttonsLift = Math.max(0, Math.min(600, Number(v) || 0)); } },
       { type: 'list', id: 'f-touch-buttons', label: 'Boutons', addLabel: '＋ Ajouter un bouton',
         items: function(c){ return c.data.buttons; },
         fields: function(b, i){

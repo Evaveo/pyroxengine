@@ -157,12 +157,14 @@ test('p2p : canal jamais ouvert -> repli sur le relais après l\'échéance', as
   const w0 = console.warn; console.warn = (m) => warns.push(String(m));
   try{
     const A = await load(), B = await load();
-    B.NETWORK.p2pTimeoutMs = 30;
+    // 300 ms et non 30 : sous charge (tests moteur puis cloud au déploiement), 30 ms s'écoulaient avant
+    // la première vérification et le test échouait par intermittence (refus de déploiement du 2026-10-15).
+    B.NETWORK.p2pTimeoutMs = 300;
     await A.networkJoin('http://localhost:8080', 'room2');
     await B.networkJoin('http://localhost:8080', 'room2');
     await tick();
     assert.equal(B.networkTransport(), 'relay', 'en attente : le relais porte les messages');
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => setTimeout(r, 500));
     assert.equal(B.networkTransport(), 'p2p-fallback');
     assert.equal(warns.filter((m) => /relais/.test(m)).length, 1, 'un seul avertissement');
     const recus = [];
