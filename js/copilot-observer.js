@@ -187,8 +187,11 @@ export async function playAndMeasure(opts){
   const frame = document.createElement('iframe');
   // Une taille RÉELLE, et pas 1 × 1 : le cadrage d'une caméra 2D se calcule depuis la taille de la
   // toile, donc un cadre minuscule mesurerait un rapport pixel qui n'existe nulle part.
-  frame.width = Math.max(320, Math.round(viewEl.clientWidth));
-  frame.height = Math.max(240, Math.round(viewEl.clientHeight));
+  // `canvas: [l, h]` mesure à une autre taille que la vue (le plein écran du joueur, par exemple) :
+  // le coût GPU suit le nombre de pixels.
+  const size = Array.isArray(o.canvas) && o.canvas.length === 2 ? o.canvas.map(Number) : null;
+  frame.width = Math.max(320, Math.min(3840, Math.round(size ? size[0] : viewEl.clientWidth)));
+  frame.height = Math.max(240, Math.min(2160, Math.round(size ? size[1] : viewEl.clientHeight)));
   // DANS la fenêtre, presque transparent et sous tout le reste : un cadre hors écran (left:-10000px)
   // voit son requestAnimationFrame bridé par le navigateur, et le jeu n'avance pas.
   frame.style.cssText = 'position:fixed;left:0;top:0;border:0;opacity:0.01;pointer-events:none;z-index:-1';
@@ -251,7 +254,7 @@ export async function playAndMeasure(opts){
     const r = gameWindow().__gameRenderer;
     if(r) probe = installFrameProbe(gameWindow(), r, {shadows: o.shadows});
   } catch(e){ probe = null; }
-  setMeasuring(true);
+  setMeasuring(o.pauseEditor !== false);
   const readTime = function(){ try{ return Number(gameWindow().__stateGame().time) || 0; } catch(e){ return null; } };
   const tStart = readTime() || 0;
   const wallStart = Date.now();
@@ -293,7 +296,7 @@ export async function playAndMeasure(opts){
 
   closeFrameDryRun();
   return {samples: samples, errors: errors, gameConsole: capturedSince(consoleSeq0), image: image, souciImage: souciImage,
-          imagesDemandees: images, loadSeconds: loadSeconds, pose: pose, perf: perf};
+          imagesDemandees: images, loadSeconds: loadSeconds, pose: pose, perf: perf, pauseEditor: o.pauseEditor};
 }
 
 // ---------- Les validateurs, rendus interrogeables ----------
@@ -432,6 +435,10 @@ CopilotTools.register({
     + 'toujours de son spawn, rien n\'est écrit dans le projet) — pour regarder un endroit précis.',
   schema: {type: 'object', properties: {
     images: {type: 'number', description: 'combien d\'images laisser tourner (défaut 120, soit ~2 s)'},
+    canvas: {type: 'array', items: {type: 'number'}, description: 'taille de la toile du jeu [largeur, hauteur] '
+      + 'en pixels CSS (défaut : la taille de la vue) — pour mesurer au plein écran du joueur'},
+    pauseEditor: {type: 'boolean', description: 'false = l\'éditeur continue de rendre pendant la mesure, '
+      + 'comme quand le jeu tourne dans une fenêtre à côté de lui (défaut : en pause)'},
     shadows: {type: 'boolean', description: 'false = couper les ombres le temps de la mesure (le projet '
       + 'n\'est pas modifié), pour comparer la performance avec et sans'},
     samples: {type: 'number', description: 'nombre de relevés répartis sur la durée (défaut 3)'},
@@ -472,7 +479,7 @@ CopilotTools.register({
     });
     let text = 'jeu démarré en ' + r.loadSeconds + ' s, mesuré sur ~' + r.imagesDemandees + ' images.\n' + lines.join('\n');
     const lastSample = r.samples[r.samples.length - 1];
-    text += '\n' + formatFrameReport(r.perf) + ' — mesuré dans un cadre de la taille de la vue, la vue Scène en pause';
+    text += '\n' + formatFrameReport(r.perf) + (r.pauseEditor === false ? ' — l\'éditeur rendait en même temps' : ' — vue Scène de l\'éditeur en pause');
     if(lastSample && lastSample.shadows) text += '\nombres : ' + JSON.stringify(lastSample.shadows);
     if(r.pose) text += '\npoint de vue imposé (mesure seulement) : caméra ' + JSON.stringify(r.pose.position)
       + ' → ' + JSON.stringify(r.pose.target) + ' ; les scripts qui lisent la caméra la voient aussi.';
