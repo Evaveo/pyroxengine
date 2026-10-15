@@ -152,13 +152,14 @@ function isTouchDevice(){
 }
 
 // ---------- DOM ----------
-const MOUNT = {host: null, root: null, signature: '', cleanups: []};
+const MOUNT = {host: null, root: null, top: null, signature: '', cleanups: []};
 
 function unmount(){
   MOUNT.cleanups.forEach(function(fn){ try{ fn(); } catch(e){} });
   MOUNT.cleanups = [];
   if(MOUNT.root && MOUNT.root.parentNode) MOUNT.root.parentNode.removeChild(MOUNT.root);
-  MOUNT.root = null; MOUNT.host = null; MOUNT.signature = '';
+  if(MOUNT.top && MOUNT.top.parentNode) MOUNT.top.parentNode.removeChild(MOUNT.top);
+  MOUNT.root = null; MOUNT.top = null; MOUNT.host = null; MOUNT.signature = '';
   touchState.axes = {};
 }
 
@@ -274,6 +275,15 @@ function buildOverlay(host, cfg, ctx){
     zIndex: '-1', opacity: String(cfg.opacity), touchAction: 'none', userSelect: 'none'});
   MOUNT.root = root;
   host.insertBefore(root, host.firstChild);
+  // LE JOYSTICK ET LES BOUTONS, EUX, AU-DESSUS (v1.17.1). Posés dans la couche du dessous, ils
+  // disparaissaient derrière toute interface à fond plein écran — le menu de Donjon
+  // (`.menu-fond { inset: 0; background: … }`) les cachait dès l'écran titre, sur tous les écrans.
+  // Ils n'occupent que leurs coins : au-dessus, ils ne prennent les clics de l'interface que là où
+  // ils sont dessinés (pointer-events: none partout ailleurs), comme dans Unity.
+  const top = el('div', 'touch-controls-top', {position: 'absolute', inset: '0', pointerEvents: 'none',
+    zIndex: '1000', opacity: String(cfg.opacity), touchAction: 'none', userSelect: 'none'});
+  MOUNT.top = top;
+  host.appendChild(top);
 
   function listen(target, type, fn){
     target.addEventListener(type, fn, {passive: false});
@@ -316,7 +326,7 @@ function buildOverlay(host, cfg, ctx){
       margin: (-size * 0.21) + 'px 0 0 ' + (-size * 0.21) + 'px',
       borderRadius: '50%', background: 'rgba(255,255,255,.75)'});
     base.appendChild(knob);
-    root.appendChild(base);
+    top.appendChild(base);
     let id = null;
     const radius = size / 2;
     function apply(e){
@@ -365,7 +375,7 @@ function buildOverlay(host, cfg, ctx){
         maxHeight: 'calc(100% - 48px)', alignContent: 'flex-end'});
       col.style[b.side] = '28px';
       if(cfg.joystick.enabled && cfg.joystick.side === b.side) col.style.bottom = (cfg.joystick.size + 48) + 'px';
-      root.appendChild(col);
+      top.appendChild(col);
       columns[b.side] = col;
     }
     const btn = el('button', 'touch-button', {pointerEvents: 'auto', touchAction: 'none', minWidth: cfg.buttonSize + 'px',
