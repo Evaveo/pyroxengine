@@ -60,20 +60,23 @@ test('§ 5.9 — ouvrir un projet ne reconstruit pas le panneau Projet une fois 
 });
 
 test('§ 5.11 — seule la partie vivante des particules part au GPU, rien quand c est vide', () => {
-  const src = read('js/particles.js');
+  // Depuis la v1.21.0, l'envoi est dans le système PARTAGÉ éditeur/jeu (js/particle-system.js).
+  const src = read('js/particle-system.js');
   const bac = {};
   bac.globalThis = bac;
   const ctx = vm.createContext(bac);
-  const debut = src.indexOf('export function markParticlesUploaded');
+  const attrs = src.slice(src.indexOf('const PS_ATTRS'), src.indexOf('\n', src.indexOf('const PS_ATTRS')));
+  const debut = src.indexOf('function psUploadSys');
   const fin = src.indexOf('\n}', debut) + 2;
-  vm.runInContext(deEsm(src.slice(debut, fin)), ctx);
-  const mark = vm.runInContext('markParticlesUploaded', ctx);
+  vm.runInContext(attrs + '\n' + src.slice(debut, fin), ctx);
+  const mark = vm.runInContext('psUploadSys', ctx);
   const attr = () => ({itemSize: 3, needsUpdate: false, plages: [],
     clearUpdateRanges(){ this.plages = []; }, addUpdateRange(s, c){ this.plages.push([s, c]); }});
-  const sys = {nb: 0, geo: {attributes: {aPos: attr(), aSize: attr(), aOpacity: attr(), aColor: attr()}}};
+  const sys = {state: {nb: 0}, geo: {attributes: {aPos: attr(), aSize: attr(), aColor: attr(), aRot: attr(),
+    aFrame: attr(), aVel: attr()}}};
   mark(sys);
   assert.equal(sys.geo.attributes.aPos.needsUpdate, false, 'système vide depuis toujours : rien à envoyer');
-  sys.nb = 10;
+  sys.state.nb = 10;
   mark(sys);
   assert.equal(sys.geo.attributes.aPos.needsUpdate, true);
   assert.deepEqual(sys.geo.attributes.aPos.plages, [[0, 30]]);

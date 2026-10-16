@@ -4,6 +4,7 @@ import { anim, btnPlayback, closeClipAsset, keySel, setKeySel, tracksOfScene, up
 import { adoptAssetId, analyzeModel, applyTextureRaw, assetId, assets, createAssetAnimation, createAssetModel, createAssetTexture, folderCurrent, newClipId, nextAssetId, previewObject3D, reserveAssetId, setFolderCurrent, syncClipAssetsOfModel, updateProject } from './assets.js';
 import { createAssetAudio, createAssetLoop, createAssetSfx } from './audio.js';
 import { ed, ensureGame } from './component-data.js';
+import { normalizeParticleSystem, particlesFileContent, remapPartBagRefs, remapSystemRefs } from './particle-asset.js';
 import { applyComponents, bagsOverriddenBy, nodeOfComponents, syncComponents } from './component-migration.js';
 import { faceCameraToPlane } from './components/component-camera.js';
 import { rebuildTilemap } from './components/component-tilemap.js';
@@ -534,6 +535,9 @@ export async function assetsSerialized(){
     } else if(a.kind === 'postProfile'){
       dAssets.push({id:a.id, kind:'postProfile', name:a.name, folder:a.folder || '',
         effects:JSON.parse(JSON.stringify(a.effects))});
+    } else if(a.kind === 'particles'){
+      dAssets.push({id:a.id, kind:'particles', name:a.name, folder:a.folder || '',
+        system:normalizeParticleSystem(a.system)});
     } else if(a.kind === 'audio' && a.file){
       dAssets.push({id:a.id, kind:'audio', name:a.name, folder:a.folder || '',
         paramsImport:a.paramsImport || null,
@@ -569,7 +573,8 @@ export async function assetsSerialized(){
         palette:serializePalette(a.palette || emptyPalette(0.5))});
     } else if(a.kind === 'graphShader'){
       dAssets.push({id:a.id, kind:'graphShader', name:a.name, folder:a.folder || '',
-        target:a.target, properties:JSON.parse(JSON.stringify(a.properties || [])),
+        target:a.target, surface:a.surface || undefined, twoSided:a.twoSided || undefined,
+        properties:JSON.parse(JSON.stringify(a.properties || [])),
         nodes:JSON.parse(JSON.stringify(a.nodes)),
         links:JSON.parse(JSON.stringify(a.links)), outputs:Object.assign({}, a.outputs),
         layout:a.layout ? Object.assign({}, a.layout) : {}});
@@ -715,6 +720,13 @@ export function diskAssetManifest(){
       filesAWrite.push({filePath: 'assets/' + (folder ? folder + '/' : '') + fileName,
         content:JSON.stringify(a.effects, null, 2)});
       dAssets.push({id:a.id, kind:'postProfile', name:a.name, folder:folder, file:fileName});
+    } else if(a.kind === 'particles'){
+      // Un vrai fichier `.particles.json` : la recette de l'effet, lisible et diffable dans git.
+      const folder = a.folder || '';
+      const fileName = nameFileUnique(folder, slugFile(a.name), '.particles.json');
+      filesAWrite.push({filePath: 'assets/' + (folder ? folder + '/' : '') + fileName,
+        content:JSON.stringify(particlesFileContent(a.system), null, 2)});
+      dAssets.push({id:a.id, kind:'particles', name:a.name, folder:folder, file:fileName});
     } else if(a.kind === 'sfx'){
       // Un vrai fichier `.sfx.json` : la recette, lisible, diffable dans git et éditable à la main.
       const folder = a.folder || '';
@@ -762,7 +774,8 @@ export function diskAssetManifest(){
       const folder = a.folder || '';
       const fileName = nameFileUnique(folder, slugFile(a.name), '.graph-shader.json');
       filesAWrite.push({filePath: 'assets/' + (folder ? folder + '/' : '') + fileName,
-        content: JSON.stringify({target:a.target, properties:a.properties || [],
+        content: JSON.stringify({target:a.target, surface:a.surface || undefined,
+          twoSided:a.twoSided || undefined, properties:a.properties || [],
           nodes:a.nodes, links:a.links, outputs:a.outputs, layout:a.layout || {}}, null, 2)});
       dAssets.push({id:a.id, kind:'graphShader', name:a.name, folder:folder, file:fileName});
     } else if(a.kind === 'tilePalette'){
@@ -2068,6 +2081,12 @@ export async function rebuildAssetsFromDescriptors(das, resolveFile){
     assets.push(a);
     assetsById[da.id] = adopt(a, da);
   }
+  for(const da of das.filter(x => x.kind === 'particles')){
+    const a = {id:'a'+(nextAssetId()), kind:'particles', name:da.name || 'Particules',
+               folder:da.folder || '', system:normalizeParticleSystem(da.system)};
+    assets.push(a);
+    assetsById[da.id] = adopt(a, da);
+  }
   for(const da of das.filter(x => x.kind === 'postProfile')){
     const a = {id:'a'+(nextAssetId()), kind:'postProfile', name:da.name || 'Profil',
                folder:da.folder || '', effects:ensurePostProfileDefaults(da.effects)};
@@ -2183,6 +2202,7 @@ export async function rebuildAssetsFromDescriptors(das, resolveFile){
   for(const da of das.filter(x => x.kind === 'graphShader')){
     const a = {id:'a'+(nextAssetId()), kind:'graphShader', name:da.name || 'Graphe de shader',
       folder:da.folder || '', target:da.target || 'lit', properties:da.properties || [],
+      surface:da.surface || undefined, twoSided:!!da.twoSided || undefined,
       nodes:da.nodes || [], links:da.links || [], outputs:da.outputs || {}, layout:da.layout || {}};
     assets.push(a);
     assetsById[da.id] = adopt(a, da);
@@ -2266,6 +2286,8 @@ export async function rebuildAssetsFromDescriptors(das, resolveFile){
     if(a.kind === 'sprite' && a.textureId){
       a.textureId = remapRef(a.textureId);
     }
+    // Un système de particules cite sa texture et ses sous-émetteurs : même piège, même remède.
+    if(a.kind === 'particles' && a.system) remapSystemRefs(a.system, remapRef);
     // Et la quatrième : une tuile aims son sprite. Même piège, même remède — la palette est
     // un asset, aucune scène ne la traverse.
     if(a.kind === 'tilePalette' && a.palette){
@@ -2307,6 +2329,8 @@ const REFS_ASSET_COMPONENT = {
   SpriteAnimator:     'spriteId',
   AudioSource:        'asset',
   ScriptJS:           'scriptId'
+  // Particles : PAS ici — son sac cite plusieurs assets (le système, sa texture, ses
+  // sous-émetteurs) ; il passe en entier par remapPartBagRefs, plus bas.
 };
 
 // ---------- LE RAPPORT DES RÉFÉRENCES MORTES ----------
@@ -2343,6 +2367,7 @@ export const KIND_EXPECTED_BY_FIELD = {
   textureId:     'texture',
   paletteId:     'tilePalette',
   profileId:     'postProfile',
+  particlesId:   'particles',
   prefabId:      'prefab',
   shaderId:      'graphShader'
 };
@@ -2417,6 +2442,10 @@ export function remapReferencesAssetsInScenes(scenes, assetsById){
       if(o.audio && o.audio.asset){
         o.audio.asset = assetsById[o.audio.asset] ? assetsById[o.audio.asset].id : null;
       }
+      // Le sac d'un émetteur : son asset `particles`, et ce que cite son système intégré ou ses
+      // surcharges (texture, sous-émetteurs). Le composant porte le même sac (voir plus bas).
+      const remapParticles = function(id){ return assetsById[id] ? assetsById[id].id : null; };
+      if(o.part) remapPartBagRefs(o.part, remapParticles);
       // Animations empruntées : ce sont des références d'asset comme les autres, et les ids
       // sont RÉATTRIBUÉS au chargement. Oubliée ici, la provenance survivait intacte dans le
       // fichier et ne désignait plus rien — le personnage revenait sans son animation, sans
@@ -2472,6 +2501,13 @@ export function remapReferencesAssetsInScenes(scenes, assetsById){
         // plus `menu.html` ni `menu.css` — interface vide, « le CSS est absent », sans un
         // message. Deux champs, dont un TABLEAU : c'est pour ça qu'il ne rentre pas dans
         // REFS_ASSET_COMPONENT, qui ne connaît qu'un champ scalaire par type.
+        if(c && c.type === 'Particles' && c.data){
+          if(c.data.particlesId && !assetsById[c.data.particlesId]){
+            console.warn('[projet] ' + (o.name || '?') + ' : Particles → asset ' + c.data.particlesId
+              + ' introuvable dans les assets du projet. L’émetteur garde son système intégré.');
+          }
+          remapPartBagRefs(c.data, remapParticles);
+        }
         if(c && c.type === 'UIDocument' && c.data){
           if(c.data.documentUIId){
             const target = assetsById[c.data.documentUIId];

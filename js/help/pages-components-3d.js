@@ -483,35 +483,26 @@ export const PAGES_COMPONENTS_3D = [
    summary:'Un émetteur de particules : feu, fumée, étincelles, explosions.',
    anchors:[
      {f:'js/components/component-particles.js', c:"static get typeName() { return 'Particles'; }"},
-     {f:'js/component-data.js', c:"rate: 25,"},
-     {f:'js/component-data.js', c:"max: 300"}
+     {f:'js/component-data.js', c:"export const PART_DEFAULT = {version: 2"},
+     {f:'js/particle-asset.js', c:"maxParticles: 300"}
    ],
    html:function(){ return ''
      + essentialHelp('<p>Le composant <b>Particules</b> émet de petites images qui naissent, bougent et '
-       + 'disparaissent. En mode <b>Continu</b>, il émet sans arrêt ; en mode <b>Burst</b>, il lâche une rafale.</p>')
+       + 'disparaissent. Ses réglages sont rangés en modules (Principal, Émission, Forme, Couleur sur la '
+       + 'vie…) ; il peut les lire dans un asset <b>Système de particules</b> partagé.</p>')
      + '<h3>Ajouter le composant</h3>'
-     + addSteps('Particules', ['Cliquez sur <b>Émettre maintenant</b> pour voir le résultat.'])
+     + addSteps('Particules', ['Choisissez un preset ou reliez un asset, puis réglez les modules.'])
      + '<h3>Propriétés</h3>'
      + propsHelp([
-       ['Forme', 'shape', 'cone', 'Cône, Point, Boîte ou Sphère : d\'où et vers où partent les particules.'],
-       ['Taille zone', 'dims', '[1, 0.2, 1]', 'Boîte : dimensions.'],
-       ['Rayon', 'radius', '0.4', 'Sphère et cône.'],
-       ['Angle °', 'angle', '20', 'Cône : demi-angle autour de l\'axe Y local.'],
-       ['Mode', 'mode', 'continu', 'Continu ou Burst.'],
-       ['Débit /s', 'rate', '25', 'Continu : particules par seconde.'],
-       ['Quantité', 'amount', '40', 'Burst : particules par rafale.'],
-       ['Durée de vie s', 'vie', '1.3', 'Durée de vie, à ±25 %.'],
-       ['Vitesse', 'speed', '2.5', 'Vitesse de départ.'],
-       ['Gravité', 'gravity', '0', 'Accélération sur Y ; négative, les particules retombent.'],
-       ['Taille début / fin', 'sizeStart / sizeEnd', '0.3 / 0.06', 'Taille au cours de la vie.'],
-       ['Opacité début / fin', 'opacityStart / opacityEnd', '1 / 0', 'Transparence au cours de la vie.'],
-       ['Couleur début / fin', 'colorStart / colorEnd', '#ffb347 / #ff4422', 'Couleur au cours de la vie.'],
-       ['Additif', 'additif', 'oui', 'Mélange additif (feu, lueurs) ; décoché pour la fumée.'],
-       ['Max particules', 'max', '300', 'Plafond de particules vivantes.']
+       ['Actif', 'active', 'oui', 'Décoché, l\'émetteur n\'émet plus.'],
+       ['Asset', 'particlesId', 'aucun', 'Asset Système de particules dont l\'émetteur lit les réglages.'],
+       ['Système', 'system', 'défauts', 'Réglages propres à l\'objet quand aucun asset n\'est relié.'],
+       ['Surcharges', 'overrides', '{}', 'Réglages de cet objet qui remplacent ceux de l\'asset, par chemin '
+         + '(<code>emission.rateOverTime</code>).']
      ])
      + '<h3>Utilisation</h3>'
-     + tipHelp('<p>Pour une fumée, décochez <b>Additif</b>, prenez une couleur grise et une taille de fin '
-       + 'plus grande que celle de début.</p>')
+     + tipHelp('<p>Pour une fumée, prenez le preset <b>Fumée</b> : rendu normal (pas additif), couleur grise, '
+       + 'taille qui grandit sur la vie.</p>')
      + scriptExamples([
        ['Une gerbe d\'étincelles quand le joueur touche l\'objet :', [
          'function start(api){',
@@ -523,18 +514,20 @@ export const PAGES_COMPONENTS_3D = [
          'function update(api){',
          '  api.particles().setActive(api.key(\' \'));',
          '}']],
-       ['Les réglages sont lus à chaque image : un feu qui grossit avec le temps, jusqu\'à 120 particules par seconde.', [
+       ['Un feu qui grossit avec le temps : un réglage se change par son chemin. Sur un émetteur relié à '
+         + 'un asset, c\'est une surcharge de cet objet seul.', [
          'function update(api){',
-         '  const feu = api.me.getComponent(\'Particles\');',
-         '  feu.data.rate = Math.min(120, feu.data.rate + 10 * api.dt);',
+         '  const feu = api.particles();',
+         '  feu.set(\'emission.rateOverTime\', Math.min(120, feu.get(\'emission.rateOverTime\') + 10 * api.dt));',
          '}']],
-       ['Déclencher l\'émetteur d\'un autre objet (une explosion posée dans le décor) :', [
-         'function start(api){',
-         '  api.on(\'boum\', function(){ api.particles(api.find(\'Explosion\')).emit(100); });',
-         '}']]
+       ['Lancer, arrêter, relancer :', [
+         'const p = api.particles(api.find(\'Explosion\'));',
+         'p.play(); p.pause(); p.stop(true); // true : efface aussi les particules vivantes',
+         'p.restart();',
+         'api.log(p.alive);                  // nombre de particules vivantes']]
      ])
-     + advancedHelp('Performance', '<p><b>Max particules</b> borne le coût : au-delà, les nouvelles '
-       + 'particules ne naissent pas. Augmentez-le seulement si l\'émission paraît coupée.</p>')
+     + advancedHelp('Performance', '<p><b>Max particules</b> (module Principal) borne le coût : au-delà, les '
+       + 'nouvelles particules ne naissent pas. La simulation tourne sur le processeur.</p>')
      + trapHelp('<p>Un débit élevé avec une longue durée de vie dépasse vite le maximum : l\'émission '
        + 'semble alors irrégulière, sans erreur.</p>')
      + '<h3>Voir aussi</h3><ul>'

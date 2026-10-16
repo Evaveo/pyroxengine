@@ -65,7 +65,7 @@ export const TOOL_DOMAINS = {
   render: {label: 'matériaux PBR, lumières, environnement, post-traitement, sondes, lightmaps, caméra, textures, capture',
     tools: ['describe_material', 'configure_material_pbr', 'configure_environment', 'configure_post_volume',
       'configure_reflection_probe', 'bake_reflection_probes', 'bake_lightmaps', 'clear_lightmaps', 'configure_camera',
-      'configure_light', 'create_texture', 'import_image', 'link_sprite_texture', 'capture_view', 'configure_particles', 'create_material', 'configure_team_color']},
+      'configure_light', 'create_texture', 'import_image', 'link_sprite_texture', 'capture_view', 'configure_particles', 'create_particles_asset', 'create_material', 'configure_team_color']},
   animation: {label: 'animator et machine d\'états',
     tools: ['configure_animator', 'read_animator_machine', 'write_animator_machine', 'write_animation']},
   gameplay: {label: 'physique, jeu, réseau, calques, événements, lancer et mesurer le jeu, tables de données',

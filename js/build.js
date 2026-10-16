@@ -52,6 +52,10 @@ export const BUILD_MODULES = [
   {src: 'js/model-nodes.js'},
   {src: 'js/raycast-candidates.js'},
   {src: 'js/component-data.js'},
+  // Les particules : format (pur), simulation (pure) et rendu three — PARTAGÉS avec l'éditeur.
+  {src: 'js/particle-asset.js'},
+  {src: 'js/particle-core.js'},
+  {src: 'js/particle-system.js'},
   {src: 'js/component-registry.js'},
   {src: 'js/component.js'},
   {src: 'js/node.js'},
@@ -334,6 +338,9 @@ export function pageIndexBuildBody(title, bundlesDecoders, emb){
     // leurs overrides, comme l'éditeur. Jamais facultatif.
     + '<script type="module" src="model-nodes.js"><\/script>\n'
     + '<script type="module" src="raycast-candidates.js"><\/script>\n'
+    + '<script type="module" src="particle-asset.js"><\/script>\n'
+    + '<script type="module" src="particle-core.js"><\/script>\n'
+    + '<script type="module" src="particle-system.js"><\/script>\n'
     + '<script type="module" src="component-data.js"><\/script>\n'
     // AVANT component.js : il porte `Registry` et `NodeShells`, que les composants lisent au
     // premier niveau pour s'y inscrire.

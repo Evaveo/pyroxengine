@@ -36,6 +36,7 @@ import { describeMaterialForAI, propMaterialByKey, validatePropMaterial } from '
 import { applyMaterialEverywhere, attachMaterialAsset, createAssetMaterial, roughnessFromSmoothing } from './materials.js';
 import { TYPE_NODE_DEFAULT, createFromCreatable, createObject, createSceneNode, escapeHtml, markLayersDirty, objects, register } from './objects.js';
 import { resetSystemParticles } from './particles.js';
+import { attachParticlesAsset, detachParticlesAsset, legacySettingsToPaths, resolveParticleSystem, setParticleValue, systemOfPreset, upgradePartBag } from './particle-asset.js';
 import { applyAtPrefab, assetPrefabOf } from './prefabs.js';
 import { play } from './play-mode.js';
 import { describeMaterialsPluginForAI } from './plugins.js';
@@ -175,7 +176,7 @@ export const COMMANDS = [
     name: 'create_object',
     description: 'Crée un objet dans la scène. Types : cube, sphere, cylinder, cone, torus, plane, groupe, particules, terrain, point (lumière), spot, directional, camera, probe (sonde de réflexion — voir configure_reflection_probe et bake_reflection_probes).',
     schema: {type: 'object', properties: {
-      type: {type: 'string', enum: ['cube','sphere','cylinder','cone','torus','plane','star','diamond','pyramid','wave','rock','capsule','group','particles','terrain','point','spot','directional','camera','probe']},
+      type: {type: 'string', enum: ['cube','sphere','cylinder','cone','torus','plane','star','diamond','pyramid','wave','rock','capsule','ring','dome','tube','group','particles','terrain','point','spot','directional','camera','probe']},
       name: {type: 'string', description: 'name à donner à l\'objet (optionnel)'},
       position: {type: 'object', properties: {x:{type:'number'}, y:{type:'number'}, z:{type:'number'}}}
     }, required: ['type'], additionalProperties: false},
@@ -427,7 +428,7 @@ export const COMMANDS = [
       + 'api.dt, api.key(k), api.action(name), api.find(name), api.byTag(tag), api.bounds(cible), '
       + 'api.onContact(tag, fn), api.setPosition(cible, pos), api.setVelocity(cible, v), '
       + 'api.applyForce, api.raycast(o, d, dist, {tag}), api.moveTo(cible, vitesse), '
-      + 'api.patrol([pts]), api.uiDocument(node), api.playSound(name), api.particles(), api.after(s, fn), '
+      + 'api.patrol([pts]), api.uiDocument(node), api.playSound(name), api.particles(o) (emit(n), play, stop(clear), pause, restart, set(chemin, v), get(chemin), alive, setActive), api.after(s, fn), '
       + 'api.emit/on, api.changeScene… Nomme le script d\'après son comportement (`script`, ex. '
       + '"Joueur_Deplacement") et range-le (`folder`, défaut "Scripts"). Sans `code`, `script` '
       + 'désigne un asset script EXISTANT, attaché tel quel (réutilisation, pas de copie). Réglages '
@@ -1063,10 +1064,29 @@ export const COMMANDS = [
   },
   {
     name: 'configure_particles',
-    description: 'Configure un émetteur de particules (objet de type particules). Champs : forme (cone|point|box|sphere), mode (continu|burst), taux, quantite, vie, vitesse, gravite, tailleDebut/Fin, opaciteDebut/Fin, couleurDebut/Fin (hex), additif, max.',
+    description: 'Règle un émetteur de particules (composant Particles, façon Particle System de Unity). '
+      + '`asset` : nom d\'un asset de particules à suivre ("" = détacher, le système devient celui de l\'objet) — '
+      + 'voir create_particles_asset. `preset` (fire|smoke|sparks|rain|dust|magic) : remplace le système intégré. '
+      + '`set` : {chemin: valeur} par MODULE, ex. {"main.startSize": [0.2, 0.4], "emission.rateOverTime": 60, '
+      + '"noise.enabled": true, "colorOverLife.gradient": {"keys": [{"t":0,"color":"#ffcc00","alpha":1},{"t":1,"color":"#ff2200","alpha":0}]}}. '
+      + 'Modules : main (duration, looping, prewarm, startDelay, playOnAwake, startLifetime/startSpeed/startSize/startRotation [min,max], '
+      + 'startColor [hex,hex], gravity, simulationSpace world|local, maxParticles), emission (rateOverTime, rateOverDistance, '
+      + 'bursts [{time,count,cycles,interval}], manualCount), shape (type cone|sphere|hemisphere|box|circle|edge|point, angle, radius, '
+      + 'radiusThickness, size [x,y,z], randomizeDirection), velocityOverLife (linear [x,y,z], space, speedCurve), forceOverLife (force), '
+      + 'limitVelocity (limit, dampen, drag), noise (strength, frequency, scrollSpeed), collision (planeHeight, bounce, lifetimeLoss), '
+      + 'colorOverLife (gradient), sizeOverLife (curve {keys:[[t,v]…]}), rotationOverLife (angularVelocity [min,max] °/s), '
+      + 'textureSheet (tilesX, tilesY, mode lifetime|fps, fps, cycles, randomStart — la planche = render.textureId), '
+      + 'subEmitters (list [{event birth|death|collision, particlesId, count}]), render (blending additive|normal|multiply, '
+      + 'textureId, renderMode billboard|stretched|horizontal|vertical, lengthScale, speedScale). Chaque module a `enabled`. '
+      + 'Sur un émetteur qui suit un asset, `set` écrit des SURCHARGES de cet objet (l\'asset reste intact). '
+      + 'Les anciens champs à plat (shape, mode, rate, amount, life, speed, gravity, sizeStart/End, opacityStart/End, '
+      + 'colorStart/End, additive, max) restent acceptés.',
     schema: {type: 'object', properties: {
       name: {type: 'string'},
-      shape: {type: 'string', enum: ['cone','point','box','sphere']},
+      asset: {type: 'string', description: 'nom de l\'asset de particules à suivre, "" pour détacher'},
+      preset: {type: 'string', enum: ['fire', 'smoke', 'sparks', 'rain', 'dust', 'magic']},
+      set: {type: 'object', description: '{ "module.réglage": valeur }'},
+      shape: {type: 'string', enum: ['cone','point','box','sphere','hemisphere','circle','edge']},
       mode: {type: 'string', enum: ['continu','burst']},
       rate: {type: 'number'}, amount: {type: 'number'}, life: {type: 'number'},
       speed: {type: 'number'}, gravity: {type: 'number'},
@@ -1077,13 +1097,32 @@ export const COMMANDS = [
     }, required: ['name'], additionalProperties: false},
     exec: function(a){
       const o = copFind(a.name);
-      if(o.userData.type !== 'particles') throw new Error('« ' + a.name + ' » n\'est pas un émetteur');
+      if(!o.getComponent || !o.getComponent('Particles')) throw new Error('« ' + a.name + ' » n\'est pas un émetteur (pas de composant Particles)');
+      const findA = function(id){ return assets.find(function(x){ return x.id === id; }) || null; };
       pushHistory();
-      const pa = ensurePart(o);
-      Object.keys(a).forEach(function(k){ if(k !== 'name') pa[k] = a[k]; });
+      const pa = upgradePartBag(ensurePart(o));
+      if(a.asset !== undefined){
+        if(a.asset === '') detachParticlesAsset(pa, findA);
+        else {
+          const asset = assets.find(function(x){ return x.kind === 'particles' && x.name === a.asset; });
+          if(!asset) throw new Error('aucun asset de particules « ' + a.asset + ' » (create_particles_asset pour en créer un)');
+          attachParticlesAsset(pa, asset.id);
+        }
+      }
+      if(a.preset){
+        if(pa.particlesId) detachParticlesAsset(pa, findA);
+        pa.system = systemOfPreset(a.preset);
+      }
+      const paths = legacySettingsToPaths(a, resolveParticleSystem(pa, findA));
+      Object.keys(a.set || {}).forEach(function(k){ paths[k] = a.set[k]; });
+      Object.keys(paths).forEach(function(k){ setParticleValue(pa, k, paths[k]); });
       resetSystemParticles(o);
       if(o === selection) buildInspector();
-      return 'particules de ' + a.name + ' : ' + JSON.stringify(pa);
+      const eff = resolveParticleSystem(pa, findA);
+      return 'particules de ' + a.name + (pa.particlesId ? ' (asset « ' + (findA(pa.particlesId) || {}).name + ' », '
+        + Object.keys(pa.overrides).length + ' surcharge(s))' : ' (système intégré)') + ' : '
+        + Object.keys(paths).length + ' réglage(s) écrit(s). Modules actifs : '
+        + Object.keys(eff).filter(function(k){ return eff[k] && eff[k].enabled; }).join(', ');
     }
   },
   {

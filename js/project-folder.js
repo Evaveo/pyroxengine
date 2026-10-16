@@ -10,6 +10,7 @@
 // fichier n'a par ailleurs AUCUNE autre dépendance navigateur (voir l'en-tête plus haut) :
 // un repli sur Date.now() (moins précis, suffisant pour un diagnostic en millisecondes) évite
 // d'en introduire une pour la seule mesure de temps.
+import { readParticlesFile } from './particle-asset.js';
 import { validateNameFile } from './file-names.js';
 
 export function chronoMs(){
@@ -580,6 +581,7 @@ export const EXT_KIND_ASSET = [
   [/\.(glb|gltf|fbx)$/i,                    'model'],
   [/\.material\.json$/i,                    'material'],
   [/\.postprofile\.json$/i,                 'postProfile'],
+  [/\.particles\.json$/i,                   'particles'],
   [/\.preset\.json$/i,                      'preset'],
   [/\.graph-shader\.json$/i,               'graphShader'],
   [/\.animator\.json$/i,                    'animator'],
@@ -788,7 +790,7 @@ export async function resolveAssetDescriptors(manifestAssets, tree){
     if((da.kind === 'script' || da.kind === 'material' || da.kind === 'documentUI'
         || da.kind === 'sheetStyle' || da.kind === 'animator'
         || da.kind === 'animation' || da.kind === 'sprite' || da.kind === 'tilePalette'
-        || da.kind === 'graphShader' || da.kind === 'postProfile' || da.kind === 'data'
+        || da.kind === 'graphShader' || da.kind === 'postProfile' || da.kind === 'particles' || da.kind === 'data'
         || da.kind === 'preset' || da.kind === 'sfx' || da.kind === 'musicLoop'
         || da.kind === 'prefab') && da.file){
       const filePath = 'assets/' + (da.folder ? da.folder + '/' : '') + da.file;
@@ -811,6 +813,8 @@ export async function resolveAssetDescriptors(manifestAssets, tree){
             catch(e){ console.error('preset « ' + da.name + ' » illisible :', e.message);
               return {kind:'', params:{}}; }
           })()}
+        // Un .particles.json cassé rend le système par défaut : il ne fait pas échouer le projet.
+        : da.kind === 'particles' ? {system: readParticlesFile(text)}
         : da.kind === 'postProfile' ? {effects: ensurePostProfileDefaults((function(){
             // Meme politique que material/animator : un .postprofile.json casse ne doit pas
             // faire echouer le chargement du projet entier. ensurePostProfileDefaults()

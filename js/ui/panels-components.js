@@ -38,7 +38,6 @@ import { HUMANOID_BONES, autoMapAvatar, validateAvatar } from '../humanoid-avata
 import { buildInspector, inspBody, quitViewCamera } from '../inspector.js';
 import { applyMaterialOn, assetMaterialOf, extractMaterialFromInline, roughnessFromSmoothing, smoothingFromRoughness, toggleUnlit } from '../materials.js';
 import { applyGeometryAsset, applyMaskCamera, buildGeometry, createHelperFor, objects } from '../objects.js';
-import { emitBurst, resetSystemParticles } from '../particles.js';
 import { updatePostVolumeViz } from '../post-volume-viz.js';
 import { applyProbes, bakeAllProbes, bakeProbe, engineProbes, probeMoreNear, probesActive, receiversDEnvironment, updateBoxProbeViz } from '../probes.js';
 import { project } from '../project.js';
@@ -1090,80 +1089,8 @@ declareComponentPanel('SpriteRenderer', {
 });
 
 // ---------------------------------------------------------------------------
-// Particles — la forme d'émission décide des champs affichés : une boîte a une taille, un cône
-// un rayon et un angle, un point n'a ni l'un ni l'autre. Le mode fait de même : un tir en
-// rafale a une quantité, un flux continu a un débit.
-
-/** Un champ de particules : même `get`/`set` sur `c.data`, seule la borne change. */
-export function particleField(id, label, key, opts){
-  const o = opts || {};
-  return {
-    ids: [id], label: label, type: o.type || 'number',
-    step: o.step, min: o.min, max: o.max, help: o.help, visible: o.visible,
-    get: function(c){ return c.data[key]; },
-    set: function(c, v){
-      c.data[key] = o.clamp ? o.clamp(v) : v;
-      if(o.reset) resetSystemParticles(c.node);
-    }
-  };
-}
-
-declareComponentPanel('Particles', {
-  id: 'component-particles',
-  sections: [{ id: 'part', title: 'Particules', fields: [
-    { ids: ['f-pashape'], label: 'Forme', type: 'choice',
-      options: [['cone', 'Cône (directionnel)'], ['point', 'Point (explosion)'],
-                ['box', 'Boîte (vers le haut)'], ['sphere', 'Sphère (radial)']],
-      get: function(c){ return c.data.shape; },
-      set: function(c, v){ c.data.shape = v; } },
-    { ids: ['f-padx', 'f-pady', 'f-padz'], label: 'Taille zone', type: 'vec3', step: 0.1,
-      visible: function(c){ return c.data.shape === 'box'; },
-      get: function(c){ return c.data.dims.slice(); },
-      set: function(c, v){ c.data.dims = v.map(function(x){ return Math.max(0.01, x); }); } },
-    particleField('f-parayon', 'Rayon', 'radius', {step: 0.1, min: 0, max: 20,
-      visible: function(c){ return c.data.shape === 'sphere' || c.data.shape === 'cone'; },
-      clamp: function(v){ return Math.max(0, v); }}),
-    particleField('f-paangle', 'Angle °', 'angle', {step: 1, min: 0, max: 89,
-      visible: function(c){ return c.data.shape === 'cone'; },
-      clamp: function(v){ return Math.max(0, Math.min(89, v)); }}),
-    { ids: ['f-pamode'], label: 'Mode', type: 'choice',
-      options: [['continu', 'Continu'], ['burst', 'Burst (rafale)']],
-      get: function(c){ return c.data.mode; },
-      set: function(c, v){ c.data.mode = v; } },
-    particleField('f-paquantite', 'Quantité', 'amount', {step: 1, min: 1, max: 2000,
-      visible: function(c){ return c.data.mode === 'burst'; },
-      clamp: function(v){ return Math.max(1, Math.round(v)); }}),
-    particleField('f-pataux', 'Débit /s', 'rate', {step: 1, min: 0, max: 500,
-      visible: function(c){ return c.data.mode !== 'burst'; },
-      clamp: function(v){ return Math.max(0, v); }}),
-    particleField('f-pavie', 'Durée de vie s', 'vie', {step: 0.1, min: 0.05, max: 20,
-      clamp: function(v){ return Math.max(0.05, v); }}),
-    particleField('f-pavitesse', 'Vitesse', 'speed', {step: 0.1, min: 0, max: 50,
-      clamp: function(v){ return Math.max(0, v); }}),
-    // La gravité est librement NÉGATIVE : c'est ainsi qu'une fumée monte.
-    particleField('f-pagravite', 'Gravité', 'gravity', {step: 0.1, min: -30, max: 30}),
-    particleField('f-pataille1', 'Taille début', 'sizeStart', {step: 0.05, min: 0.01, max: 5,
-      clamp: function(v){ return Math.max(0.01, v); }}),
-    particleField('f-pataille2', 'Taille fin', 'sizeEnd', {step: 0.05, min: 0, max: 5,
-      clamp: function(v){ return Math.max(0, v); }}),
-    particleField('f-paopa1', 'Opacité début', 'opacityStart', {step: 0.05, min: 0, max: 1,
-      clamp: function(v){ return Math.max(0, Math.min(1, v)); }}),
-    particleField('f-paopa2', 'Opacité fin', 'opacityEnd', {step: 0.05, min: 0, max: 1,
-      clamp: function(v){ return Math.max(0, Math.min(1, v)); }}),
-    particleField('f-pacolor1', 'Couleur début', 'colorStart', {type: 'color'}),
-    particleField('f-pacolor2', 'Couleur fin', 'colorEnd', {type: 'color'}),
-    // Additif et Max reconstruisent le système : le nombre de particules fixe la taille des
-    // tampons, et le mélange est posé sur le matériau à la construction.
-    { ids: ['f-paadditive'], label: 'Additif', type: 'checkbox',
-      help: 'Mélange additif (lueurs, feu). Décoché : mélange normal (fumée)',
-      get: function(c){ return c.data.additif !== false; },
-      set: function(c, v){ c.data.additif = !!v; resetSystemParticles(c.node); } },
-    particleField('f-pamax', 'Max particules', 'max', {step: 10, min: 10, max: 5000, reset: true,
-      clamp: function(v){ return Math.max(10, Math.min(5000, Math.round(v))); }}),
-    { type: 'action', ids: ['btn-part-emit'], label: '✨ Émettre maintenant',
-      run: function(c){ emitBurst(c.node); } }
-  ]}]
-});
+// Particles : son descripteur est dans js/ui/panels-particles.js — un module par section, partagé
+// avec l'inspecteur de l'asset `particles`.
 
 // ---------------------------------------------------------------------------
 // Camera — perspective ou orthographique, et tout ce que la seconde entraîne.
@@ -1409,6 +1336,7 @@ declareComponentPanel('Mesh', {
                   ['cone', 'Cône'], ['torus', 'Tore'], ['plane', 'Plan'],
                   ['star', 'Étoile'], ['diamond', 'Losange'], ['pyramid', 'Pyramide'],
                   ['wave', 'Vague'], ['rock', 'Rocher'], ['capsule', 'Capsule'],
+                  ['ring', 'Anneau'], ['dome', 'Dôme'], ['tube', 'Tube ouvert'],
                   ['custom', 'Personnalisée…']],
         get: function(c){ return c.node.userData.geo || 'cube'; },
         set: function(c, v){ setMeshGeometry(c, v); } },

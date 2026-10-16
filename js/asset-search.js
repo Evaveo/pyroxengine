@@ -48,6 +48,8 @@ export const ASSET_SEARCH_KINDS = [
   {id: 'ui', label: 'Interface', kinds: ['documentUI', 'sheetStyle'],
    aliases: ['UI', 'Interface', 'VisualTreeAsset', 'Uxml', 'StyleSheet', 'Uss', 'DocumentUI',
              'FeuilleDeStyle', 'Css', 'Html']},
+  {id: 'particles', label: 'Particules', kinds: ['particles'],
+   aliases: ['ParticleSystem', 'Particles', 'Particules', 'VFX', 'Effet', 'Effets']},
   {id: 'postProfile', label: 'Post-traitement', kinds: ['postProfile'],
    aliases: ['VolumeProfile', 'PostProfile', 'PostProcess', 'PostTraitement', 'Profil']},
   {id: 'tilePalette', label: 'Palette de tuiles', kinds: ['tilePalette'],

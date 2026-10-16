@@ -22,6 +22,7 @@ import { openWindowPalette } from './palette-ui.js';
 import { modePaint, stopPaint, togglePaint } from './placement.js';
 import { Editor, importForFile } from './plugins.js';
 import { createAssetPostProfile } from './post-profile.js';
+import { PARTICLE_PRESETS, systemOfPreset } from './particle-asset.js';
 import { createFolderEmptyOnDisk, moveFileOnDisk, moveFilesAssetOnDisk, removeEmptyFolderOnDisk, removeFilesAssetOnDisk, writeAssetInFolder } from './project-folder.js';
 import { project } from './project.js';
 import { applyFilters, renderer, scene, viewEl } from './scene.js';
@@ -563,7 +564,7 @@ export const ASSET_KIND_LABELS = {texture:'texture', model:'modèle', prefab:'pr
   material:'matériau', audio:'audio', data:'données',
   documentUI:'document UI', sheetStyle:'feuille de style',
   animator:'animator', animation:'animation', graphShader:'graphe de shader',
-  sprite:'sprite', postProfile:'profil de post-traitement',
+  sprite:'sprite', postProfile:'profil de post-traitement', particles:'système de particules',
   preset:"preset d'import", sfx:'bruitage', musicLoop:'boucle musicale',
   tilePalette:'palette de tuiles'};
 
@@ -901,6 +902,7 @@ export function openAssetOnDouble(a){
   else if(a.kind === 'documentUI') openEditorDocumentUIAsset(a);
   else if(a.kind === 'sheetStyle') openEditorSheetStyleAsset(a);
   else if(a.kind === 'postProfile') openEditorPostProfile(a);
+  else if(a.kind === 'particles') selectAsset(a);   // édité dans l'inspecteur, comme un matériau
   // Double-clic sur une machine : la window Animator s ouvre dessus, comme dans Unity. Elle
   // edite l ASSET, elle n a pas besoin qu un objet de la scene soit selectionne.
   else if(a.kind === 'animator'){
@@ -1278,6 +1280,20 @@ export function createAssetSheetStyle(nameBase){
 // apparaît dans le menu, sans toucher au HTML.
 //
 // `make()` rend l'asset créé, ou `null` s'il a refusé — en ayant dit pourquoi.
+/**
+ * Un asset `particles` neuf, depuis un preset livré (feu, fumée…) ou les défauts. Rangé sous
+ * `Particles/` quand on est à la racine : par genre, comme Unity — jamais à plat.
+ */
+export function createAssetParticles(presetName, name){
+  const label = presetName && PARTICLE_PRESETS[presetName] ? PARTICLE_PRESETS[presetName].label : null;
+  const n = assets.filter(function(x){ return x.kind === 'particles'; }).length + 1;
+  const a = {id:'a'+(nextAssetId()), kind:'particles', name: name || label || ('Particules ' + n),
+             folder: folderCurrent || 'Particles', system: systemOfPreset(presetName)};
+  assets.push(a);
+  updateProject();
+  return a;
+}
+
 export const ASSET_CREATORS = [
   {kind: 'script', label: '📜 Script',
    make: function(){ return createAssetScript(); }},
@@ -1285,6 +1301,8 @@ export const ASSET_CREATORS = [
    make: function(){ return createAssetMaterial(); }},
   {kind: 'postProfile', label: '🌈 Profil de post-traitement',
    make: function(){ return createAssetPostProfile(); }},
+  {kind: 'particles', label: '✨ Système de particules',
+   make: function(){ const a = createAssetParticles(); selectAsset(a); return a; }},
   {kind: 'graphShader', label: '🧩 Graphe de shader',
    make: function(){ return createAssetGraphShader(); }},
   {kind: 'documentUI', label: '📄 Document UI',
@@ -2420,6 +2438,7 @@ Object.defineProperty(globalThis, 'assetId', {configurable: true,
 Object.defineProperty(globalThis, 'folderCurrent', {configurable: true,
   get: function(){ return folderCurrent; }, set: function(v){ setFolderCurrent(v); }});
 globalThis.nextAssetId = nextAssetId;
+globalThis.createAssetParticles = createAssetParticles;
 globalThis.assets = assets;
 globalThis.indexBytes = indexBytes;
 globalThis.loaderGltf = loaderGltf;

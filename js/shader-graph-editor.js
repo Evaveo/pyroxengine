@@ -151,6 +151,10 @@ Object.assign(META_NODES_GRAPH_SHADER, {
   // du port tant qu'il n'est pas branché (voir `defaults` du registre, shader-graph.js).
   'uv.tilingOffset': {caption:'Tiling And Offset', category:'UV', cat:'uv', fields:[]},
   'uv.rotate': {caption:'Rotate', category:'UV', cat:'uv', fields:[]},
+  'uv.panner': {caption:'Panner', category:'UV', cat:'uv', fields:[]},
+  'uv.polar': {caption:'Polar Coordinates', category:'UV', cat:'uv', fields:[]},
+  'uv.twirl': {caption:'Twirl', category:'UV', cat:'uv', fields:[]},
+  'uv.flipbook': {caption:'Flipbook', category:'UV', cat:'uv', fields:[]},
   'procedural.bruit': {caption:'Simple Noise', category:'Procedural / Noise', cat:'proc', fields:[]},
   'procedural.bruitFractal': {caption:'Fractal Noise', category:'Procedural / Noise', cat:'proc', fields:[
     {key:'octaves', type:'number', label:'Octaves', defaultValue:3},
@@ -183,6 +187,10 @@ export const TYPE_INPUT_GRAPH_SHADER = {
   'vec.combine3': {x:'number', y:'number', z:'number'},
   'uv.tilingOffset': {tiling:'vec2', offset:'vec2'},
   'uv.rotate': {angle:'number', center:'vec2'},
+  'uv.panner': {speed:'vec2'},
+  'uv.polar': {center:'vec2', radialScale:'number', lengthScale:'number'},
+  'uv.twirl': {center:'vec2', strength:'number', offset:'vec2'},
+  'uv.flipbook': {width:'number', height:'number', tile:'number'},
   'procedural.bruit': {scale:'number'},
   'procedural.bruitFractal': {scale:'number'},
   'procedural.voronoi': {scale:'number', jitter:'number'},
@@ -214,6 +222,13 @@ export const DEFAULT_INPUT_GRAPH_SHADER = {
     tiling: function(p){ return {x:numberOr(p.tileX, 1), y:numberOr(p.tileY, 1)}; },
     offset: function(p){ return {x:numberOr(p.offsetX, 0), y:numberOr(p.offsetY, 0)}; }
   },
+  'uv.panner': {speed: function(p){ return {x:numberOr(p.speedX, 0.1), y:numberOr(p.speedY, 0)}; }},
+  'uv.polar': {center: function(p){ return {x:numberOr(p.centerX, 0.5), y:numberOr(p.centerY, 0.5)}; },
+               radialScale: field('radialScale', 1), lengthScale: field('lengthScale', 1)},
+  'uv.twirl': {center: function(p){ return {x:numberOr(p.centerX, 0.5), y:numberOr(p.centerY, 0.5)}; },
+               strength: field('strength', 10),
+               offset: function(p){ return {x:numberOr(p.offsetX, 0), y:numberOr(p.offsetY, 0)}; }},
+  'uv.flipbook': {width: field('width', 4), height: field('height', 4), tile: field('tile', 0)},
   'uv.rotate': {
     angle: function(p){ return numberOr(p.angle, 0); },
     center: function(p){ return {x:numberOr(p.centerX, 0.5), y:numberOr(p.centerY, 0.5)}; }
@@ -267,6 +282,10 @@ export const TYPE_PORTS_GRAPH_SHADER = {
   'param.texture': {out:'vec4', in:{uv:'vec2'}},
   'uv.tilingOffset': {out:'vec2', in:{uv:'vec2', tiling:'vec2', offset:'vec2'}},
   'uv.rotate': {out:'vec2', in:{uv:'vec2', angle:'float', center:'vec2'}},
+  'uv.panner': {out:'vec2', in:{uv:'vec2', speed:'vec2'}},
+  'uv.polar': {out:'vec2', in:{uv:'vec2', center:'vec2', radialScale:'float', lengthScale:'float'}},
+  'uv.twirl': {out:'vec2', in:{uv:'vec2', center:'vec2', strength:'float', offset:'vec2'}},
+  'uv.flipbook': {out:'vec2', in:{uv:'vec2', width:'float', height:'float', tile:'float'}},
   'procedural.bruit': {out:'float', in:{uv:'vec2', scale:'float'}},
   'procedural.bruitFractal': {out:'float', in:{uv:'vec2', scale:'float'}},
   'procedural.voronoi': {out:'float', in:{uv:'vec2', scale:'float', jitter:'float'}},
@@ -656,6 +675,15 @@ export const CODE_NODE_GRAPH_SHADER = {
   'input.materialColor': function(){ return 'materialColor'; },
   'uv.tilingOffset':  function(p, e){ return e.uv + '.mul(' + e.tiling + ').add(' + e.offset + ')'; },
   'uv.rotate':        function(p, e){ return 'rotateUV(' + e.uv + ', ' + e.angle + ', ' + e.center + ')'; },
+  'uv.panner':        function(p, e){ return e.uv + '.add(' + e.speed + '.mul(time))'; },
+  'uv.polar':         function(p, e){ const d = e.uv + '.sub(' + e.center + ')';
+    return 'vec2(length(' + d + ').mul(2).mul(' + e.radialScale + '), atan(' + d + '.x, ' + d + '.y).mul(1 / (2 * PI)).mul(' + e.lengthScale + '))'; },
+  'uv.twirl':         function(p, e){ const d = e.uv + '.sub(' + e.center + ')', a = e.strength + '.mul(length(' + d + '))';
+    return 'vec2(cos(' + a + ').mul(' + d + '.x).sub(sin(' + a + ').mul(' + d + '.y)), sin(' + a + ').mul(' + d + '.x).add(cos(' + a + ').mul(' + d + '.y)))'
+      + '.add(' + e.center + ').add(' + e.offset + ')'; },
+  'uv.flipbook':      function(p, e){ const t = 'floor(mod(' + e.tile + ', ' + e.width + '.mul(' + e.height + ')))';
+    return 'vec2(' + e.uv + '.x.add(mod(' + t + ', ' + e.width + ')).div(' + e.width + '), '
+      + e.uv + '.y.add(' + e.height + '.sub(1).sub(floor(' + t + '.div(' + e.width + ')))).div(' + e.height + '))'; },
   'procedural.bruit': function(p, e){ return 'mx_noise_float(' + e.uv + '.mul(' + e.scale + '))'; },
   'procedural.bruitFractal': function(p, e){ return 'mx_fractal_noise_float(' + e.uv + '.mul(' + e.scale
     + '), ' + Math.max(1, Math.round(numberOr(p.octaves, 3))) + ', '
@@ -1457,7 +1485,7 @@ export function openEditorGraphShader(a){
   const listFiles = assets.filter(function(x){ return x.kind === 'graphShader'; })
     .map(function(x){ return {id:x.id, name:x.name}; });
   openEditorExternal('tsl', {
-    id:a.id, name:a.name, target:a.target || 'lit',
+    id:a.id, name:a.name, target:a.target || 'lit', surface:a.surface || 'opaque', twoSided:!!a.twoSided,
     properties:JSON.parse(JSON.stringify(a.properties || [])),
     nodes:JSON.parse(JSON.stringify(a.nodes || [])),
     links:JSON.parse(JSON.stringify(a.links || [])),
@@ -1468,6 +1496,8 @@ export function openEditorGraphShader(a){
   }, function(data){
     a.name = data.name || a.name;
     a.target = data.target;
+    if(data.surface !== undefined) a.surface = data.surface === 'opaque' ? undefined : data.surface;
+    if(data.twoSided !== undefined) a.twoSided = data.twoSided ? true : undefined;
     // `|| a.properties` et non `|| []` : une mise à jour qui n'apporterait pas le champ
     // (message tronqué, fenêtre d'une version antérieure) ne doit pas EFFACER le blackboard.
     a.properties = data.properties || a.properties || [];
@@ -2142,6 +2172,8 @@ export function initEditorGraphShaderExternal(data, sendUpdate){
   function render(){
     document.getElementById('ge-name').value = data.name || '';
     document.getElementById('ge-target').value = data.target || 'lit';
+    document.getElementById('ge-surface').value = data.surface || 'opaque';
+    document.getElementById('ge-two-sided').checked = !!data.twoSided;
     document.getElementById('ge-plane').innerHTML = '<svg class="ge-svg" id="ge-svg"></svg>'
       + nodesVisibles().map(renderNode).join('') + renderMaster();
     applyView();
@@ -2532,6 +2564,10 @@ export function initEditorGraphShaderExternal(data, sendUpdate){
     + '<label>Mode <select id="ge-target"><option value="lit">Lit (PBR)</option>'
     + '<option value="physical">Lit (Physical)</option>'
     + '<option value="unlit">Unlit</option></select></label>'
+    + '<label title="Transparent : mélange alpha, additif (lueurs, flammes) ou multiplier (ombre)">Surface '
+    + '<select id="ge-surface"><option value="opaque">Opaque</option><option value="alpha">Transparent (alpha)</option>'
+    + '<option value="additive">Additif</option><option value="multiply">Multiplier</option></select></label>'
+    + '<label title="Affiche les deux faces (feuille, flamme, portail)"><input type="checkbox" id="ge-two-sided"> Double face</label>'
     + '<span class="ge-help">Tirez d\'une pastille à l\'autre pour brancher · clic droit : '
     + 'add un nœud · glissez dans le vide pour sélectionner en rectangle, Maj+clic pour '
     + 'add, Ctrl+A pour tout · Suppr efface la sélection ou le fil choisi · molette : déplacer, Ctrl+molette : zoom</span>'
@@ -2566,6 +2602,14 @@ export function initEditorGraphShaderExternal(data, sendUpdate){
     data.target = this.value;
     save();
     render();
+  });
+  document.getElementById('ge-surface').addEventListener('change', function(){
+    data.surface = this.value;
+    save();
+  });
+  document.getElementById('ge-two-sided').addEventListener('change', function(){
+    data.twoSided = !!this.checked;
+    save();
   });
   document.getElementById('ge-add-property').addEventListener('change', function(){
     if(!this.value) return;

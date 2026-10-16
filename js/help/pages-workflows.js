@@ -1160,68 +1160,64 @@ export const PAGES_WORKFLOWS = [
 }},
 
 {id:'particles', part:'workflows', section:'Monde', title:'Particules', level:'both',
- summary:'Fumée, étincelles, pluie : régler un émetteur de particules.',
+ summary:'Feu, fumée, étincelles, pluie : un système de particules à modules, partagé en asset.',
  anchors:[
-   {f:'js/particles.js', c:'const max = Math.max(1, Math.min(5000, cfg.max | 0 || 300));'},
-   {f:'js/particles.js', c:'sys.accu += (cfg.rate || 25) * dt;'},
-   {f:'js/particles.js', c:'// aperçu éditeur : burst répété'},
-   {f:'js/particles.js', c:'_pPos.applyMatrix4(sys.obj.matrixWorld);'},
-   {f:'js/component-data.js', c:"shape: 'cone'"},
-   {f:'js/component-data.js', c:'vie: 1.3'}
+   {f:'js/particle-asset.js', c:'export const PARTICLE_PRESETS = {'},
+   {f:'js/particle-asset.js', c:'emission: { enabled: true, rateOverTime: 25'},
+   {f:'js/particle-asset.js', c:'export function setParticleValue(part, path, value){'},
+   {f:'js/particle-system.js', c:'export function createParticleSystem(node, host, opts){'},
+   {f:'js/component-data.js', c:'export const PART_DEFAULT = {version: 2'}
  ],
  html:function(){ return ''
-  + essentialHelp('<p>Un <b>émetteur de particules</b> est un objet de scène, porté par le composant '
-  + '<code>Particles</code>. Il tourne aussi bien dans l\'éditeur que dans le jeu : inutile de lancer '
-  + 'la lecture pour voir ce qu\'on règle.</p>')
+  + essentialHelp('<p>Un <b>émetteur de particules</b> est un objet de scène portant le composant '
+  + '<code>Particles</code>. Ses réglages sont rangés en <b>modules</b>, comme le Particle System '
+  + 'de Unity : chacun se coche ou se décoche. L\'effet tourne aussi bien dans l\'éditeur que dans '
+  + 'le jeu, avec le même code.</p>')
 
   + '<h3>Créer un effet</h3>'
   + stepsHelp([
       'Menu <b>Objet</b> → <b>✨ Émetteur de particules</b>, puis placez-le.',
-      'Choisissez la <b>Forme</b> d\'émission et le <b>Mode</b> : <b>continu</b> (fumée, pluie) ou <b>burst</b> (explosion).',
-      'Réglez débit ou quantité, durée de vie, vitesse, gravité (négative pour retomber).',
-      'Ajustez la taille <b>à l\'œil</b>, à la distance où le joueur verra l\'effet.'
+      'Partez d\'un <b>preset</b> : Feu, Fumée, Étincelles, Pluie, Poussière ou Magie.',
+      'Réglez les modules dans l\'inspecteur, à la distance où le joueur verra l\'effet.',
+      'Pour réutiliser l\'effet, créez un asset <b>✨ Système de particules</b> (panneau Projet → Créer) '
+      + 'et reliez-le aux émetteurs.'
     ])
 
-  + '<h3>Les réglages qui comptent</h3>'
-  + arrayHelp(['Champ', 'Par défaut', 'Ce qu\'il faut savoir'], [
-      ['Forme', defaultHelp('cône'),
-       '<code>point</code>, <code>boîte</code>, <code>sphère</code>, <code>cône</code>. Chaque '
-       + 'forme n\'utilise que ses propres champs : la boîte ignore rayon et angle, et émet '
-       + 'droit vers le haut.'],
-      ['Mode', defaultHelp('continu'),
-       '<b>continu</b> lit le Débit ; <b>burst</b> lit la Quantité. Le champ inutilisé est '
-       + 'ignoré en silence.'],
-      ['Débit /s', defaultHelp('25'), 'Continu seulement.'],
-      ['Quantité', defaultHelp('40'), 'Burst seulement.'],
-      ['Durée de vie', defaultHelp('1,3 s'), 'Tirée au hasard à ±25 % pour chaque particule.'],
-      ['Vitesse', defaultHelp('2,5'), 'En m/s, également tirée à ±25 %.'],
-      ['Gravité', defaultHelp('0'),
-       'En m/s² sur Y monde, négatif pour retomber. Sans rapport avec la gravité de la '
-       + linkHelp('physics', 'physique') + '.'],
-      ['Taille début / fin', defaultHelp('0,3') + ' / ' + defaultHelp('0,06'),
-       '<b>Ce ne sont pas des mètres</b> — voir le piège ci-dessous.'],
-      ['Max particules', defaultHelp('300'),
-       'Plafond de CET émetteur, borné à 5000. Les émissions au-delà sont abandonnées sans '
-       + 'message.']
+  + '<h3>Les modules</h3>'
+  + arrayHelp(['Module', 'Ce qu\'il règle'], [
+      ['Principal', 'Durée, boucle, préchauffage, délai, durée de vie, vitesse, taille, rotation et '
+       + 'couleur de départ (chaque valeur est un intervalle min–max), gravité, espace local ou monde, '
+       + 'plafond de particules.'],
+      ['Émission', 'Débit par seconde, débit à la distance parcourue, salves programmées.'],
+      ['Forme', 'Cône, sphère, demi-sphère, boîte, cercle, segment ou point.'],
+      ['Vitesse / Force sur la vie', 'Vitesse ajoutée et force constante pendant la vie.'],
+      ['Limite de vitesse', 'Plafond de vitesse, amortissement et frottement.'],
+      ['Bruit', 'Turbulence : force, fréquence, défilement.'],
+      ['Collision', 'Rebond sur un plan horizontal (le sol), perte de vie au choc.'],
+      ['Couleur / Taille / Rotation sur la vie', 'Dégradé de couleur et d\'opacité, courbe de taille, '
+       + 'vitesse de rotation.'],
+      ['Planche de sprites', 'Flipbook : une texture découpée en cases, jouée sur la vie ou à une '
+       + 'cadence fixe.'],
+      ['Sous-émetteurs', 'Un autre système lancé à la naissance, à la mort ou à la collision.'],
+      ['Rendu', 'Additif, normal ou multiplier ; face caméra, étiré, horizontal ou vertical ; texture.']
     ])
 
-  + trapHelp('<b>Mettre le Débit à 0 n\'arrête pas l\'émetteur : il repart à '
-  + '25/s.</b> Le moteur lit une valeur nulle comme « non renseignée » '
-  + 'et retombe sur sa valeur par défaut. Le même piège touche <b>Rayon</b> (0 → 0,4) et '
-  + '<b>Angle</b> (0 → 20°). Pour éteindre un émetteur, <b>décochez le composant</b> — ou, '
-  + 'depuis un script, <code>api.particles(objet).activer(false)</code>.')
-  + trapHelp('<b>Un burst qui boucle dans la vue part une seule fois en jeu.</b> L\'aperçu de l\'éditeur '
-  + '<b>répète</b> le tir pour qu\'on puisse le régler. En jeu, il part au début, puis c\'est <code>api.particles(objet)'
-  + '.emettre()</code> qui le redéclenche, ou l\'action d\'événement <b>Émettre des particules…</b>.')
+  + '<h3>Asset et surcharges</h3>'
+  + '<p>Un émetteur relié à un asset en lit tous les réglages. Modifier un champ <b>sur l\'objet</b> '
+  + 'écrit une <b>surcharge</b> de cet objet seul, comme sur un prefab : l\'asset partagé reste intact '
+  + 'et les autres émetteurs ne bougent pas. Modifier l\'asset change tous les émetteurs qui ne '
+  + 'surchargent pas ce champ.</p>'
 
-  + advancedHelp('Taille et déplacement de l\'émetteur', '<p><b>La taille des particules est un nombre d\'écran, pas une longueur '
-  + 'du monde.</b> Elle est divisée par la distance à la caméra : une particule de « taille » '
-  + '0,3 n\'a aucun rapport avec un objet de 0,3 m, et son diamètre apparent ne suit pas '
-  + 'l\'échelle de l\'émetteur.</p>'
-  + '<p><b>Les particules ne suivent pas l\'émetteur.</b> Elles naissent à sa '
-  + 'position puis vivent dans le monde. Déplacer l\'émetteur laisse une traînée derrière lui, '
-  + 'au lieu d\'emporter le nuage — souvent ce qu\'on veut pour un réacteur, jamais pour une '
-  + 'aura.</p>')
+  + trapHelp('<b>Un émetteur qui ne lit pas au démarrage reste muet en jeu.</b> Si <b>Lecture au '
+  + 'démarrage</b> est décochée, c\'est <code>api.particles(objet).play()</code> qui le lance. Pour une '
+  + 'rafale ponctuelle, <code>api.particles(objet).emit(n)</code>.')
+  + trapHelp('<b>La collision ne voit que le plan du sol</b>, pas les colliders de la scène.')
+
+  + advancedHelp('Effets sans particules', '<p>Un anneau d\'onde de choc, un dôme de bouclier ou un '
+  + 'portail se font avec un <b>Shader Graph</b> posé sur une primitive <b>Anneau</b>, <b>Dôme</b> ou '
+  + '<b>Tube</b> : nœuds UV <code>Panner</code>, <code>Polar</code>, <code>Twirl</code>, '
+  + '<code>Flipbook</code>, et réglage de surface <b>additive</b> du graphe. Un dissolve se compose avec '
+  + 'Noise et Step.</p>')
   + '<h3>Voir aussi</h3><ul>'
   + '<li>' + linkHelp('component-Particles', 'La fiche Particules') + '</li>'
   + '<li>' + linkHelp('visual-events', 'Événements visuels') + '</li>'
@@ -1802,12 +1798,12 @@ PAGE_RICH_TEXT,
   + '<p>Un build tout embarqué porte <b>2,63 Mo</b> de code avant compression et '
   + '<b>' + TAGS_BUILD_FULL + ' balises de script</b>. <b>17 modules</b> en sont retirables, '
   + '<b>449 Ko</b> en tout : c\'est le <b>plafond</b>, et il ne dépend d\'aucune scène. Un platformer '
-  + '2D en atteint <b>341 Ko</b> et descend à <b>87 balises</b>.</p>'
+  + '2D en atteint <b>341 Ko</b> et descend à <b>90 balises</b>.</p>'
   + '<p class="help-trap"><b>Ce que vous gagnerez dépend de votre scène, pas du moteur.</b> Le '
   + 'chiffre que vous lirez à l\'export sera le vôtre : un jeu 3D avec des animations garde quatre '
   + 'modules qu\'un jeu 2D retire, et l\'inverse. C\'est pourquoi le message d\'export les '
   + '<b>nomme</b> au lieu d\'annoncer un total.</p>'
-  + '<p>Le reste n\'est retirable par personne : <b>49 % du code</b> sont three.js et le moteur de '
+  + '<p>Le reste n\'est retirable par personne : <b>46 % du code</b> sont three.js et le moteur de '
   + 'rendu WebGPU, que tout jeu instancie — un jeu 2D compris, puisque c\'est le même renderer qui '
   + 'dessine ses sprites.</p>'
   + '<p>Deux modules se décident sur le <b>texte de vos scripts</b>, parce que rien d\'autre dans une '

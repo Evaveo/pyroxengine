@@ -18,7 +18,13 @@ export const EXTRA_PRIMITIVES = [
   {type: 'pyramid', label: 'Pyramide', size: '2 × 2 × 2'},
   {type: 'wave', label: 'Vague', size: '2,6 × 1,1 × 0,4'},
   {type: 'rock', label: 'Rocher', size: '2 × 2 × 2'},
-  {type: 'capsule', label: 'Capsule', size: '1 × 2 × 1'}
+  {type: 'capsule', label: 'Capsule', size: '1 × 2 × 1'},
+  // Les GABARITS D'EFFET (v1.21.0) : des surfaces ouvertes, faites pour porter un graphe de
+  // shader transparent ou additif — onde de choc, bouclier, colonne de lumière, portail. Sans
+  // fond ni couvercle, elles se voient des deux côtés si le graphe est « Double face ».
+  {type: 'ring', label: 'Anneau (plat)', size: '2 × 2 × 0'},
+  {type: 'dome', label: 'Dôme', size: '2 × 1 × 2'},
+  {type: 'tube', label: 'Tube ouvert', size: '2 × 2 × 2'}
 ];
 
 export function isExtraPrimitive(name){
@@ -55,6 +61,16 @@ export function buildExtraPrimitive(THREE, name){
     }
     case 'rock': return new THREE.DodecahedronGeometry(1, 0);
     case 'capsule': return new THREE.CapsuleGeometry(0.5, 1, 6, 16);
+    // À plat sur XZ (posé au sol), UV radiales de l'anneau : une onde de choc qui s'élargit.
+    case 'ring': {
+      const g = new THREE.RingGeometry(0.6, 1, 48, 1);
+      g.rotateX(-Math.PI / 2);
+      return g;
+    }
+    // Demi-sphère ouverte en bas, pivot à sa base : un bouclier, une bulle.
+    case 'dome': return new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    // Cylindre sans fond ni couvercle : une colonne de lumière, une tornade, un portail.
+    case 'tube': return new THREE.CylinderGeometry(1, 1, 2, 32, 1, true);
     default: return null;
   }
 }

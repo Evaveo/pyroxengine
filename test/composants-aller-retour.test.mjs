@@ -56,7 +56,7 @@ const DONNEES = {
   Synthesizer: {volume: 0.35, voices: [{id: 'do', label: 'Do', wave: 'sine', frequency: 261.63, duration: 0.7, attack: 0.02, decay: 0.1, sustain: 0.5, release: 0.3, gain: 0.9, detune: 0, vibratoRate: 5, vibratoDepth: 12, glide: 0.5, glideTime: 0.3, meta: {color: '#ff3355', shape: 'star'}, overtones: [{ratio: 2, gain: 0.25}]}]},
   TouchControls: {opacity: 0.55, buttons: [{id: 'wave', label: 'Onde', action: 'jump', side: 'left'}]},
   Light: {intensity: 3.5, color: '#ff8800', range: 12.5},
-  Particles: {rate: 55},
+  Particles: {version: 2, particlesId: 'a9', overrides: {'main.startSize': [0.7, 0.9]}},
   Physics: {mass: 7.5},
   PostVolume: {profileId: 'a9'},
   Reflection: {resolution: 512},

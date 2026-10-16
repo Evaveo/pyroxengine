@@ -29,24 +29,11 @@ export function ensureCollider(o){
   return o.userData.collider;
 }
 
-export const PART_DEFAULT = {
-  active: true,
-  shape: 'cone',            // point | box | sphere | cone (zone / direction d'émission)
-  dims: [1, 0.2, 1],        // boîte
-  radius: 0.4,               // sphère / cône
-  angle: 20,                // cône : demi-angle (°) autour de +Y local
-  mode: 'continu',          // continu | burst
-  rate: 25,                 // particules / seconde (continu)
-  amount: 40,             // particules par burst
-  vie: 1.3,                 // durée de vie (s, ±25 %)
-  speed: 2.5,
-  gravity: 0,               // m/s² appliqué sur Y monde (négatif = retombe)
-  sizeStart: 0.3, sizeEnd: 0.06,
-  opacityStart: 1, opacityEnd: 0,
-  colorStart: '#ffb347', colorEnd: '#ff4422',
-  additif: true,
-  max: 300
-};
+// Le sac d'un émetteur (composant Particles), format 2. `system: null` = le système par défaut
+// (cône orange, 25 par seconde — l'ancien émetteur) : les valeurs ne sont écrites qu'à UN
+// endroit, defaultParticleSystem() dans js/particle-asset.js, qui porte aussi la traduction des
+// sacs d'avant (champs à plat). Ce fichier-ci reste sans aucun import.
+export const PART_DEFAULT = {version: 2, active: true, particlesId: null, system: null, overrides: {}};
 
 export function ensurePart(o){
   if(!o.userData.part) o.userData.part = JSON.parse(JSON.stringify(PART_DEFAULT));

@@ -778,4 +778,4 @@ globalThis.isIconEdit = isIconEdit;
 globalThis.loop = loop;
 globalThis.mode = mode;
 globalThis.mouse = mouse;
-globalThis.resize = resize;
+globalThis.resize = resize;globalThis.camCurrent = camCurrent;

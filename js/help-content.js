@@ -149,7 +149,8 @@ export const COMMANDS_HELP = [
   {name:'configure_inputs', quoi:'Modifie la table d\'entrées (actions et axes).'},
   {name:'create_data', quoi:'Crée une table de contenu, lisible depuis un script par api.data(name).'},
   {name:'add_event', quoi:'Ajoute un événement visuel à un objet.'},
-  {name:'configure_particles', quoi:'Règle un émetteur de particules.'},
+  {name:'configure_particles', quoi:'Règle un émetteur de particules, module par module (forme, émission, couleur/taille sur la vie, bruit, collision, planche de sprites, sous-émetteurs…) — en surcharge s’il suit un asset.'},
+  {name:'create_particles_asset', quoi:'Crée ou met à jour un ASSET de particules réutilisable (depuis un preset feu, fumée, étincelles, pluie, poussière, magie), et le relie à des émetteurs.'},
   {name:'generate_terrain', quoi:'Engendre un relief procédural et règle les couleurs par altitude.'},
   {name:'configure_environment', quoi:'Ciel (couleur, dégradé, panorama ou HDRI avec rotation et exposition), reflets du ciel, lumière ambiante, brouillard.'},
   {name:'configure_post_volume', quoi:'Crée/configure un PostVolume et le profil d\'effets (bloom, vignette, grain, tone mapping, color grading) qui lui est associé.'},
@@ -333,7 +334,7 @@ export const API_HELP = [
   {name:'richText', sig:'api.richText.strip(texte) / .duration(texte, vitesse?) / .toHtml(texte, vitesse?)', quoi:'Outils du <b>texte riche</b> (<code>data-bind-rich</code>) : le texte sans balises, la durée de la machine à écrire en secondes, le HTML rendu. Voir la page « Texte riche ».'},
 
   {group:'Rendu, son, particules'},
-  {name:'particles', sig:'api.particles(cible?)', quoi:'<code>.emit(n?)</code> et <code>.setActive(bool)</code> sur un émetteur.'},
+  {name:'particles', sig:'api.particles(cible?)', quoi:'Pilote un émetteur : <code>.emit(n?)</code>, <code>.play()</code>, <code>.stop(clear?)</code>, <code>.pause(bool?)</code>, <code>.restart()</code>, <code>.setActive(bool)</code>, <code>.set(chemin, valeur)</code> / <code>.get(chemin)</code> (ex. <code>emission.rateOverTime</code>, surcharge si un asset est relié) et <code>.alive</code>.'},
   {name:'pointerRay', sig:'api.pointerRay()', quoi:'Le rayon monde <code>{origin, direction}</code> qui passe par la souris ou le doigt, depuis la caméra du jeu. Mis à jour aussi au simple toucher.'},
   {name:'pick', sig:'api.pick(filter?, distance?)', quoi:'L\'objet sous le pointeur : <code>api.raycast</code> le long de <code>api.pointerRay()</code>. Rend <code>{object, point, distance}</code> ou null.'},
   {name:'playNote', sig:'api.playNote(id, opts?)', quoi:'Joue une note d\'un composant <b>Synthesizer</b> (le sien, sinon le premier de la scène). <code>opts</code> : volume, pitch, when (s).'},

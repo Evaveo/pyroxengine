@@ -2,6 +2,7 @@
 // this.donnees référence DIRECTEMENT userData.part : source unique, lue et
 // avancée par particles.js et par ce composant.
 import { ensurePart } from '../component-data.js';
+import { upgradePartBag } from '../particle-asset.js';
 import { Registry } from '../component-registry.js';
 import { Component, detachData, mergeIntoBag } from '../component.js';
 
@@ -19,7 +20,12 @@ export class Particles extends Component {
     // `ensurePart` AVANT la fusion : il ne garnit les défauts que si le sac est absent, donc
     // créer un sac vide d'abord le laisserait vide pour toujours. `mergeIntoBag` remplace la
     // recopie qui était écrite à la main ici, et dans deux autres composants — même patron.
-    this.data = mergeIntoBag(ensurePart(this.node), this.data);
+    // Des données REÇUES à l'ancien format (champs à plat : `addComponent('Particles', {rate: 250})`,
+    // un fichier d'avant la v1.21) sont traduites AVANT la fusion : versées telles quelles dans un
+    // sac au format courant, elles y côtoieraient le système intégré sans que rien ne les lise.
+    if(this.data && this.data !== this.node.userData.part) upgradePartBag(this.data);
+    this.data = mergeIntoBag(upgradePartBag(ensurePart(this.node)), this.data);
+    upgradePartBag(this.data);
     // le composant Particles réutilise directement donnees.active (déjà lu par
     // particles.js) comme source de vérité : la case du header générique
     // remplace l'ancienne case « Émission » propre à ce composant

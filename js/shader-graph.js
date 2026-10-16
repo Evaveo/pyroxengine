@@ -179,6 +179,66 @@ export const REGISTRY_GRAPH_SHADER = {
     defaults: {uv: function(){ return TSL.uv(); }, strength: floatDefault('strength', 1)},
     build: function(params, inputs){ return TSL.spherizeUV(inputs.uv, inputs.strength); }
   },
+  // ---- UV des effets (v1.21.0) : ce qui fait un feu, un portail ou une aura SANS particules —
+  // un maillage simple et des UV qui bougent. Mêmes nœuds que Shader Graph (Polar Coordinates,
+  // Twirl, Flipbook), plus Panner : le Tiling And Offset qui défile tout seul avec le temps.
+  'uv.panner': {
+    inputs: ['uv', 'speed'],
+    defaults: {
+      uv: function(){ return TSL.uv(); },
+      speed: function(p){ return TSL.vec2(numberOr(p.speedX, 0.1), numberOr(p.speedY, 0)); }
+    },
+    build: function(params, inputs){ return inputs.uv.add(inputs.speed.mul(TSL.time)); }
+  },
+  'uv.polar': {
+    inputs: ['uv', 'center', 'radialScale', 'lengthScale'],
+    defaults: {
+      uv: function(){ return TSL.uv(); },
+      center: function(p){ return TSL.vec2(numberOr(p.centerX, 0.5), numberOr(p.centerY, 0.5)); },
+      radialScale: floatDefault('radialScale', 1),
+      lengthScale: floatDefault('lengthScale', 1)
+    },
+    build: function(params, inputs){
+      const d = inputs.uv.sub(inputs.center);
+      const radius = TSL.length(d).mul(2).mul(inputs.radialScale);
+      const angle = TSL.atan(d.x, d.y).mul(1 / (2 * Math.PI)).mul(inputs.lengthScale);
+      return TSL.vec2(radius, angle);
+    }
+  },
+  'uv.twirl': {
+    inputs: ['uv', 'center', 'strength', 'offset'],
+    defaults: {
+      uv: function(){ return TSL.uv(); },
+      center: function(p){ return TSL.vec2(numberOr(p.centerX, 0.5), numberOr(p.centerY, 0.5)); },
+      strength: floatDefault('strength', 10),
+      offset: function(p){ return TSL.vec2(numberOr(p.offsetX, 0), numberOr(p.offsetY, 0)); }
+    },
+    build: function(params, inputs){
+      const d = inputs.uv.sub(inputs.center);
+      const a = inputs.strength.mul(TSL.length(d));
+      const c = TSL.cos(a), s = TSL.sin(a);
+      return TSL.vec2(c.mul(d.x).sub(s.mul(d.y)).add(inputs.center.x).add(inputs.offset.x),
+                      s.mul(d.x).add(c.mul(d.y)).add(inputs.center.y).add(inputs.offset.y));
+    }
+  },
+  // Flipbook : la case `tile` d'une planche de `width` × `height`, lue de gauche à droite et de
+  // HAUT en bas (Invert Y de Unity, coché) — même convention que le module des particules.
+  'uv.flipbook': {
+    inputs: ['uv', 'width', 'height', 'tile'],
+    defaults: {
+      uv: function(){ return TSL.uv(); },
+      width: floatDefault('width', 4),
+      height: floatDefault('height', 4),
+      tile: floatDefault('tile', 0)
+    },
+    build: function(params, inputs){
+      const w = inputs.width, h = inputs.height;
+      const t = TSL.floor(TSL.mod(inputs.tile, w.mul(h)));
+      const col = TSL.mod(t, w);
+      const row = TSL.floor(t.div(w));
+      return TSL.vec2(inputs.uv.x.add(col).div(w), inputs.uv.y.add(h.sub(1).sub(row)).div(h));
+    }
+  },
   // ---- Artistic (Adjustment / Blend) ----
   'color.saturation': {
     inputs: ['v', 'amount'],
@@ -533,6 +593,26 @@ export const TRANSFORMS_SLOT_GRAPH_SHADER = {
   smoothness: function(node){ return TSL.oneMinus(node); }
 };
 
+// LES RÉGLAGES DE SURFACE (« Graph Settings » de Unity, v1.21.0) : un graphe peut être transparent
+// et mélangé en ALPHA, en ADDITIF (lueur, flamme, portail) ou en MULTIPLIER (ombre, suie), et
+// s'afficher des deux côtés. Un graphe sans ces champs reste opaque et simple face, comme avant.
+export const SURFACES_GRAPH_SHADER = ['opaque', 'alpha', 'additive', 'multiply'];
+
+export function applySurfaceGraphShader(m, asset){
+  const surface = SURFACES_GRAPH_SHADER.indexOf(asset.surface) !== -1 ? asset.surface : 'opaque';
+  if(asset.twoSided) m.side = THREE.DoubleSide;
+  if(surface === 'opaque') return m;
+  m.transparent = true;
+  m.depthWrite = false;
+  if(surface === 'additive') m.blending = THREE.AdditiveBlending;
+  else if(surface === 'multiply'){
+    m.blending = THREE.CustomBlending;
+    m.blendSrc = THREE.DstColorFactor;
+    m.blendDst = THREE.ZeroFactor;
+  } else m.blending = THREE.NormalBlending;
+  return m;
+}
+
 export const CLASSES_MATERIAL_GRAPH_SHADER = {unlit:'MeshBasicNodeMaterial',
   physical:'MeshPhysicalNodeMaterial', lit:'MeshStandardNodeMaterial'};
 
@@ -565,7 +645,7 @@ export function buildMaterialFromGraph(asset, resolveTexture, valuesParams){
     const transform = TRANSFORMS_SLOT_GRAPH_SHADER[key];
     m[field] = transform ? transform(node) : node;
   });
-  return m;
+  return applySurfaceGraphShader(m, asset);
 }
 
 // Graphe d'un grapheShader tout juste créé depuis le panneau Assets (voir assets.js) : une

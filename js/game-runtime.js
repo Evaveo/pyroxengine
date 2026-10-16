@@ -40,6 +40,9 @@ import { makeSteamApi, readSave, removeSave, writeSave } from './steam-bridge.js
 import { combineAxis, syncTouchControls, touchAxis } from './touch-input.js';
 import { createLightCache, createNameIndex, createUIDocResolver, worldHasMovingBody, createAnimatorTargetCache } from './runtime-caches.js';
 import { releaseLater } from './gpu-release.js';
+import { createParticleSystem, disposeParticleSystem, emitParticleBurst, pauseParticleSystem, playParticleSystem,
+         refreshParticleSystem, restartParticleSystem, stopParticleSystem, updateParticleSystem } from './particle-system.js';
+import { getPath, normalizeParticleSystem, setParticleValue } from './particle-asset.js';
 import { buildStaticScene, refreshStaticVisibility, staticBlocked, undoStaticScene } from './static-batching.js';
 import { renderSetupFor } from './render-scale.js';
 
@@ -1791,127 +1794,21 @@ function rtNavPatrol(o, points, speed, dt){
 }
 
 // ---------- particules ----------
-const rtPart = {texture: null};
-// PART_DEFAULT vit dans js/component-data.js, PARTAGÉ avec l'éditeur. La copie qui se
-// trouvait ici s'appelait PART_DEFAUT_RT : deux littéraux à tenir en phase pour un seul défaut,
-// dans le sens éditeur → game publié où une divergence ne se voit qu'après export.
-
-function rtTextureParticle(){
-  if(rtPart.texture) return rtPart.texture;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = 64;
-  const cx = cv.getContext('2d');
-  const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.35, 'rgba(255,255,255,0.85)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  cx.fillStyle = g;
-  cx.fillRect(0, 0, 64, 64);
-  rtPart.texture = new THREE.CanvasTexture(cv);
-  return rtPart.texture;
-}
-
-// Miroir de buildRenderParticles (js/particles.js) : game-runtime.js ne partage pas de
-// code avec l'éditeur au-delà de jeu-ui.js/game-character.js, et particles.js dépend de globales
-// d'éditeur (objets, engineScripts, LAYER_HELPERS) qu'un build n'a pas.
-//
-// Quads billboardés et NON THREE.Points : `pointUV` génère littéralement du GLSL
-// (`gl_PointCoord`), invalide en WGSL — le pipeline WebGPU était rejeté à CHAQUE image
-// (« unresolved value 'gl_PointCoord' »). WebGPU n'a ni coordonnée ni taille de point :
-// `sizeNode` était mort avec. Garder les deux copies en phase.
-function rtBuildRenderParticles(cfg, max){
-  const gabarit = new THREE.PlaneGeometry(1, 1);
-  const geo = new THREE.InstancedBufferGeometry();
-  geo.setAttribute('position', gabarit.attributes.position);
-  geo.setAttribute('uv', gabarit.attributes.uv);
-  geo.setIndex(gabarit.index);
-  const instancie = function(name, n){
-    const a = new THREE.InstancedBufferAttribute(new Float32Array(max * n), n);
-    a.setUsage(THREE.DynamicDrawUsage);
-    geo.setAttribute(name, a);
-  };
-  instancie('aPos', 3);
-  instancie('aSize', 1);
-  instancie('aOpacity', 1);
-  instancie('aColor', 3);
-  geo.instanceCount = 0;
-  const {attribute: rtAttribute, texture: rtTsltexture, uv: rtUv, vec3: rtVec3, vec4: rtVec4,
-    cameraViewMatrix: rtCamView, cameraProjectionMatrix: rtCamProj,
-    positionGeometry: rtPosGeo, float: rtFloat} = TSL;
-  const rtASize = rtAttribute('aSize', 'float');
-  const rtAOpacity = rtAttribute('aOpacity', 'float');
-  const rtAColor = rtAttribute('aColor', 'vec3');
-  const rtAPos = rtAttribute('aPos', 'vec3');
-  const mat = new THREE.MeshBasicNodeMaterial({
-    transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    blending: cfg.additif !== false ? THREE.AdditiveBlending : THREE.NormalBlending
-  });
-  const centerView = rtCamView.mul(rtVec4(rtAPos, rtFloat(1))).xyz;
-  const offset = rtVec3(rtPosGeo.x.mul(rtASize), rtPosGeo.y.mul(rtASize), rtFloat(0));
-  mat.vertexNode = rtCamProj.mul(rtVec4(centerView.add(offset), rtFloat(1)));
-  mat.colorNode = rtVec4(rtAColor, rtAOpacity.mul(rtTsltexture(rtTextureParticle(), rtUv()).a));
-  return {geo: geo, mat: mat};
-}
-
-function rtCreateSystem(o){
-  const cfg = o.userData.part;
-  const max = Math.max(1, Math.min(5000, cfg.max | 0 || 300));
-  const render = rtBuildRenderParticles(cfg, max);
-  const objet3d = new THREE.Mesh(render.geo, render.mat);
-  objet3d.frustumCulled = false;
-  objet3d.renderOrder = 500;
-  game.scene.add(objet3d);
-  return {obj: o, objet3d: objet3d, geo: render.geo, max: max,
-    pos: new Float32Array(max * 3), vel: new Float32Array(max * 3),
-    age: new Float32Array(max), vieP: new Float32Array(max),
-    nb: 0, accu: 0, burstFait: false};
-}
-
-const _rpPos = new THREE.Vector3(), _rpDir = new THREE.Vector3(), _rpQ = new THREE.Quaternion();
-const _rc1 = new THREE.Color(), _rc2 = new THREE.Color(), _rc3 = new THREE.Color();
-function rtSphereRandom(v){
-  do{
-    v.set(Math.random()*2 - 1, Math.random()*2 - 1, Math.random()*2 - 1);
-  } while(v.lengthSq() > 1 || v.lengthSq() < 1e-6);
-  return v;
-}
-
-function rtEmitIn(sys, n){
-  const cfg = sys.obj.userData.part;
-  sys.obj.updateWorldMatrix(true, false);
-  sys.obj.getWorldQuaternion(_rpQ);
-  for(let k = 0; k < n && sys.nb < sys.max; k++){
-    const i = sys.nb++;
-    if(cfg.shape === 'box'){
-      _rpPos.set((Math.random()-0.5) * (cfg.dims[0] || 1),
-                 (Math.random()-0.5) * (cfg.dims[1] || 1),
-                 (Math.random()-0.5) * (cfg.dims[2] || 1));
-      _rpDir.set(0, 1, 0);
-    } else if(cfg.shape === 'sphere'){
-      rtSphereRandom(_rpDir).normalize();
-      _rpPos.copy(_rpDir).multiplyScalar((cfg.radius || 0.4) * Math.cbrt(Math.random()));
-    } else if(cfg.shape === 'point'){
-      _rpPos.set(0, 0, 0);
-      rtSphereRandom(_rpDir).normalize();
-    } else {
-      const a = THREE.MathUtils.degToRad(Math.max(0, Math.min(89, cfg.angle || 20)));
-      const phi = Math.random() * Math.PI * 2;
-      const cosMax = Math.cos(a);
-      const cosT = cosMax + (1 - cosMax) * Math.random();
-      const sinT = Math.sqrt(1 - cosT * cosT);
-      _rpDir.set(sinT * Math.cos(phi), cosT, sinT * Math.sin(phi));
-      const r = (cfg.radius || 0.4) * Math.sqrt(Math.random());
-      _rpPos.set(Math.cos(phi) * r, 0, Math.sin(phi) * r);
-    }
-    _rpPos.applyMatrix4(sys.obj.matrixWorld);
-    _rpDir.applyQuaternion(_rpQ).normalize()
-          .multiplyScalar((cfg.speed !== undefined ? cfg.speed : 2.5) * (0.75 + Math.random() * 0.5));
-    sys.pos[i*3] = _rpPos.x; sys.pos[i*3+1] = _rpPos.y; sys.pos[i*3+2] = _rpPos.z;
-    sys.vel[i*3] = _rpDir.x; sys.vel[i*3+1] = _rpDir.y; sys.vel[i*3+2] = _rpDir.z;
-    sys.age[i] = 0;
-    sys.vieP[i] = Math.max(0.05, (cfg.vie || 1.3) * (0.75 + Math.random() * 0.5));
-  }
-}
+// La simulation ET le rendu viennent de js/particle-system.js, le MÊME fichier que l'éditeur
+// (embarqué par build.js). Les copies d'avant — rtBuildRenderParticles, rtEmitIn, la boucle
+// d'intégration — étaient « à garder en phase » à la main, et ne l'étaient pas toujours. Ici ne
+// reste que le registre du jeu (quel émetteur a quel système) et l'hôte (voir l'en-tête du
+// fichier partagé).
+const rtParticleHost = {
+  findAsset: function(id){ return rtAssetById(id); },
+  resolveTexture: function(id){
+    const a = rtAssetById(id);
+    return (a && a.texture) ? a.texture : null;
+  },
+  sceneTarget: null,
+  release: function(x){ releaseLater(x); },   // différé, comme le reste de la scène (v1.10.8)
+  camera: function(){ return game.cam || null; }
+};
 
 // objet → système : plus de recherche linéaire par émetteur et par image. Tenu en phase avec
 // game.particles (retrait dans rtUpdateParticles, remise à zéro au changement de scène).
@@ -1920,7 +1817,11 @@ function rtSystemOf(o){
   let sys = _rtSystemByObj.get(o);
   if(!sys && o.getComponent && o.getComponent('Particles')){
     if(!o.userData.part) o.userData.part = JSON.parse(JSON.stringify(PART_DEFAULT));
-    sys = rtCreateSystem(o);
+    rtParticleHost.sceneTarget = game.scene;
+    sys = createParticleSystem(o, rtParticleHost);
+    sys.obj = o;
+    // « Lecture au démarrage » décochée : muet jusqu'à api.particles().play().
+    if(!sys.system.main.playOnAwake) stopParticleSystem(sys, true);
     game.particles.push(sys);
     _rtSystemByObj.set(o, sys);
   }
@@ -1930,88 +1831,28 @@ function rtSystemOf(o){
 function rtEmitBurst(o, n){
   if(!o || !o.getComponent || !o.getComponent('Particles')) return;
   const sys = rtSystemOf(o);
-  if(sys) rtEmitIn(sys, n || o.userData.part.amount || 40);
+  if(sys) emitParticleBurst(sys, n);
 }
 
 function rtUpdateParticles(dt){
   for(let i = game.particles.length - 1; i >= 0; i--){
-    if(!isSceneObject(game.particles[i].obj)){
-      const s = game.particles[i];
-      if(s.objet3d.parent) s.objet3d.parent.remove(s.objet3d);
-      releaseLater(s.geo);   // différé, comme le reste de la scène (v1.10.8)
-      releaseLater(s.objet3d.material);
+    const s = game.particles[i];
+    if(!isSceneObject(s.obj) || !s.obj.getComponent || !s.obj.getComponent('Particles')){
+      disposeParticleSystem(s);
       if(_rtSystemByObj.get(s.obj) === s) _rtSystemByObj.delete(s.obj);
       game.particles.splice(i, 1);
     }
   }
-  // liveNodes et pas activeNodes : un émetteur décoché cesse d'émettre (test cfg.active
-  // plus bas) mais ses particules en vol doivent finir leur course. Même choix que
+  // liveNodes et pas activeNodes : un émetteur décoché cesse d'émettre (test `active` plus
+  // bas) mais ses particules en vol doivent finir leur course. Même choix que
   // updateParticles() côté éditeur.
   Registry.liveNodes('Particles').forEach(function(o){
     const sys = rtSystemOf(o);
     if(!sys) return;
-    const cfg = o.userData.part;
-    if(dt > 0 && o.visible && cfg.active !== false){
-      if(cfg.mode === 'burst'){
-        if(!sys.burstFait){ sys.burstFait = true; rtEmitIn(sys, cfg.amount || 40); }
-      } else {
-        sys.accu += (cfg.rate || 25) * dt;
-        const n = Math.floor(sys.accu);
-        if(n > 0){ sys.accu -= n; rtEmitIn(sys, n); }
-      }
-    }
-    // vieillissement + suppression
-    for(let i = sys.nb - 1; i >= 0; i--){
-      sys.age[i] += dt;
-      if(sys.age[i] >= sys.vieP[i]){
-        const d = --sys.nb;
-        if(i !== d){
-          sys.pos[i*3] = sys.pos[d*3]; sys.pos[i*3+1] = sys.pos[d*3+1]; sys.pos[i*3+2] = sys.pos[d*3+2];
-          sys.vel[i*3] = sys.vel[d*3]; sys.vel[i*3+1] = sys.vel[d*3+1]; sys.vel[i*3+2] = sys.vel[d*3+2];
-          sys.age[i] = sys.age[d];
-          sys.vieP[i] = sys.vieP[d];
-        }
-      }
-    }
-    const g = cfg.gravity || 0;
-    _rc1.set(cfg.colorStart || '#ffb347');
-    _rc2.set(cfg.colorEnd || '#ff4422');
-    const aPos = sys.geo.attributes.aPos.array;
-    const aTa = sys.geo.attributes.aSize.array;
-    const aOp = sys.geo.attributes.aOpacity.array;
-    const aCo = sys.geo.attributes.aColor.array;
-    const t1 = (cfg.sizeStart !== undefined) ? cfg.sizeStart : 0.3;
-    const t2 = (cfg.sizeEnd !== undefined) ? cfg.sizeEnd : 0.06;
-    const o1 = (cfg.opacityStart !== undefined) ? cfg.opacityStart : 1;
-    const o2 = (cfg.opacityEnd !== undefined) ? cfg.opacityEnd : 0;
-    for(let i = 0; i < sys.nb; i++){
-      sys.vel[i*3+1] += g * dt;
-      sys.pos[i*3]   += sys.vel[i*3]   * dt;
-      sys.pos[i*3+1] += sys.vel[i*3+1] * dt;
-      sys.pos[i*3+2] += sys.vel[i*3+2] * dt;
-      const a = Math.min(1, sys.age[i] / sys.vieP[i]);
-      aPos[i*3] = sys.pos[i*3]; aPos[i*3+1] = sys.pos[i*3+1]; aPos[i*3+2] = sys.pos[i*3+2];
-      aTa[i] = t1 + (t2 - t1) * a;
-      aOp[i] = o1 + (o2 - o1) * a;
-      _rc3.copy(_rc1).lerp(_rc2, a);
-      aCo[i*3] = _rc3.r; aCo[i*3+1] = _rc3.g; aCo[i*3+2] = _rc3.b;
-    }
-    sys.geo.instanceCount = sys.nb;
-    // Même règle que l'éditeur (markParticlesUploaded, js/particles.js) : seule la partie vivante
-    // part au GPU, et rien quand le système est vide (revue du 2026-09-29, § 5.11).
-    const nbVivant = sys.nb || 0;
-    if(nbVivant || sys._nbEnvoye){
-      sys._nbEnvoye = nbVivant;
-      ['aPos', 'aSize', 'aOpacity', 'aColor'].forEach(function(k){
-        const attr = sys.geo.attributes[k];
-        if(!attr) return;
-        if(typeof attr.clearUpdateRanges === 'function'){
-          attr.clearUpdateRanges();
-          if(nbVivant) attr.addUpdateRange(0, nbVivant * attr.itemSize);
-        }
-        attr.needsUpdate = true;
-      });
-    }
+    if(sys.dirty){ sys.dirty = false; refreshParticleSystem(sys); }
+    // resolveEvery : un script qui écrit un réglage (api.particles().set, ou les anciens noms
+    // à plat, data.rate…) est relu sous une demi-seconde, sans rien reconstruire à chaque image.
+    updateParticleSystem(sys, dt, {emit: o.visible && o.userData.part.active !== false, resolveEvery: 0.5});
   });
 }
 
@@ -2621,6 +2462,7 @@ async function loadOneAsset(da, put, later){
     // `properties` (le blackboard) fait partie du shader autant que ses nœuds : sans lui,
     // un materiau du jeu exporté ne retrouve pas les propriétés qu'il surcharge.
     put(da.id, {kind:'graphShader', name:da.name, target:da.target || 'lit',
+      surface:da.surface || 'opaque', twoSided:!!da.twoSided,
       properties:da.properties || [],
       nodes:da.nodes || [], links:da.links || [], outputs:da.outputs || {}});
   }
@@ -2675,6 +2517,11 @@ async function loadOneAsset(da, put, later){
   else if(da.kind === 'postProfile'){
     put(da.id, {kind:'postProfile', name:da.name,
                          effects: ensurePostProfileDefaults(da.effects)});
+  }
+  // Les systèmes de particules : un émetteur relié à un asset le lit ici (rtParticleHost).
+  // Sans cette branche, il retomberait en silence sur son système intégré.
+  else if(da.kind === 'particles'){
+    put(da.id, {kind:'particles', name:da.name, system: normalizeParticleSystem(da.system)});
   }
   // LES ASSETS SCRIPT ENTRENT DANS LA TABLE. Le commentaire d'avant disait vrai à l'époque
   // (« ils ne servent qu'à l'édition ») : chaque composant Script portait une COPIE du code,
@@ -4067,9 +3914,23 @@ function buildApi(o, i, frame){
     touchAxis:function(name){ return touchAxis(name); },
     particles:function(target){
       const c = target || o;
+      const sysOf = function(){ return rtSystemOf(c); };
       return {
         emit:function(n){ rtEmitBurst(c, n); },
-        setActive:function(active){ if(c.userData.part) c.userData.part.active = (active !== false); }
+        setActive:function(active){ if(c.userData.part) c.userData.part.active = (active !== false); },
+        play:function(){ const s = sysOf(); if(s) playParticleSystem(s); },
+        stop:function(clear){ const s = sysOf(); if(s) stopParticleSystem(s, !!clear); },
+        pause:function(paused){ const s = sysOf(); if(s) pauseParticleSystem(s, paused !== false); },
+        restart:function(){ const s = sysOf(); if(s) restartParticleSystem(s); },
+        // Un réglage par son chemin (`main.startColor`, `emission.rateOverTime`…). Sur un émetteur
+        // relié à un asset, c'est une SURCHARGE de cet objet : l'asset partagé reste intact.
+        set:function(path, value){
+          if(!c.userData.part) return;
+          setParticleValue(c.userData.part, path, value);
+          const s = sysOf(); if(s) s.dirty = true;
+        },
+        get:function(path){ const s = sysOf(); return s ? getPath(s.system, path) : undefined; },
+        get alive(){ const s = sysOf(); return s ? s.state.nb : 0; }
       };
     },
     audio:function(target){
@@ -4571,11 +4432,7 @@ function rtDisposeScene(scene){
 
 function loadSceneGame(index){
   stopAudioScene();
-  game.particles.forEach(function(s){
-    if(s.objet3d.parent) s.objet3d.parent.remove(s.objet3d);
-    releaseLater(s.geo);   // différé, comme le reste de la scène (v1.10.8)
-    releaseLater(s.objet3d.material);
-  });
+  game.particles.forEach(function(s){ disposeParticleSystem(s); });
   game.particles = []; _rtSystemByObj = new WeakMap();
   rtNavReset();
   // LA SCÈNE QU'ON QUITTE REND SA MÉMOIRE GPU. Elle était remplacée sans être libérée : matériaux,

@@ -111,8 +111,13 @@ test('rtDisposeScene : libère clones et géométries de la scène, jamais ce qu
 });
 
 test('changement de scène : particules libérées en différé, jamais en immédiat', () => {
+  // Depuis la v1.21.0, la libération passe par le système partagé (js/particle-system.js), qui
+  // rend géométrie et matériau à l'HÔTE : côté jeu, l'hôte diffère (releaseLater).
   assert.ok(!/s\.geo\.dispose\(\)/.test(rt) && !/s\.objet3d\.material\.dispose\(\)/.test(rt));
-  assert.equal((rt.match(/releaseLater\(s\.geo\)/g) || []).length, 2);
+  assert.match(rt, /release: function\(x\)\{ releaseLater\(x\); \}/);
+  assert.match(rt, /game\.particles\.forEach\(function\(s\)\{ disposeParticleSystem\(s\); \}\);/);
+  const ps = readFileSync(path.join(root, 'js/particle-system.js'), 'utf8');
+  assert.match(ps, /rel\(sys\.geo\); rel\(sys\.mat\);/);
 });
 
 test('démarrage : précompilation des shaders avant le retrait du voile, jamais bloquante', () => {

@@ -70,7 +70,7 @@ export const IMPORT_DEFAULT = {
 // a ses paramètres d'import. Lui en donner créerait deux endroits où régler le filtrage, dont
 // un sans effet.
 export const WITHOUT_IMPORT = {prefab:1, script:1, material:1, graphShader:1, animation:1, sprite:1,
-                        postProfile:1, animator:1, preset:1, sfx:1, musicLoop:1};
+                        postProfile:1, particles:1, animator:1, preset:1, sfx:1, musicLoop:1};
 
 export function ensureParamsImport(a){
   if(!a || !IMPORT_DEFAULT[a.kind]) return null;
@@ -710,7 +710,7 @@ export function dimensionsReadable(a){
 
 export const NAMES_KIND = {texture:'Texture', model:'Modèle 3D', prefab:'Prefab',
                     script:'Script', material:'Matériau', audio:'Son', graphShader:'Graphe de shader',
-                    animation:'Animation', sprite:'Sprite 2D', postProfile:'Profil de post-traitement',
+                    animation:'Animation', sprite:'Sprite 2D', postProfile:'Profil de post-traitement', particles:'Système de particules',
                     animator:'Machine Animator', preset:"Preset d'import"};
 
 
@@ -2159,7 +2159,7 @@ export function repliedNodes(a){
 export const ICONS_KIND = {model:'🧊', texture:'🖼', material:'🎨', audio:'🔊', script:'📜',
                     data:'🗂', documentUI:'📄', sheetStyle:'🎨', animator:'🔀', animation:'🎞',
                     graphShader:'🧩', tilePalette:'▦', sprite:'🖼', prefab:'📦',
-                    postProfile:'🌈', preset:'🔖', sfx:'🎛', musicLoop:'🎹'};
+                    postProfile:'🌈', particles:'✨', preset:'🔖', sfx:'🎛', musicLoop:'🎹'};
 
 /**
  * Le chemin du dossier de l'asset tel qu'on le LIT : celui du panneau Projet.
@@ -2766,12 +2766,14 @@ export function buildInspectorAsset(a){
       h += '<div class="field"><label></label><button class="btn-modal accent" id="ip-edit">🧩 Éditer le graphe (fenêtre séparée)</button></div>';
     if(a.kind === 'postProfile')
       h += '<div class="field"><label></label><button class="btn-modal accent" id="ip-edit">🌈 Éditer le profil</button></div>';
+    if(a.kind === 'particles') h += '<div id="ip-particles"></div>';
   }
 
   h += sectionApplyHtml(a);
 
   inspBody.innerHTML = h;
   if(a.kind === 'model') refreshUvPreview(a);
+  if(a.kind === 'particles' && globalThis.mountParticleAssetForm) globalThis.mountParticleAssetForm(a, inspBody.querySelector('#ip-particles'));
   // Les vignettes se dessinent APRÈS la pose du HTML : ce sont des canvas. Globale gardée, pas
   // d'import : palette-ui.js importe déjà ce que ce fichier importe, et la boucle d'imports
   // ne gagnerait rien.

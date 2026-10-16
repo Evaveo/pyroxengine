@@ -43,6 +43,7 @@ import { makeTextureProc, validateTextureProc } from './proc-texture.js';
 import { packIsoSheet, renderIsoModel } from './iso-sprite.js';
 import { projectNetworkSettings } from './project-settings.js';
 import { writeAssetInFolder } from './project-folder.js';
+import { attachParticlesAsset, isKnownPath, normalizeParticleSystem, setPath, systemOfPreset } from './particle-asset.js';
 import { project } from './project.js';
 import { findRefs, registerInProjectOpen, serializeComponentsOf, slugFile } from './serialization.js';
 import { assembleAtlasSprite } from './sprite-atlas-ui.js';
@@ -1684,6 +1685,67 @@ CopilotTools.register({
   }
 });
 
+// ---------- create_particles_asset ----------
+// Le système de particules est un ASSET (v1.21.0), comme un matériau : un fichier
+// `assets/Particles/X.particles.json` que plusieurs émetteurs suivent. Sans cet outil, un agent ne
+// pouvait que régler chaque émetteur à la main — l'effet « feu » recopié dans dix torches.
+CopilotTools.register({
+  name: 'create_particles_asset',
+  description: 'Crée (ou met à jour, si le nom existe) un ASSET de particules — le système réutilisable '
+    + 'qu\'un ou plusieurs émetteurs suivent, comme un matériau. `preset` (fire|smoke|sparks|rain|dust|magic) '
+    + 'pour partir d\'un effet livré ; `set` : {chemin: valeur} par module, même vocabulaire que configure_particles '
+    + '(main.startSize, emission.bursts, noise.enabled, colorOverLife.gradient, textureSheet.tilesX, render.textureId…). '
+    + '`texture` : nom d\'un asset texture (planche de sprites ou image de particule). `attachTo` : noms d\'objets '
+    + 'qui suivront cet asset (le composant Particles est posé s\'il manque). Rangé sous Particles/ par défaut.',
+  schema: {type: 'object', properties: {
+    name: {type: 'string'},
+    preset: {type: 'string', enum: ['fire', 'smoke', 'sparks', 'rain', 'dust', 'magic']},
+    set: {type: 'object', description: '{ "module.réglage": valeur }'},
+    texture: {type: 'string', description: 'nom d\'un asset texture'},
+    folder: {type: 'string'},
+    attachTo: {type: 'array', items: {type: 'string'}}
+  }, required: ['name'], additionalProperties: false},
+  exec: function(a){
+    pushHistory();
+    let asset = assets.find(function(x){ return x.kind === 'particles' && x.name === a.name; });
+    const created = !asset;
+    if(!asset){
+      asset = globalThis.createAssetParticles(a.preset || null, a.name);
+      if(a.folder !== undefined) asset.folder = a.folder;
+    } else if(a.preset){
+      asset.system = systemOfPreset(a.preset);
+    }
+    const paths = Object.assign({}, a.set || {});
+    if(a.texture){
+      const tex = assets.find(function(x){ return x.kind === 'texture' && x.name === a.texture; });
+      if(!tex) throw new Error('aucune texture « ' + a.texture + ' » dans le projet');
+      paths['render.textureId'] = tex.id;
+    }
+    Object.keys(paths).forEach(function(k){
+      if(!isKnownPath(k)) throw new Error('réglage de particules inconnu : « ' + k + ' » (forme : module.réglage)');
+      setPath(asset.system, k, JSON.parse(JSON.stringify(paths[k])));
+    });
+    asset.system = normalizeParticleSystem(asset.system);
+    const attached = [];
+    (a.attachTo || []).forEach(function(nameObj){
+      const o = objects.find(function(x){ return x.name === nameObj; });
+      if(!o) throw new Error('objet « ' + nameObj + ' » introuvable (utilise list_scene)');
+      if(!o.getComponent('Particles')) o.addComponent('Particles', {});
+      attachParticlesAsset(o.getComponent('Particles').data, asset.id);
+      if(typeof globalThis.resetSystemParticles === 'function') globalThis.resetSystemParticles(o);
+      attached.push(o.name);
+    });
+    if(typeof globalThis.refreshAllParticles === 'function') globalThis.refreshAllParticles();
+    updateProject();
+    buildInspector();
+    const s = asset.system;
+    return (created ? 'asset de particules créé' : 'asset de particules mis à jour') + ' : « ' + asset.name + ' » ('
+      + asset.id + ', dossier ' + (asset.folder || '/') + ') · modules actifs : '
+      + Object.keys(s).filter(function(k){ return s[k] && s[k].enabled; }).join(', ')
+      + (attached.length ? ' · suivi par ' + attached.join(', ') : '');
+  }
+});
+
 // ---------- configure_touch_controls ----------
 // Le composant TouchControls (joystick, boutons, glisser) n'avait AUCUN outil : un agent ne pouvait
 // ni le poser ni brancher les boutons sur les actions du jeu (Donjon, 2026-10-15 : compétences
@@ -1891,6 +1953,7 @@ const READERS = {
   tilePalette: function(x){ return {palette: x.palette}; },
   sprite: function(x){ return {textureId: x.textureId, ppu: x.ppu, regions: x.regions}; },
   postProfile: function(x){ return {effects: x.effects}; },
+  particles: function(x){ return {system: x.system}; },
   documentUI: function(x){ return {html: x.html}; },
   sheetStyle: function(x){ return {css: x.css}; },
   script: function(x){ return {code: x.code}; },

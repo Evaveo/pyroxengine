@@ -79,4 +79,4 @@ export function propsHelp(lines){
 // Le chiffre est ici PARCE QU'IL N'A PAS D'ANCRE POSSIBLE : il ne se lit dans aucune ligne
 // de code, il se compte sur le HTML engendré. test/aide-chiffres.test.mjs le recompte en
 // appelant pageIndexBuild() pour de vrai.
-export const TAGS_BUILD_FULL = 98;
+export const TAGS_BUILD_FULL = 101;

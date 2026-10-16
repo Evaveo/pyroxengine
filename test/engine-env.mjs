@@ -727,7 +727,11 @@ export function creerContexte(fileNames){
    // js/gpu-release.js et js/lightmap-unwrap.js (v1.11.0) — libération GPU différée et dépliage
    // de lightmap : purs, sans import ; probes.js, lightmap-bake.js, assets.js et lightmap-atlas.js
    // les appellent sans garde.
-   'js/gpu-release.js', 'js/lightmap-unwrap.js']
+   'js/gpu-release.js', 'js/lightmap-unwrap.js',
+   // js/particle-asset.js, js/particle-core.js, js/particle-system.js (v1.21.0) — le format, la
+   // simulation et le rendu des particules : component-data.js tire ses défauts du premier, et
+   // particles.js / game-runtime.js appellent les autres sans garde.
+   'js/particle-asset.js', 'js/particle-core.js', 'js/particle-system.js']
     .filter((relatif) => fileNames.indexOf(relatif) === -1)
     .forEach((relatif) => {
       vm.runInContext(deEsm(readFileSync(path.join(racineMoteur, relatif), 'utf8')),

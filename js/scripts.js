@@ -24,7 +24,8 @@ import { buildInspector, deleteRoot, syncInspector } from './inspector.js';
 import { navAdvance, navFilePath, navPatrol, navPos, navReset } from './navigation.js';
 import { applyNodeMixin } from './node.js';
 import { addSceneObject, isSceneObject, objects, reenableSubTree } from './objects.js';
-import { emitBurst } from './particles.js';
+import { controlParticles, emitBurst, particlesAliveCount, resetSystemParticles, systemOf } from './particles.js';
+import { getPath, setParticleValue } from './particle-asset.js';
 import { makeSynthApi } from './synth.js';
 import { makeSteamApi, readSave, removeSave, writeSave } from './steam-bridge.js';
 import { combineAxis, touchAxis } from './touch-input.js';
@@ -991,7 +992,19 @@ export function buildApi(o, i, frame){
         logConsole('warn', 'api.particles : « ' + c.name + ' » n\'est pas un émetteur', o);
       return {
         emit: function(n){ emitBurst(c, n); },
-        setActive: function(active){ if(c.userData.part) c.userData.part.active = (active !== false); }
+        setActive: function(active){ if(c.userData.part) c.userData.part.active = (active !== false); },
+        play: function(){ controlParticles(c, 'play'); },
+        stop: function(clear){ controlParticles(c, 'stop', !!clear); },
+        pause: function(paused){ controlParticles(c, 'pause', paused !== false); },
+        restart: function(){ controlParticles(c, 'restart'); },
+        // Même contrat que le jeu publié (game-runtime.js) : surcharge si l'émetteur suit un asset.
+        set: function(path, value){
+          if(!c.userData.part) return;
+          setParticleValue(c.userData.part, path, value);
+          resetSystemParticles(c);
+        },
+        get: function(path){ const s = systemOf(c); return s ? getPath(s.system, path) : undefined; },
+        get alive(){ return particlesAliveCount(c); }
       };
     },
 

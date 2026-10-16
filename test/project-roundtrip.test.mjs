@@ -288,15 +288,16 @@ test('Particles se reconstruit entierement depuis ses donnees serialisees', () =
     const copie = noeudEmetteur();
     copie.addComponent('Particles', JSON.parse(JSON.stringify(donnees)));
     const s = copie.userData.part;
-    this.etatPart = { rate: s.rate, vie: s.vie,
+    // Des données à l'ANCIEN format (champs à plat) : traduites en système au premier ajout.
+    this.etatPart = { rate: s.system.emission.rateOverTime, vie: s.system.main.startLifetime,
                       // Un champ que les données reçues ne portaient pas : le défaut comble,
                       // il ne reste pas vide.
-                      defautPresent: s.shape !== undefined,
+                      defautPresent: s.system.shape.type === 'cone',
                       typeNoeud: copie.userData.type,
                       memeObjet: copie.getComponent('Particles').data === s };
   `, ctx);
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.etatPart)), {
-    rate: 250, vie: 4.5, defautPresent: true, typeNoeud: 'particles', memeObjet: true
+    rate: 250, vie: [3.375, 5.625], defautPresent: true, typeNoeud: 'particles', memeObjet: true
   });
 });
 

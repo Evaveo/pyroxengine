@@ -52,7 +52,7 @@ export const GROUPS = {
     'three-instance-unique.test.mjs',
     'banc-scene.test.mjs', 'primitive-geometry.test.mjs',
     'regroupement-editeur.test.mjs',
-    'extraction-materiaux.test.mjs', 'graphe-shader.test.mjs', 'graphe-shader-editeur.test.mjs',
+    'extraction-materiaux.test.mjs', 'graphe-shader.test.mjs', 'graphe-shader-editeur.test.mjs', 'particules-systeme.test.mjs', 'particules-rendu.test.mjs',
     'graphe-shader-tsl-reel.test.mjs', 'grille-sol.test.mjs',
     'gizmo-icons.test.mjs',
     'instances-materiau-noeuds.test.mjs', 'instances-lightmap.test.mjs', 'statique.test.mjs', 'editor-idle-perf.test.mjs', 'lightmap.test.mjs', 'lightmap-cuisson.test.mjs', 'lightmap-effacer.test.mjs', 'light-modes.test.mjs', 'ciel-hdri.test.mjs', 'folders-tree-resize.test.mjs',

@@ -23,7 +23,8 @@ function neuf(){
   // test verifiait un chemin que l'editeur ne prend jamais.
   // js/component-data.js : le choix du son d'une AudioSource liste les assets par isPlayableAudio.
   return creerContexte(['js/camera-framing.js', 'js/component-data.js', 'js/ui/registry.js', 'js/ui/form-plan.js',
-                        'js/ui/fields.js', 'js/ui/panels-components.js']);
+                        'js/ui/fields.js', 'js/ui/panels-components.js', 'js/ui/form.js',
+                        'js/ui/panels-particles.js']);
 }
 
 // Les composants migrés. À compléter à chaque vue reprise.
@@ -439,46 +440,67 @@ test('SpriteRenderer : changer de sprite OUBLIE la region de l ancien', () => {
 });
 
 // ---------- Particles ----------
+// Depuis la v1.21.0 : un module par section (js/ui/panels-particles.js), ids `f-pa-<module>-<réglage>`.
 
-test('Particles : la FORME decide des champs, le MODE aussi', () => {
+/** Un émetteur au système intégré, avec ces réglages de forme/émission. */
+function emetteur(env, patch){
+  const bag = env.defaultPartBag();
+  Object.keys(patch || {}).forEach((k) => env.setPath(bag.system, k, patch[k]));
+  return composant(bag);
+}
+
+test('Particles : la FORME decide des champs, un module eteint cache les siens', () => {
   const env = neuf();
   env.resetSystemParticles = () => {};
-  const pa = (over) => composant(Object.assign({ shape: 'point', mode: 'continu',
-    dims: [1, 1, 1], radius: 1, angle: 20 }, over));
-  const point = idsAffiches(env, 'Particles', pa({}));
-  ['f-padx', 'f-parayon', 'f-paangle'].forEach((id) => assert.equal(point.indexOf(id), -1,
+  const point = idsAffiches(env, 'Particles', emetteur(env, {'shape.type': 'point'}));
+  ['f-pa-shape-size', 'f-pa-shape-radius', 'f-pa-shape-angle'].forEach((id) => assert.equal(point.indexOf(id), -1,
     'un point n a ni zone, ni rayon, ni angle'));
-  const boite = idsAffiches(env, 'Particles', pa({ shape: 'box' }));
-  assert.ok(boite.indexOf('f-padx') !== -1);
-  const cone = idsAffiches(env, 'Particles', pa({ shape: 'cone' }));
-  assert.ok(cone.indexOf('f-parayon') !== -1 && cone.indexOf('f-paangle') !== -1);
+  const boite = idsAffiches(env, 'Particles', emetteur(env, {'shape.type': 'box'}));
+  assert.ok(boite.indexOf('f-pa-shape-size') !== -1);
+  const cone = idsAffiches(env, 'Particles', emetteur(env, {'shape.type': 'cone'}));
+  assert.ok(cone.indexOf('f-pa-shape-radius') !== -1 && cone.indexOf('f-pa-shape-angle') !== -1);
 
-  const continu = idsAffiches(env, 'Particles', pa({}));
-  assert.ok(continu.indexOf('f-pataux') !== -1 && continu.indexOf('f-paquantite') === -1);
-  const rafale = idsAffiches(env, 'Particles', pa({ mode: 'burst' }));
-  assert.ok(rafale.indexOf('f-paquantite') !== -1 && rafale.indexOf('f-pataux') === -1);
+  const bruitEteint = idsAffiches(env, 'Particles', emetteur(env, {}));
+  assert.ok(bruitEteint.indexOf('f-pa-noise-enabled') !== -1, 'la case du module reste visible');
+  assert.equal(bruitEteint.indexOf('f-pa-noise-strength'), -1, 'module eteint : reglages caches');
+  const bruit = idsAffiches(env, 'Particles', emetteur(env, {'noise.enabled': true}));
+  assert.ok(bruit.indexOf('f-pa-noise-strength') !== -1);
 });
 
-test('Particles : la gravite est librement NEGATIVE — une fumee monte', () => {
+test('Particles : la gravite est librement NEGATIVE — une etincelle retombe', () => {
   const env = neuf();
   env.resetSystemParticles = () => {};
-  const c = composant({ shape: 'point', mode: 'continu', dims: [1, 1, 1], gravity: 0 });
-  env.writeField(champ(env, 'Particles', 'f-pagravite'), [c], -9);
-  assert.equal(c.data.gravity, -9);
+  const c = emetteur(env, {});
+  env.writeField(champ(env, 'Particles', 'f-pa-main-gravity'), [c], -9);
+  assert.equal(c.data.system.main.gravity, -9);
 });
 
-test('Particles : changer le MAX reconstruit le systeme', () => {
-  // Le nombre de particules fixe la taille des tampons : le changer sans reconstruire laisse
-  // le systeme avec ses anciens tableaux.
+test('Particles : chaque reglage relit le systeme (le maillage se reconstruit s il le faut)', () => {
   const env = neuf();
   let resets = 0;
   env.resetSystemParticles = () => { resets += 1; };
-  const c = composant({ shape: 'point', mode: 'continu', dims: [1, 1, 1], max: 100 });
-  env.writeField(champ(env, 'Particles', 'f-pamax'), [c], 99999);
-  assert.ok(c.data.max <= 5000);
+  const c = emetteur(env, {});
+  env.writeField(champ(env, 'Particles', 'f-pa-main-maxParticles'), [c], 99999);
+  assert.ok(c.data.system.main.maxParticles <= 20000);
   assert.equal(resets, 1);
-  env.writeField(champ(env, 'Particles', 'f-paadditive'), [c], false);
+  env.writeField(champ(env, 'Particles', 'f-pa-render-blending'), [c], 'normal');
   assert.equal(resets, 2, 'le melange est pose sur le materiau a la construction');
+});
+
+test('Particles : sur un emetteur RELIE a un asset, un reglage est une SURCHARGE — l asset reste intact', () => {
+  const env = neuf();
+  env.resetSystemParticles = () => {};
+  const asset = {id: 'a5', kind: 'particles', name: 'Feu', system: env.systemOfPreset('fire')};
+  env.assets = [asset];
+  const bag = env.defaultPartBag();
+  env.attachParticlesAsset(bag, 'a5');
+  const c = composant(bag);
+  const avant = asset.system.main.gravity;
+  env.writeField(champ(env, 'Particles', 'f-pa-main-gravity'), [c], -3);
+  assert.equal(asset.system.main.gravity, avant, 'l asset partage n a pas bouge');
+  assert.equal(c.data.overrides['main.gravity'], -3);
+  // et le champ relit le systeme EFFECTIF (asset + surcharge)
+  assert.equal(champ(env, 'Particles', 'f-pa-main-gravity').get(c), -3);
 });
 
 // ---------- Camera ----------
