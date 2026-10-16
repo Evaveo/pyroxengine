@@ -332,3 +332,25 @@ test('sync laisse toujours intacte une saisie illisible dans un champ editable',
   form.sync();
   assert.equal(el.value, '1.2e', 'la frappe en cours a ete ecrasee — la regle 2 ne mord plus');
 });
+
+test('SECTION REPLIABLE : une boîte, la coche « header » dans l en-tête, un clic replie', () => {
+  const env = creerContexte(['js/ui/prefs.js', 'js/ui/registry.js', 'js/ui/form-plan.js', 'js/ui/fields.js',
+                             'js/ui/form.js', 'js/history.js']);
+  const host = env.document.createElement('div');
+  env.document.body.appendChild(host);
+  const d = { id: 'pli', sections: [{ id: 'm', title: 'Module', foldable: true, collapsed: true, fields: [
+    { key: 'visible', label: 'Activé', type: 'checkbox', header: true },
+    { key: 'name', label: 'Nom', type: 'text' }
+  ]}]};
+  const form = env.createForm(host, d);
+  form.setTargets([cube(1)]);
+  const boite = host.querySelector('.sec-box');
+  assert.ok(boite, 'la section est une boîte');
+  assert.ok(boite.classList.contains('folded'), 'repliée par défaut');
+  const dans = function(el, cls){ for(let n = el; n; n = n.parentNode){ if(n.classList && n.classList.contains(cls)) return true; } return false; };
+  assert.ok(dans(env.document.getElementById('f-visible'), 'sec-box-head'), 'la coche est dans l en-tête');
+  assert.ok(dans(env.document.getElementById('f-name'), 'sec-box-body'), 'le reste est dans le corps');
+  const tete = host.querySelector('.sec-box-head');
+  tete.dispatchEvent({type: 'click', target: tete});
+  assert.ok(!boite.classList.contains('folded'), 'un clic sur le titre déplie');
+});

@@ -242,7 +242,7 @@ export function planForm(descriptor, targets){
       made.shape.forEach(function(x){ shape.push(x); });
     });
     shape.push('/' + sectionId);
-    return {id: sectionId, title: section.title || '', collapsed: !!section.collapsed,
+    return {id: sectionId, title: section.title || '', collapsed: !!section.collapsed, foldable: !!section.foldable,
             // `layout: 'inline'` met les champs de la section sur UNE ligne — c'est la forme
             // qu'avaient Nom/Tag/Calque avant la migration, et elle a une raison : ce sont les
             // trois identifiants d'un objet, pas trois réglages.

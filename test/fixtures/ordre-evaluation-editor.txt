@@ -1,5 +1,6 @@
 js/render-webgpu-bridge.mjs
 js/version.js
+js/no-autofill.js
 js/ui/icon.js
 js/animator-graph-geo.js
 js/asset-compression.js
@@ -10,14 +11,18 @@ js/component-data.js
 js/music-loop.js
 js/component-registry.js
 js/sky-camera.js
+js/particle-asset.js
 js/component.js
 js/components/component-particles.js
 js/components/component-physics.js
 js/components/component-script.js
 js/editor-batching.js
+js/extra-views.js
 js/editor-overlay.js
 js/grid-floor.js
+js/gizmo-icons.js
 js/hierarchy-icon.js
+js/hierarchy-range.js
 js/escape-html.js
 js/scene-lock.js
 js/project-dirty.js
@@ -25,6 +30,7 @@ js/dev-guards.js
 js/external-editor.js
 js/shader-graph-editor.js
 js/ui/form-plan.js
+js/ui/prefs.js
 js/ui/registry.js
 js/ui/form.js
 js/component-views.js
@@ -37,11 +43,15 @@ js/raycast-candidates.js
 js/components/component-tag.js
 js/components/component-tilemap.js
 js/hub/hub-templates.js
+js/lightmap-unwrap.js
 js/lightmap-atlas.js
+js/environment-map.js
+js/gpu-release.js
 js/probes.js
 js/environment.js
 js/post-volume-blend.js
 js/script-scope.js
+js/static-batching.js
 js/ai-rules.js
 js/script-asset-lint.js
 js/camera-overlays.js
@@ -86,13 +96,13 @@ js/synth.js
 js/skeleton.js
 js/ui/panels-components.js
 js/copilot.js
-js/ui/prefs.js
 js/plugin-catalog.js
 js/systems.js
 js/plugin-host.js
 js/plugins.js
 js/analysis.js
 js/build-desktop.js
+js/desktop-compiler.js
 js/build-trimming.js
 js/build.js
 js/components/component-uidocument.js
@@ -117,6 +127,8 @@ js/touch-input.js
 js/script-library.js
 js/xr-runtime.js
 js/scripts.js
+js/particle-core.js
+js/particle-system.js
 js/particles.js
 js/primitives-extra.js
 js/objects.js
@@ -126,6 +138,7 @@ js/model-import.js
 js/sprite-atlas.js
 js/sprite-atlas-ui.js
 js/ui/panels-postprofile.js
+js/texture-preview.js
 js/import-settings.js
 js/ui/panels-inspector.js
 js/inspector.js
@@ -135,13 +148,16 @@ js/autosave.js
 js/history.js
 js/hierarchy.js
 js/help.js
+js/render-throttle.js
 js/viewport.js
 js/draw-mode.js
+js/runtime-caches.js
 js/shadow-fit.js
 js/scene.js
 js/editor-input.js
 js/console.js
 js/audio.js
+js/asset-search.js
 js/assets.js
 js/animator-graph.js
 js/anim-models.js
@@ -149,6 +165,7 @@ js/track-sampling.js
 js/animation.js
 js/selection.js
 js/ui/segmented.js
+js/ui/folders-tree-resize.js
 js/ui/fields.js
 js/ui/panels-scene.js
 js/ui/panels-settings.js
@@ -176,6 +193,7 @@ js/components/component-reflection.js
 js/components/component-events.js
 js/components/component-subscene.js
 js/presets.js
+js/ui/panels-particles.js
 js/anim-markers.js
 js/anim-blend.js
 js/anim-asset.js
@@ -199,6 +217,7 @@ js/systems/tilemap-system.js
 js/systems/sprite-system.js
 js/systems/fog-system.js
 js/systems/camera-system.js
+js/game-view-core.js
 js/render-perf.js
 js/game-ui.js
 js/game-character.js
@@ -208,6 +227,7 @@ js/proc-sound.js
 js/sound-rack.js
 js/proc-texture.js
 js/iso-sprite.js
+js/frame-probe.js
 js/copilot-observer.js
 js/copilot-workshop.js
 js/ui-factory.js
@@ -215,4 +235,5 @@ js/hub/template-fps.js
 js/hub/template-platformer-2d.js
 js/hub/template-third-person.js
 js/hub/template-webxr-vr.js
+js/game-view.js
 js/startup.js

@@ -154,3 +154,15 @@ test('arreter / jouer / redemarrer', () => {
   assert.equal(r.toujoursMuet, 0, 'arrêté, il n émet plus');
   assert.ok(r.repart > 0, 'play le relance');
 });
+
+test('L ÉDITEUR FAIT AVANCER SES PARTICULES : updateParticles et emitBurst sont exposés en globales', async () => {
+  // Régression v1.21.0 : SystemParticles.update (component-particles.js) et le bouton « Émettre »
+  // les appellent par `typeof` ; la réécriture de particles.js ne les exposait plus, et aucun
+  // émetteur ne bougeait dans l'éditeur.
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../js/particles.js', import.meta.url), 'utf8');
+  const comp = fs.readFileSync(new URL('../js/components/component-particles.js', import.meta.url), 'utf8');
+  assert.match(comp, /typeof updateParticles === 'function'/);
+  assert.match(src, /globalThis\.updateParticles = updateParticles;/);
+  assert.match(src, /globalThis\.emitBurst = emitBurst;/);
+});

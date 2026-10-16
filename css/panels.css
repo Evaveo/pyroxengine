@@ -134,6 +134,19 @@
   .none{color:var(--txt-dim);font-style:italic;padding:4px;}
   .sec{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--txt-dim);
     margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--edge);font-weight:600;}
+  /* Section repliable (js/ui/form.js, `foldable`) : une boîte par module, coche dans l'en-tête. */
+  .sec-box{border:1px solid var(--edge);border-radius:6px;margin:8px 0;background:rgba(255,255,255,.02);}
+  .sec-box-head{display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer;user-select:none;
+    font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--txt);
+    background:rgba(255,255,255,.04);border-radius:6px 6px 0 0;border-bottom:1px solid var(--edge);}
+  .sec-box-head:hover{background:rgba(255,255,255,.07);}
+  .sec-box-arrow{display:inline-block;width:10px;color:var(--txt-dim);transition:transform .12s;transform:rotate(90deg);}
+  .sec-box.folded .sec-box-arrow{transform:none;}
+  .sec-box.folded .sec-box-head{border-bottom:none;border-radius:6px;}
+  .sec-box.folded .sec-box-body{display:none;}
+  .sec-box-toggle{display:inline-flex;align-items:center;}
+  .sec-box-toggle input{margin:0;}
+  .sec-box-body{padding:4px 10px 8px;}
   .field{display:flex;align-items:center;gap:8px;margin:5px 0;}
   .field label{flex:0 0 76px;color:var(--txt-dim);font-size:12px;}
   .field input[type=text]{flex:1;min-width:0;}

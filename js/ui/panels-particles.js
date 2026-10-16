@@ -117,12 +117,12 @@ function listField(id, label, path, addLabel, makeRow, subFields, visible){
   };
 }
 
-function enabledField(mod){ return pf(mod + '.enabled', 'Activé', 'checkbox', {read: bool}); }
+function enabledField(mod){ const f = pf(mod + '.enabled', 'Activé', 'checkbox', {read: bool}); f.header = true; return f; }
 
 /** Les sections des modules — identiques pour le composant et pour l'asset. */
 export function particleModuleSections(){
   return [
-    { id: 'pa-main', title: 'Principal', fields: [
+    { id: 'pa-main', foldable: true, collapsed: false, title: 'Principal', fields: [
       pf('main.duration', 'Durée (s)', 'number', {step: 0.1, min: 0.05, clamp: function(v){ return Math.max(0.05, v); }}),
       pf('main.looping', 'Boucle', 'checkbox', {read: bool}),
       pf('main.prewarm', 'Préchauffage', 'checkbox', {read: bool,
@@ -143,7 +143,7 @@ export function particleModuleSections(){
       pf('main.maxParticles', 'Max particules', 'number', {step: 10, min: 1, max: 20000,
         clamp: function(v){ return Math.max(1, Math.min(20000, Math.round(v))); }})
     ]},
-    { id: 'pa-emission', title: 'Émission', fields: [
+    { id: 'pa-emission', foldable: true, collapsed: true, title: 'Émission', fields: [
       enabledField('emission'),
       pf('emission.rateOverTime', 'Débit (/s)', 'number', {step: 1, min: 0, clamp: pos, visible: on('emission')}),
       pf('emission.rateOverDistance', 'Débit (/m parcouru)', 'number', {step: 0.5, min: 0, clamp: pos, visible: on('emission'),
@@ -160,7 +160,7 @@ export function particleModuleSections(){
           {key: 'interval', label: 'Intervalle (s)', type: 'number', step: 0.1, min: 0.01, clamp: function(v){ return Math.max(0.01, v); }}
         ]; }, on('emission'))
     ]},
-    { id: 'pa-shape', title: 'Forme', fields: [
+    { id: 'pa-shape', foldable: true, collapsed: true, title: 'Forme', fields: [
       enabledField('shape'),
       pf('shape.type', 'Forme', 'choice', {visible: on('shape'), options: [
         ['cone', 'Cône'], ['sphere', 'Sphère'], ['hemisphere', 'Demi-sphère'], ['box', 'Boîte'],
@@ -175,32 +175,32 @@ export function particleModuleSections(){
         clamp: function(v){ return v.map(pos); }}),
       pf('shape.randomizeDirection', 'Direction aléatoire', 'number', {step: 0.05, min: 0, max: 1, clamp: unit, visible: on('shape')})
     ]},
-    { id: 'pa-vol', title: 'Vitesse sur la durée de vie', fields: [
+    { id: 'pa-vol', foldable: true, collapsed: true, title: 'Vitesse sur la durée de vie', fields: [
       enabledField('velocityOverLife'),
       pf('velocityOverLife.linear', 'Vitesse ajoutée', 'vec3', {step: 0.1, visible: on('velocityOverLife')}),
       pf('velocityOverLife.space', 'Repère', 'choice', {visible: on('velocityOverLife'),
         options: [['local', 'Local (suit l\'objet)'], ['world', 'Monde']]}),
       pf('velocityOverLife.speedCurve', 'Multiplicateur de vitesse', 'curve', {min: 0, max: 2, visible: on('velocityOverLife')})
     ]},
-    { id: 'pa-force', title: 'Force sur la durée de vie', fields: [
+    { id: 'pa-force', foldable: true, collapsed: true, title: 'Force sur la durée de vie', fields: [
       enabledField('forceOverLife'),
       pf('forceOverLife.force', 'Force (m/s², monde)', 'vec3', {step: 0.1, visible: on('forceOverLife'),
         help: 'Une accélération constante : le vent, un courant.'})
     ]},
-    { id: 'pa-limit', title: 'Limite de vitesse et frottement', fields: [
+    { id: 'pa-limit', foldable: true, collapsed: true, title: 'Limite de vitesse et frottement', fields: [
       enabledField('limitVelocity'),
       pf('limitVelocity.limit', 'Vitesse max (0 = aucune)', 'number', {step: 0.1, min: 0, clamp: pos, visible: on('limitVelocity')}),
       pf('limitVelocity.dampen', 'Amortissement au-delà', 'number', {step: 0.05, min: 0, max: 1, clamp: unit, visible: on('limitVelocity')}),
       pf('limitVelocity.drag', 'Frottement de l\'air', 'number', {step: 0.05, min: 0, clamp: pos, visible: on('limitVelocity')})
     ]},
-    { id: 'pa-noise', title: 'Bruit', fields: [
+    { id: 'pa-noise', foldable: true, collapsed: true, title: 'Bruit', fields: [
       enabledField('noise'),
       pf('noise.strength', 'Force', 'number', {step: 0.1, visible: on('noise')}),
       pf('noise.frequency', 'Fréquence', 'number', {step: 0.05, min: 0.001, visible: on('noise'),
         clamp: function(v){ return Math.max(0.001, v); }}),
       pf('noise.scrollSpeed', 'Défilement', 'number', {step: 0.05, visible: on('noise')})
     ]},
-    { id: 'pa-collision', title: 'Collision (plan du sol)', fields: [
+    { id: 'pa-collision', foldable: true, collapsed: true, title: 'Collision (plan du sol)', fields: [
       enabledField('collision'),
       { type: 'note', when: on('collision'),
         text: 'Un plan horizontal en Y monde. Sans effet en espace local.' },
@@ -211,20 +211,20 @@ export function particleModuleSections(){
         help: '1 = la particule meurt au premier contact (pluie qui s\'écrase).'}),
       pf('collision.radiusScale', 'Échelle du rayon', 'number', {step: 0.1, min: 0, clamp: pos, visible: on('collision')})
     ]},
-    { id: 'pa-color', title: 'Couleur sur la durée de vie', fields: [
+    { id: 'pa-color', foldable: true, collapsed: true, title: 'Couleur sur la durée de vie', fields: [
       enabledField('colorOverLife'),
       pf('colorOverLife.gradient', 'Dégradé', 'gradient', {visible: on('colorOverLife'),
         help: 'Multiplie la couleur de départ. L\'alpha des clés fait le fondu.'})
     ]},
-    { id: 'pa-size', title: 'Taille sur la durée de vie', fields: [
+    { id: 'pa-size', foldable: true, collapsed: true, title: 'Taille sur la durée de vie', fields: [
       enabledField('sizeOverLife'),
       pf('sizeOverLife.curve', 'Multiplicateur de taille', 'curve', {min: 0, max: 1, visible: on('sizeOverLife')})
     ]},
-    { id: 'pa-rot', title: 'Rotation sur la durée de vie', fields: [
+    { id: 'pa-rot', foldable: true, collapsed: true, title: 'Rotation sur la durée de vie', fields: [
       enabledField('rotationOverLife'),
       pf('rotationOverLife.angularVelocity', 'Vitesse angulaire (min / max °/s)', 'pair', {step: 5, visible: on('rotationOverLife')})
     ]},
-    { id: 'pa-sheet', title: 'Planche de sprites (flipbook)', fields: [
+    { id: 'pa-sheet', foldable: true, collapsed: true, title: 'Planche de sprites (flipbook)', fields: [
       enabledField('textureSheet'),
       { type: 'note', when: on('textureSheet'),
         text: 'La planche est la texture choisie dans « Rendu ». Les cases se lisent de gauche à droite, de haut en bas.' },
@@ -240,7 +240,7 @@ export function particleModuleSections(){
         visible: and(on('textureSheet'), function(t){ return getPath(effectiveParticleSystem(t), 'textureSheet.mode') === 'fps'; })}),
       pf('textureSheet.randomStart', 'Case de départ au hasard', 'checkbox', {read: bool, visible: on('textureSheet')})
     ]},
-    { id: 'pa-sub', title: 'Sous-émetteurs', fields: [
+    { id: 'pa-sub', foldable: true, collapsed: true, title: 'Sous-émetteurs', fields: [
       enabledField('subEmitters'),
       { type: 'note', when: on('subEmitters'),
         text: 'Un autre asset de particules, émis là où une particule naît, meurt ou touche le sol (explosion à l\'impact).' },
@@ -256,7 +256,7 @@ export function particleModuleSections(){
            clamp: function(v){ return Math.max(1, Math.round(v)); }}
         ]; }, on('subEmitters'))
     ]},
-    { id: 'pa-render', title: 'Rendu', fields: [
+    { id: 'pa-render', foldable: true, collapsed: true, title: 'Rendu', fields: [
       pf('render.blending', 'Mélange', 'choice', {options: [['additive', 'Additif (lueurs, feu)'],
         ['normal', 'Normal (fumée, poussière)'], ['multiply', 'Multiplier (ombre, suie)']]}),
       { ids: ['f-pa-render-textureId'], label: 'Texture', type: 'assetSlot',
@@ -282,7 +282,7 @@ function linked(c){ return !!(c && c.data && c.data.particlesId); }
 function overrideCount(c){ return (c && c.data && c.data.overrides) ? Object.keys(c.data.overrides).length : 0; }
 
 export const PARTICLES_COMPONENT_SECTIONS = [
-  { id: 'pa-system', title: 'Système', fields: [
+  { id: 'pa-system', foldable: true, collapsed: false, title: 'Système', fields: [
     { ids: ['f-pa-asset'], label: 'Asset', type: 'assetSlot',
       help: 'Un asset de particules réutilisable (panneau Projet ▸ ＋ Créer ▸ Système de particules). '
         + 'Vide : le système est intégré à cet objet.',
@@ -338,7 +338,7 @@ declareComponentPanel('Particles', {
 export const PARTICLES_ASSET_PANEL = {
   id: 'asset-particles',
   sections: [
-    { id: 'pa-preset', title: 'Asset de particules', fields: [
+    { id: 'pa-preset', foldable: true, collapsed: false, title: 'Asset de particules', fields: [
       { type: 'note', text: 'Tous les émetteurs qui suivent cet asset changent avec lui. '
         + 'Un réglage modifié sur un émetteur devient une surcharge de cet objet seul.' },
       { ids: ['f-pa-preset'], label: 'Repartir d\'un preset', type: 'choice',

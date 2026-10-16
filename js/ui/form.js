@@ -15,6 +15,7 @@ import { logConsole } from '../console.js';
 import { beginInteraction, endInteraction, pushHistory } from '../history.js';
 import { planForm, writeField } from './form-plan.js';
 import { Icons } from './icon.js';
+import { Prefs } from './prefs.js';
 import { UIRegistry } from './registry.js';
 
 export function createForm(host, descriptor){
@@ -228,6 +229,54 @@ export function createForm(host, descriptor){
     shapeDirty = false;
 
     plan.sections.forEach(function(section){
+      // Section REPLIABLE (`foldable`) : une boîte à en-tête — flèche, titre, et le champ marqué
+      // `header: true` (la coche « Activé » d'un module) posé dans l'en-tête. Son corps reçoit
+      // les champs ; l'état replié survit aux reconstructions et aux sessions (préférence
+      // `sections.collapsed`, clé `id du formulaire:id de section`).
+      let parent = host;
+      if(section.title && section.foldable){
+        const foldKey = (descriptor.id || 'form') + ':' + section.id;
+        const saved = (Prefs.get('sections.collapsed') || {})[foldKey];
+        const folded = saved === undefined ? section.collapsed : !!saved;
+        const boite = doc.createElement('div');
+        boite.classList.add('sec-box');
+        if(folded) boite.classList.add('folded');
+        const head = doc.createElement('div');
+        head.classList.add('sec-box-head');
+        const fleche = doc.createElement('span');
+        fleche.classList.add('sec-box-arrow');
+        fleche.textContent = '▸';
+        const titre = doc.createElement('span');
+        titre.classList.add('sec-box-title');
+        titre.textContent = section.title;
+        head.appendChild(fleche); head.appendChild(titre);
+        const corps = doc.createElement('div');
+        corps.classList.add('sec-box-body');
+        boite.appendChild(head); boite.appendChild(corps);
+        host.appendChild(boite);
+        head.addEventListener('click', function(ev){
+          if(ev.target && ev.target.tagName === 'INPUT') return;   // la coche ne replie pas
+          const now = !boite.classList.contains('folded');
+          boite.classList.toggle('folded', now);
+          const map = Object.assign({}, Prefs.get('sections.collapsed') || {});
+          map[foldKey] = now;
+          Prefs.set('sections.collapsed', map);
+        });
+        section.entries.forEach(function(entry){
+          if(entry.kind === 'field' && entry.field && entry.field.header){
+            const coche = doc.createElement('span');
+            coche.classList.add('sec-box-toggle');
+            if(entry.label) coche.setAttribute('title', entry.label);
+            head.insertBefore(coche, titre);
+            buildField(entry, head, targets, coche);
+          }
+        });
+        section.entries.forEach(function(entry){
+          if(entry.kind === 'field' && entry.field && entry.field.header) return;
+          buildEntry(entry, corps, targets, null);
+        });
+        return;
+      }
       if(section.title){
         const head = doc.createElement('div');
         head.classList.add('sec');

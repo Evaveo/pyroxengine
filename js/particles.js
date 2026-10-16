@@ -159,5 +159,8 @@ NodeShells.register('Particles', function(){ return makeParticles(); });
 // fichier absent, et la page ne démarrerait pas. Ils gardent donc leur garde
 // `typeof` côté appelant, et se déclarent ici.
 globalThis.resetSystemParticles = resetSystemParticles;
+// SystemParticles.update (component-particles.js) l'appelle par `typeof` : sans elle, rien n'avance.
+globalThis.updateParticles = updateParticles;
+globalThis.emitBurst = emitBurst;
 globalThis.refreshAllParticles = refreshAllParticles;
 globalThis.controlParticles = controlParticles;
