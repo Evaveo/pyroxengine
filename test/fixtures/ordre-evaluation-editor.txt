@@ -39,6 +39,7 @@ js/components/component-camera.js
 js/node.js
 js/component-migration.js
 js/humanoid-avatar.js
+js/particle-core.js
 js/raycast-candidates.js
 js/components/component-tag.js
 js/components/component-tilemap.js
@@ -127,7 +128,6 @@ js/touch-input.js
 js/script-library.js
 js/xr-runtime.js
 js/scripts.js
-js/particle-core.js
 js/particle-system.js
 js/particles.js
 js/primitives-extra.js

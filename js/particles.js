@@ -6,10 +6,12 @@
 // que le registre de l'éditeur (quel émetteur a quel système) et l'aperçu.
 import { PART_DEFAULT, ensurePart } from './component-data.js';
 import { NodeShells, Registry } from './component-registry.js';
-import { hideEditorMarker } from './editor-overlay.js';
+import { hideEditorMarker, liftOverlay } from './editor-overlay.js';
 import { applyNodeMixin } from './node.js';
 import { isSceneObject } from './objects.js';
-import { scene } from './scene.js';
+import { LAYER_HELPERS, scene } from './scene.js';
+import { selection } from './selection.js';
+import { shapeGizmoSegments } from './particle-core.js';
 import { engineScripts } from './scripts.js';
 import { aliveCountOf, createParticleSystem, disposeParticleSystem, emitParticleBurst,
          pauseParticleSystem, playParticleSystem, refreshParticleSystem, restartParticleSystem,
@@ -148,6 +150,45 @@ export function updateParticles(dt){
       resolveEvery: inGame ? 0.5 : 0.25
     });
   });
+  updateShapeGizmo(inGame);
+}
+
+// ---------- Gizmo de la forme d'émission ----------
+// Filaire orange de la forme (cône, sphère, boîte…) sur l'émetteur SÉLECTIONNÉ, comme le gizmo
+// de forme de Unity. Reconstruit seulement quand la forme change (asset, surcharge, inspecteur,
+// copilote : tout passe par le système résolu, relu ici à chaque image). Calque des aides : jamais
+// vu par une caméra de jeu, ni en jeu.
+let shapeGizmo = null;   // {obj, line, key}
+
+function dropShapeGizmo(){
+  if(!shapeGizmo) return;
+  if(shapeGizmo.line.parent) shapeGizmo.line.parent.remove(shapeGizmo.line);
+  shapeGizmo.line.geometry.dispose();
+  shapeGizmo.line.material.dispose();
+  shapeGizmo = null;
+}
+
+function updateShapeGizmo(inGame){
+  const o = selection;
+  const sys = (!inGame && o && o.getComponent && o.getComponent('Particles')) ? systemOf(o) : null;
+  if(!sys){ dropShapeGizmo(); return; }
+  const sh = sys.system.shape;
+  const key = JSON.stringify([sh.enabled, sh.type, sh.radius, sh.angle, sh.size]);
+  if(shapeGizmo && shapeGizmo.obj === o && shapeGizmo.key === key) return;
+  dropShapeGizmo();
+  const pts = shapeGizmoSegments(sh);
+  const arr = new Float32Array(pts.length * 3);
+  pts.forEach(function(p, i){ arr[i * 3] = p[0]; arr[i * 3 + 1] = p[1]; arr[i * 3 + 2] = p[2]; });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+    color: 0xffa040, transparent: true, opacity: 0.85, depthTest: false}));
+  line.raycast = function(){};
+  line.userData.isParticleShapeGizmo = true;   // jamais sérialisé (pas de userData.type)
+  liftOverlay(line);
+  line.layers.set(LAYER_HELPERS);
+  o.add(line);
+  shapeGizmo = {obj: o, line: line, key: key};
 }
 
 // Le porteur d'un émetteur : l'octaèdre orange, repère d'édition (voir NodeShells).

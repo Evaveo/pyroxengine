@@ -318,3 +318,19 @@ test('un script d AVANT (data.rate = 60) agit encore — par des accesseurs jama
   relie.gravity = -4;
   assert.equal(relie.overrides['main.gravity'], -4, 'relié à un asset : c est une surcharge');
 });
+
+test('LE GIZMO DE FORME suit la forme réglée', async () => {
+  const { shapeGizmoSegments } = await import('../js/particle-core.js');
+  const maxAbs = function(segs, k){ return Math.max.apply(null, segs.map(function(p){ return Math.abs(p[k]); })); };
+  const box = shapeGizmoSegments({enabled: true, type: 'box', size: [4, 2, 6]});
+  assert.equal(box.length, 24, '12 arêtes');
+  assert.equal(maxAbs(box, 0), 2); assert.equal(maxAbs(box, 1), 1); assert.equal(maxAbs(box, 2), 3);
+  const sphere = shapeGizmoSegments({enabled: true, type: 'sphere', radius: 2});
+  assert.ok(Math.abs(maxAbs(sphere, 1) - 2) < 1e-9, 'la sphère a le rayon réglé');
+  const cone = shapeGizmoSegments({enabled: true, type: 'cone', radius: 0.5, angle: 45});
+  assert.ok(Math.abs(maxAbs(cone, 0) - 1.5) < 1e-6, 'à 1 m, rayon + tan(angle)');
+  const edge = shapeGizmoSegments({enabled: true, type: 'edge', radius: 3});
+  assert.deepEqual(edge, [[-3, 0, 0], [3, 0, 0]]);
+  assert.equal(shapeGizmoSegments({enabled: false, type: 'box', size: [9, 9, 9]}).length, 6, 'module coupé : un point');
+  shapeGizmoSegments({enabled: true, type: 'circle', radius: 1}).forEach(function(p){ assert.equal(p[1], 0); });
+});

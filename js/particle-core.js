@@ -400,3 +400,61 @@ export function totalDurationOf(c){
   const s = c.s;
   return s.main.startDelay + s.main.duration + s.main.startLifetime[1];
 }
+
+// ---------- Gizmo de la forme d'émission ----------
+// Les SEGMENTS (paires de points, espace local de l'émetteur) qui dessinent la forme, comme le
+// gizmo de forme du Particle System de Unity : cône (cercle de base, cercle à 1 m et quatre
+// génératrices), sphère (trois grands cercles), demi-sphère, boîte, cercle, segment, point.
+// Pur : l'éditeur (js/particles.js) en fait un THREE.LineSegments, le test le mesure.
+function pcCircle(out, r, y, axis, a0, a1, n){
+  const N = n || 48;
+  for(let i = 0; i < N; i++){
+    const t0 = a0 + (a1 - a0) * i / N, t1 = a0 + (a1 - a0) * (i + 1) / N;
+    const p = function(t){
+      const c = Math.cos(t) * r, s = Math.sin(t) * r;
+      if(axis === 'y') return [c, y, s];
+      if(axis === 'x') return [y, c, s];
+      return [c, s, y];                       // 'z'
+    };
+    out.push(p(t0), p(t1));
+  }
+}
+
+export function shapeGizmoSegments(shape){
+  const sh = shape || {};
+  const out = [];
+  const type = sh.enabled === false ? 'point' : (sh.type || 'cone');
+  const r = Math.max(0, Number(sh.radius) || 0);
+  if(type === 'box'){
+    const sz = sh.size || [1, 1, 1];
+    const x = (sz[0] || 0) / 2, y = (sz[1] || 0) / 2, z = (sz[2] || 0) / 2;
+    const c = [[-x,-y,-z],[x,-y,-z],[x,-y,z],[-x,-y,z],[-x,y,-z],[x,y,-z],[x,y,z],[-x,y,z]];
+    [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
+      .forEach(function(e){ out.push(c[e[0]], c[e[1]]); });
+  } else if(type === 'sphere'){
+    pcCircle(out, r, 0, 'y', 0, Math.PI * 2);
+    pcCircle(out, r, 0, 'x', 0, Math.PI * 2);
+    pcCircle(out, r, 0, 'z', 0, Math.PI * 2);
+  } else if(type === 'hemisphere'){
+    pcCircle(out, r, 0, 'y', 0, Math.PI * 2);
+    pcCircle(out, r, 0, 'x', 0, Math.PI, 24);
+    pcCircle(out, r, 0, 'z', 0, Math.PI, 24);
+  } else if(type === 'circle'){
+    pcCircle(out, r, 0, 'y', 0, Math.PI * 2);
+  } else if(type === 'edge'){
+    out.push([-r, 0, 0], [r, 0, 0]);
+  } else if(type === 'point'){
+    const k = 0.15;
+    out.push([-k,0,0],[k,0,0],[0,-k,0],[0,k,0],[0,0,-k],[0,0,k]);
+  } else {
+    const a = Math.max(0, Math.min(89, Number(sh.angle) || 0)) * Math.PI / 180;
+    const top = r + Math.tan(a);              // rayon à 1 m au-dessus de la base
+    pcCircle(out, r, 0, 'y', 0, Math.PI * 2);
+    pcCircle(out, top, 1, 'y', 0, Math.PI * 2);
+    for(let i = 0; i < 4; i++){
+      const t = i * Math.PI / 2, c = Math.cos(t), s = Math.sin(t);
+      out.push([c * r, 0, s * r], [c * top, 1, s * top]);
+    }
+  }
+  return out;
+}
