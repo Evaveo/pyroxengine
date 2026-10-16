@@ -21,14 +21,28 @@ export const _windowsExternal = {};
 // double-clic normal sur un asset), tant que donneesInitiales porte un id.
 export const _lastAssetEditedBy = {};
 
+// Un script JS reçoit la table de l'API (autocomplétion, js/script-completion.js). Chargée À LA
+// DEMANDE : l'aide est lourde, et un import statique déplacerait l'ordre d'évaluation de l'éditeur.
+let _apiCompletions = null;
+function withCompletions(type, data){
+  if(type !== 'code' || !data || (data.langage || 'js') !== 'js' || data.completions) return Promise.resolve(data);
+  const ready = _apiCompletions ? Promise.resolve(_apiCompletions)
+    : Promise.all([import('./help-content.js'), import('./script-completion.js')]).then(function(m){
+        _apiCompletions = m[1].apiCompletionsFromHelp(m[0].API_HELP);
+        return _apiCompletions;
+      }).catch(function(){ return null; });
+  return ready.then(function(list){ return list ? Object.assign({}, data, {completions: list}) : data; });
+}
+
 export function openEditorExternal(type, dataInitiales, callbackUpdate, onChangeFile){
   if(dataInitiales && dataInitiales.id) _lastAssetEditedBy[type] = dataInitiales.id;
   const existante = _windowsExternal[type];
   if(existante && existante.window && !existante.window.closed){
     existante.callbackUpdate = callbackUpdate;
     existante.onChangeFile = onChangeFile;
-    existante.pretes ? existante.window.postMessage({type:'init', data: dataInitiales}, location.origin)
-      : (existante.inPending = dataInitiales);
+    if(existante.pretes){
+      withCompletions(type, dataInitiales).then(function(d){ existante.window.postMessage({type:'init', data: d}, location.origin); });
+    } else existante.inPending = dataInitiales;
     existante.window.focus();
     return;
   }
@@ -54,7 +68,7 @@ export function openEditorExternal(type, dataInitiales, callbackUpdate, onChange
     if(e.source !== popup || !e.data) return;
     if(e.data.type === 'ready'){
       state.pretes = true;
-      popup.postMessage({type:'init', data: state.inPending}, location.origin);
+      withCompletions(type, state.inPending).then(function(d){ popup.postMessage({type:'init', data: d}, location.origin); });
     } else if(e.data.type === 'update'){
       if(state.callbackUpdate) state.callbackUpdate(e.data.data);
     } else if(e.data.type === 'changerFichier'){

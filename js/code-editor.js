@@ -13,6 +13,8 @@
 //
 // Chargé par les DEUX pages (editor.html et external-editor.html), comme shader-graph.js.
 
+import { completionsAt } from './script-completion.js';
+
 export const EC_WORDS_KEYS = ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while',
   'do', 'break', 'continue', 'new', 'class', 'extends', 'this', 'typeof', 'instanceof', 'in',
   'of', 'switch', 'case', 'default', 'try', 'catch', 'finally', 'throw', 'async', 'await',
@@ -81,7 +83,8 @@ export function ecColorize(text, langage){
 }
 
 // Crée l'éditeur dans `hote` (vidé). Retourne { valeur, definirValeur, focus }.
-// options : {valeur, langage:'js', lectureSeule:false, surChangement(texte)}
+// options : {valeur, langage:'js', lectureSeule:false, surChangement(texte),
+//            completer(texte, curseur, force) → {start, items} (js/script-completion.js)}
 export function createEditorCode(hote, options){
   const opt = options || {};
   const langage = opt.langage || 'js';
@@ -130,8 +133,109 @@ export function createEditorCode(hote, options){
     return m ? m[0] : '';
   }
 
+  // ---------- Autocomplétion (si `opt.completer`) ----------
+  // Une liste posée sous le curseur. Sa position se CALCULE : police à chasse fixe et pas de
+  // retour à la ligne (voir l'en-tête), donc colonne × largeur d'un caractère et ligne ×
+  // interligne, moins le défilement. ↑/↓ choisit, Entrée ou Tab accepte, Échap ferme,
+  // Ctrl+Espace ouvre à la demande.
+  const zone = hote.querySelector('.ec-zone');
+  const complete = {open: false, items: [], index: 0, start: 0, box: null};
+
+  function charMetrics(){
+    const probe = document.createElement('span');
+    probe.textContent = 'MMMMMMMMMM';
+    probe.style.visibility = 'hidden';
+    colore.appendChild(probe);
+    const w = probe.getBoundingClientRect ? probe.getBoundingClientRect().width / 10 : 7.5;
+    colore.removeChild(probe);
+    const cs = window.getComputedStyle ? window.getComputedStyle(input) : null;
+    const lh = cs ? parseFloat(cs.lineHeight) || 19 : 19;
+    const pl = cs ? parseFloat(cs.paddingLeft) || 12 : 12;
+    const pt = cs ? parseFloat(cs.paddingTop) || 10 : 10;
+    return {w: w || 7.5, lh: lh, pl: pl, pt: pt};
+  }
+
+  function closeCompletion(){
+    complete.open = false;
+    if(complete.box){ complete.box.remove(); complete.box = null; }
+  }
+
+  function renderCompletion(){
+    if(!complete.box){
+      complete.box = document.createElement('div');
+      complete.box.className = 'ec-complete';
+      complete.box.setAttribute('role', 'listbox');
+      // mousedown et pas click : le clic retirerait le focus de la zone de texte avant.
+      complete.box.addEventListener('mousedown', function(ev){
+        const row = ev.target.closest ? ev.target.closest('.ec-complete-row') : null;
+        if(!row) return;
+        ev.preventDefault();
+        complete.index = Number(row.dataset.index) || 0;
+        acceptCompletion();
+      });
+      zone.appendChild(complete.box);
+    }
+    complete.box.innerHTML = complete.items.map(function(it, i){
+      return '<div class="ec-complete-row' + (i === complete.index ? ' active' : '') + '" role="option" data-index="' + i + '">'
+        + '<span class="ec-complete-label">' + ecEscape(it.label) + '</span>'
+        + '<span class="ec-complete-detail">' + ecEscape(it.detail || '') + '</span></div>';
+    }).join('') + (complete.items[complete.index] && complete.items[complete.index].doc
+      ? '<div class="ec-complete-doc">' + ecEscape(complete.items[complete.index].doc) + '</div>' : '');
+    const before = input.value.slice(0, complete.start);
+    const line = before.split('\n').length - 1;
+    const col = before.length - (before.lastIndexOf('\n') + 1);
+    const m = charMetrics();
+    complete.box.style.left = Math.max(0, m.pl + col * m.w - input.scrollLeft) + 'px';
+    complete.box.style.top = (m.pt + (line + 1) * m.lh - input.scrollTop + 2) + 'px';
+    const active = complete.box.querySelector('.ec-complete-row.active');
+    if(active && active.scrollIntoView) active.scrollIntoView({block: 'nearest'});
+  }
+
+  function openCompletion(force){
+    if(!opt.completer || opt.playbackSeule || input.selectionStart !== input.selectionEnd){ closeCompletion(); return; }
+    const r = opt.completer(input.value, input.selectionStart, !!force);
+    if(!r || !r.items || !r.items.length){ closeCompletion(); return; }
+    complete.items = r.items;
+    complete.start = r.start;
+    if(!complete.open) complete.index = 0;
+    complete.index = Math.min(complete.index, r.items.length - 1);
+    complete.open = true;
+    renderCompletion();
+  }
+
+  function acceptCompletion(){
+    const it = complete.items[complete.index];
+    if(!it){ closeCompletion(); return; }
+    const caret = input.selectionStart;
+    const add = it.call ? it.label + '()' : it.label;
+    input.value = input.value.slice(0, complete.start) + add + input.value.slice(caret);
+    const pos = complete.start + (it.call ? it.label.length + 1 : add.length);
+    input.setSelectionRange(pos, pos);
+    closeCompletion();
+    repeindre();
+    if(opt.onChange) opt.onChange(input.value);
+  }
+
+  // Rend true si la touche a été prise par la liste.
+  function completionKey(ev){
+    if(ev.key === ' ' && (ev.ctrlKey || ev.metaKey)){ ev.preventDefault(); openCompletion(true); return true; }
+    if(!complete.open) return false;
+    if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+      ev.preventDefault();
+      const n = complete.items.length;
+      complete.index = (complete.index + (ev.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      renderCompletion();
+      return true;
+    }
+    if(ev.key === 'Enter' || ev.key === 'Tab'){ ev.preventDefault(); acceptCompletion(); return true; }
+    if(ev.key === 'Escape'){ ev.preventDefault(); closeCompletion(); return true; }
+    if(ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || ev.key === 'Home' || ev.key === 'End') closeCompletion();
+    return false;
+  }
+
   input.addEventListener('keydown', function(ev){
     if(opt.playbackSeule) return;
+    if(completionKey(ev)) return;
     if(ev.key === 'Tab'){
       ev.preventDefault();
       const start = input.selectionStart, end = input.selectionEnd;
@@ -179,11 +283,16 @@ export function createEditorCode(hote, options){
     }
   });
 
-  input.addEventListener('input', function(){
+  input.addEventListener('input', function(ev){
     repeindre();
     if(opt.onChange) opt.onChange(input.value);
+    // La liste s'ouvre en tapant un nom ou un point, et se met à jour tant qu'elle est ouverte.
+    const ch = ev && ev.data;
+    if(complete.open || (ch && /[A-Za-z_$.]/.test(ch))) openCompletion(false);
   });
-  input.addEventListener('scroll', syncDefilement);
+  input.addEventListener('scroll', function(){ syncDefilement(); closeCompletion(); });
+  input.addEventListener('blur', function(){ setTimeout(closeCompletion, 120); });
+  input.addEventListener('click', closeCompletion);
 
   input.value = opt.value || '';
   repeindre();
@@ -209,7 +318,7 @@ export function initEditorCodeExternal(data, sendUpdate){
     + (data.withoutRename
         ? '<span class="ec-title-fixed">' + String(data.name || '') + '</span>'
         : '<input type="text" id="ec-name" class="ec-name" spellcheck="false">')
-    + '<span class="ec-help">Tab indente · Maj+Tab désindente · les changements partent '
+    + '<span class="ec-help">Tab indente · Maj+Tab désindente · Ctrl+Espace complète · les changements partent '
     + 'automatiquement dans l\'éditeur</span>'
     + '<span class="ec-status" id="ec-status"></span>'
     + '</div>'
@@ -232,6 +341,11 @@ export function initEditorCodeExternal(data, sendUpdate){
     value: state.code,
     langage: data.langage || 'js',
     playbackSeule: !!data.playbackSeule,
+    // Les scripts : la table de l'API arrive avec les données (js/external-editor.js), la fenêtre
+    // externe ne charge pas l'aide.
+    completer: (data.langage || 'js') === 'js' && data.completions
+      ? function(text, caret, force){ return completionsAt(text, caret, {api: data.completions}, force); }
+      : null,
     onChange: function(text){
       state.code = text;
       // Une table de contenu n'accepte que du JSON valide : un fichier à moitié tapé écraserait

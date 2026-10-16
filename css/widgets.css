@@ -643,6 +643,17 @@
   .ec-t-key{color:var(--accent-soft);}
   .ec-t-reads{color:var(--code-reads);}
   .ec-t-fn{color:var(--ok-soft);}
+  /* autocomplétion des scripts (js/code-editor.js, js/script-completion.js) */
+  .ec-complete{position:absolute;z-index:20;min-width:240px;max-width:460px;max-height:260px;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-2);
+    box-shadow:0 6px 18px rgba(0,0,0,.35);font:inherit;font-size:12px;}
+  .ec-complete-row{display:flex;gap:10px;align-items:baseline;padding:2px 8px;cursor:pointer;white-space:nowrap;}
+  .ec-complete-row:hover{background:rgba(255,255,255,.06);}
+  .ec-complete-row.active{background:var(--select-wash-strong);}
+  .ec-complete-label{color:var(--txt);}
+  .ec-complete-detail{color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;margin-left:auto;}
+  .ec-complete-doc{position:sticky;bottom:0;padding:5px 8px;border-top:1px solid var(--edge);
+    background:var(--panel2);color:var(--txt-dim);white-space:normal;font-size:11px;}
   .ec-title-fixed{font-size:12px;color:var(--txt);font-weight:600;}
 
   /* panneau « code TSL équivalent » du graphe de shader (tiroir bas, repliable) */

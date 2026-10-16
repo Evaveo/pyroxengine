@@ -38,7 +38,9 @@ const HORS_PAGES = {
     + '\'./copilot-workshop.js\'`). Mesuré de la même façon : create_texture s\'enregistrait deux '
     + 'fois. Voir test/copilote-registre.test.mjs.',
   'frame-probe.js': 'module pur importé par copilot-observer.js (sonde de performance de '
-    + 'play_and_measure), qui n\'a lui-même pas de <script> propre — voir ci-dessus.'
+    + 'play_and_measure), qui n\'a lui-même pas de <script> propre — voir ci-dessus.',
+  'script-completion.js': 'module pur importé par code-editor.js (autocomplétion des scripts) et '
+    + 'chargé à la demande par external-editor.js : un <script> propre l\'évaluerait pour rien.'
 };
 
 // Le moteur n'a plus une seule page mais plusieurs — l'éditeur, l'aide, l'aperçu de jeu.

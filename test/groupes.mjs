@@ -104,7 +104,7 @@ export const GROUPS = {
     'copilote-fournisseurs.test.mjs', 'copilote-inspection-cout.test.mjs', 'copilote-observer.test.mjs', 'mcp-tool-gaps.test.mjs', 'outils-mcp-donjon.test.mjs', 'mcp-real-path.test.mjs', 'copilote-registre.test.mjs', 'mcp-bridge.test.mjs', 'mcp-link.test.mjs', 'blender-link.test.mjs', 'blender-addon.test.mjs', 'blender-installer.test.mjs',
     'ecs-registre.test.mjs', 'mcp-pont.test.mjs', 'miroir-api-script.test.mjs',
     'miroir-runtime.test.mjs', 'plugins-api-v2.test.mjs', 'catalogue-plugins.test.mjs', 'pont-runtime-composants.test.mjs',
-    'runtime-partage.test.mjs', 'script-asset-reference.test.mjs', 'script-confiance.test.mjs',
+    'runtime-partage.test.mjs', 'script-asset-reference.test.mjs', 'script-confiance.test.mjs', 'script-completion.test.mjs',
     'script-expose-persistance.test.mjs', 'script-portee.test.mjs', 'son-proc.test.mjs',
     'localisation.test.mjs', 'manette.test.mjs', 'steam.test.mjs', 'souris-fps.test.mjs', 'souris-script.test.mjs', 'reseau-protocole.test.mjs', 'reseau-transports.test.mjs', 'synth-touch.test.mjs', 'mobile-ecran.test.mjs', 'systems.test.mjs'
   ],
